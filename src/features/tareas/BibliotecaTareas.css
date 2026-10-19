@@ -1,0 +1,37 @@
+.biblioteca-tareas{min-width:0;padding:24px;border:1px solid #e2e8f0;border-radius:16px;background:#fff;box-shadow:0 8px 24px rgb(15 23 42 / 5%)}
+.biblioteca-tareas-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:22px}
+.biblioteca-tareas h2,.biblioteca-tareas h3{margin:0;color:#172033}
+.biblioteca-tareas h2{font-size:1.25rem}
+.biblioteca-tareas-header p,.tareas-vacio,.tareas-grupo-vacio{margin:6px 0 0;color:#64748b}
+.biblioteca-tareas button,.biblioteca-tareas select,.biblioteca-tareas input{min-height:40px;padding:7px 11px;border:1px solid #cbd5e1;border-radius:9px;background:#fff;color:#172033;font:inherit}
+.biblioteca-tareas button{cursor:pointer}
+.biblioteca-tareas button:hover{background:#f1f5f9}
+.biblioteca-tareas button:disabled{cursor:not-allowed;opacity:.6}
+.biblioteca-tareas button:focus-visible,.biblioteca-tareas input:focus-visible,.biblioteca-tareas select:focus-visible{outline:3px solid #2563eb;outline-offset:2px}
+.biblioteca-tareas .tarea-boton-principal{border-color:#4338ca;background:#4f46e5;color:#fff}
+.biblioteca-tareas .tarea-boton-principal:hover{background:#4338ca}
+.formulario-tarea{display:grid;grid-template-columns:minmax(0,2fr) minmax(180px,1fr);align-items:end;gap:16px;margin-bottom:24px;padding:18px;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc}
+.formulario-tarea h3,.formulario-tarea .tarea-mensaje-error,.tarea-acciones-formulario{grid-column:1/-1}
+.formulario-tarea label{display:grid;gap:7px;color:#334155;font-size:.9rem}
+.formulario-tarea input,.formulario-tarea select,.tarea-estado-control select{width:100%}
+.tarea-acciones-formulario,.tarea-acciones{display:flex;flex-wrap:wrap;gap:8px}
+.tareas-por-estado{display:grid;gap:18px}
+.tareas-grupo{min-width:0;padding:16px;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc}
+.tareas-grupo>h3{display:flex;align-items:center;gap:9px;margin-bottom:12px;font-size:1rem}
+.tareas-grupo>h3 span{display:inline-grid;min-width:25px;height:25px;place-items:center;border-radius:999px;background:#e2e8f0;color:#334155;font-size:.8rem}
+.tareas-grupo-vacio{font-size:.9rem}
+.lista-tareas{display:grid;gap:8px;margin:0;padding:0;list-style:none}
+.tarea-fila{display:grid;grid-template-columns:minmax(0,1fr) minmax(160px,210px) auto;align-items:center;gap:14px;min-width:0;padding:12px;border:1px solid #e2e8f0;border-radius:10px;background:#fff}
+.tarea-datos{display:grid;gap:5px;min-width:0;overflow-wrap:anywhere;color:#172033;font-weight:600}
+.tarea-datos small{color:#64748b;font-size:.8rem;font-weight:400}
+.tarea-estado-control{display:grid;gap:4px;color:#64748b;font-size:.78rem}
+.tarea-mensaje-error{margin:0;color:#b91c1c;font-size:.9rem}
+.tareas-vacio{padding:18px 0}
+html[data-tema="oscuro"] .biblioteca-tareas{border-color:#344158;background:#151d2e}
+html[data-tema="oscuro"] .biblioteca-tareas h2,html[data-tema="oscuro"] .biblioteca-tareas h3,html[data-tema="oscuro"] .tarea-datos{color:#edf2fb}
+html[data-tema="oscuro"] .biblioteca-tareas-header p,html[data-tema="oscuro"] .tareas-vacio,html[data-tema="oscuro"] .tareas-grupo-vacio,html[data-tema="oscuro"] .tarea-datos small,html[data-tema="oscuro"] .tarea-estado-control{color:#b6c2d4}
+html[data-tema="oscuro"] .biblioteca-tareas button:not(.tarea-boton-principal),html[data-tema="oscuro"] .biblioteca-tareas select,html[data-tema="oscuro"] .biblioteca-tareas input{border-color:#46536c;background:#202b40;color:#edf2fb}
+html[data-tema="oscuro"] .formulario-tarea,html[data-tema="oscuro"] .tareas-grupo{border-color:#344158;background:#1b263a}
+html[data-tema="oscuro"] .tarea-fila{border-color:#46536c;background:#202d43}
+html[data-tema="oscuro"] .tareas-grupo>h3 span{background:#303d54;color:#edf2fb}
+@media(max-width:700px){.biblioteca-tareas{padding:18px 14px}.biblioteca-tareas-header{align-items:stretch;flex-direction:column}.formulario-tarea{grid-template-columns:1fr;padding:14px}.tarea-fila{grid-template-columns:minmax(0,1fr);gap:10px}.tarea-acciones{justify-content:flex-start}.tarea-estado-control{max-width:none}}

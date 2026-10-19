@@ -1,0 +1,140 @@
+.analitica-registros {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+  padding: 24px;
+}
+
+.analitica-cabecera h2,
+.analitica-distribucion h3 {
+  margin: 0;
+  color: #172033;
+}
+
+.analitica-cabecera p,
+.analitica-distribucion header p {
+  margin: 7px 0 0;
+  color: #64748b;
+  line-height: 1.5;
+}
+
+.analitica-controles {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid #dbe3ee;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.analitica-controles button,
+.analitica-selector-fecha input,
+.analitica-selector-filtro select,
+.analitica-selector-agrupamiento select {
+  min-height: 40px;
+  padding: 6px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  color: #172033;
+  font: inherit;
+}
+
+.analitica-controles button { cursor: pointer; }
+.analitica-selector-filtro, .analitica-selector-agrupamiento { display: flex; align-items: center; gap: 8px; color: #475569; font-size: .9rem; }
+.analitica-selector-agrupamiento { justify-self: end; }
+
+.analitica-tipo-periodo {
+  display: flex;
+  gap: 4px;
+  margin-right: 8px;
+  padding: 3px;
+  border-radius: 9px;
+  background: #f1f5f9;
+}
+
+.analitica-tipo-periodo button { border-color: transparent; background: transparent; }
+.analitica-tipo-periodo button[aria-pressed="true"] { border-color: #cbd5e1; background: #fff; font-weight: 650; }
+
+.analitica-selector-fecha {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  color: #475569;
+  font-size: 0.9rem;
+}
+
+.analitica-periodo-visible {
+  margin: -8px 0 0;
+  color: #475569;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.analitica-total,
+.analitica-distribucion {
+  padding: 22px;
+  border: 1px solid #dbe3ee;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 6px 18px rgb(15 23 42 / 4%);
+}
+
+.analitica-total { display: grid; gap: 8px; }
+.analitica-total > span { color: #64748b; font-size: 0.92rem; }
+.analitica-total strong { color: #172033; font-size: clamp(1.8rem, 4vw, 2.6rem); font-variant-numeric: tabular-nums; }
+.analitica-total p { margin: 0; color: #64748b; font-size: 0.88rem; }
+
+.analitica-distribucion { display: grid; gap: 16px; }
+.analitica-distribucion header { display: flex; justify-content: space-between; gap: 16px; }
+.analitica-distribucion h3 { font-size: 1.1rem; }
+.analitica-ayuda-solapamientos,
+.analitica-vacia,
+.analitica-error { margin: 0; color: #64748b; line-height: 1.5; }
+.analitica-error { padding: 14px; border-radius: 9px; background: #fff1f2; color: #9f1239; }
+
+.analitica-lista-eventos { display: grid; gap: 16px; margin: 0; padding: 0; list-style: none; }
+.analitica-fila-evento { display: grid; gap: 7px; }
+.analitica-evento-etiqueta { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.analitica-evento-etiqueta strong { overflow-wrap: anywhere; color: #172033; }
+.analitica-evento-etiqueta time { margin-left: auto; color: #334155; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.analitica-evento-color { width: 11px; height: 11px; flex: 0 0 auto; border-radius: 50%; background: var(--color-analitica); }
+.analitica-barra-fondo { height: 10px; overflow: hidden; border-radius: 999px; background: #e2e8f0; }
+.analitica-barra-fondo span { display: block; height: 100%; min-width: 3px; border-radius: inherit; background: var(--color-analitica); }
+
+.analitica-registros button:focus-visible,
+.analitica-selector-fecha input:focus-visible {
+  outline: 3px solid #2563eb;
+  outline-offset: 2px;
+}
+
+html[data-tema="oscuro"] .analitica-registros { color: #e8edf5; }
+html[data-tema="oscuro"] .analitica-cabecera h2,
+html[data-tema="oscuro"] .analitica-distribucion h3,
+html[data-tema="oscuro"] .analitica-total strong,
+html[data-tema="oscuro"] .analitica-evento-etiqueta strong { color: #edf2fb; }
+html[data-tema="oscuro"] .analitica-controles,
+html[data-tema="oscuro"] .analitica-total,
+html[data-tema="oscuro"] .analitica-distribucion { border-color: #344158; background: #1b263a; }
+html[data-tema="oscuro"] .analitica-controles button,
+html[data-tema="oscuro"] .analitica-selector-fecha input,
+html[data-tema="oscuro"] .analitica-selector-filtro select,
+html[data-tema="oscuro"] .analitica-selector-agrupamiento select { border-color: #46536c; background: #111a2a; color: #edf2fb; }
+html[data-tema="oscuro"] .analitica-tipo-periodo { background: #111a2a; }
+html[data-tema="oscuro"] .analitica-tipo-periodo button[aria-pressed="true"] { border-color: #46536c; background: #27354b; }
+html[data-tema="oscuro"] .analitica-evento-etiqueta time,
+html[data-tema="oscuro"] .analitica-periodo-visible { color: #c3cede; }
+html[data-tema="oscuro"] .analitica-barra-fondo { background: #303d54; }
+html[data-tema="oscuro"] .analitica-error { background: #3c202b; color: #fda4af; }
+
+@media (max-width: 600px) {
+  .analitica-registros { padding: 18px 14px; }
+  .analitica-controles { align-items: stretch; }
+  .analitica-selector-fecha, .analitica-selector-filtro, .analitica-selector-agrupamiento { width: 100%; justify-content: space-between; margin-left: 0; }
+  .analitica-total,
+  .analitica-distribucion { padding: 16px; }
+  .analitica-ayuda-solapamientos { font-size: 0.9rem; }
+}

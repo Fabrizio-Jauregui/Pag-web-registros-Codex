@@ -1,0 +1,16 @@
+.biblioteca-categorias { display: grid; gap: 14px; margin-bottom: 18px; padding: 18px; border: 1px solid #e2e8f0; border-radius: 14px; background: #fff; }
+.biblioteca-categorias h2 { margin: 0; color: #172033; font-size: 1.15rem; }
+.biblioteca-categorias header p { margin: 6px 0 0; color: #64748b; line-height: 1.45; }
+.formulario-categoria { display: flex; align-items: end; flex-wrap: wrap; gap: 10px; }
+.formulario-categoria label { display: grid; flex: 1 1 200px; gap: 6px; color: #334155; font-size: .9rem; }
+.formulario-categoria input { min-height: 40px; padding: 7px 10px; border: 1px solid #cbd5e1; border-radius: 8px; font: inherit; }
+.acciones-categoria, .lista-categorias li > div { display: flex; gap: 7px; flex-wrap: wrap; }
+.biblioteca-categorias button { min-height: 38px; padding: 0 11px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; color: #172033; font: inherit; cursor: pointer; }
+.biblioteca-categorias button:focus-visible, .formulario-categoria input:focus-visible { outline: 3px solid #2563eb; outline-offset: 2px; }
+.lista-categorias { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.lista-categorias li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 9px; color: #172033; overflow-wrap: anywhere; }
+.evento-mensaje-error { color: #b91c1c; }
+html[data-tema="oscuro"] .biblioteca-categorias { border-color: #344158; background: #1b263a; }
+html[data-tema="oscuro"] .biblioteca-categorias h2, html[data-tema="oscuro"] .lista-categorias li { color: #edf2fb; }
+html[data-tema="oscuro"] .biblioteca-categorias button, html[data-tema="oscuro"] .formulario-categoria input { border-color: #46536c; background: #111a2a; color: #edf2fb; }
+@media (max-width: 600px) { .biblioteca-categorias { padding: 15px 12px; } .lista-categorias li { align-items: flex-start; flex-direction: column; } }

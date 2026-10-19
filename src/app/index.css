@@ -1,0 +1,442 @@
+:root {
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #172033;
+  background: #f5f7fb;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+.solo-lectores {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+:root[data-tema="oscuro"] {
+  color-scheme: dark;
+  color: #e8edf5;
+  background: #0d1322;
+}
+
+:root[data-tema="claro"] {
+  color-scheme: light;
+}
+
+html[data-tema="oscuro"] body {
+  background: #0d1322;
+}
+
+html[data-tema="oscuro"] button,
+html[data-tema="oscuro"] input,
+html[data-tema="oscuro"] select {
+  border-color: #3a465d;
+  background-color: #1a2437;
+  color: #e8edf5;
+}
+
+html[data-tema="oscuro"] button:hover:not(:disabled) {
+  background-color: #27334b;
+}
+
+html[data-tema="oscuro"] button:disabled {
+  color: #8290a8;
+}
+
+html[data-tema="oscuro"] button:focus-visible,
+html[data-tema="oscuro"] input:focus-visible,
+html[data-tema="oscuro"] select:focus-visible {
+  outline-color: #818cf8;
+}
+
+html[data-tema="oscuro"] .historial-fila summary:focus-visible {
+  outline-color: #a5b4fc;
+}
+
+html[data-tema="oscuro"] .app-brand,
+html[data-tema="oscuro"] .calendario-panel h2,
+html[data-tema="oscuro"] .registro-panel h2,
+html[data-tema="oscuro"] .registro-activo h4,
+html[data-tema="oscuro"] .registros-activos > h3,
+html[data-tema="oscuro"] .biblioteca-eventos h2,
+html[data-tema="oscuro"] .biblioteca-plantillas-plan h2,
+html[data-tema="oscuro"] .biblioteca-plantillas-plan h3,
+html[data-tema="oscuro"] .biblioteca-eventos h3,
+html[data-tema="oscuro"] .historial-registros h3,
+html[data-tema="oscuro"] .historial-registros h4,
+html[data-tema="oscuro"] .historial-resumen-principal strong,
+html[data-tema="oscuro"] .historial-metricas dd,
+html[data-tema="oscuro"] .evento-nombre,
+html[data-tema="oscuro"] .detalle-registro-calendario h3,
+html[data-tema="oscuro"] .detalle-tramo-header h3 {
+  color: #edf2fb;
+}
+
+html[data-tema="oscuro"] .controles-temporizador label,
+html[data-tema="oscuro"] .estado-temporizador,
+html[data-tema="oscuro"] .registro-activo-estado {
+  color: #c3cede;
+}
+
+html[data-tema="oscuro"] .estado-temporizador strong,
+html[data-tema="oscuro"] .registro-activo-estado strong {
+  background: #303b50;
+  color: #d6deeb;
+}
+
+html[data-tema="oscuro"] .estado-temporizador-en-curso strong,
+html[data-tema="oscuro"] .registro-activo-estado-en-curso strong {
+  background: #174438;
+  color: #86efc4;
+}
+
+html[data-tema="oscuro"] .estado-temporizador-pausado strong,
+html[data-tema="oscuro"] .registro-activo-estado-pausado strong {
+  background: #493719;
+  color: #fcd477;
+}
+
+html[data-tema="oscuro"] .ayuda-temporizador {
+  color: #9ba9bf;
+}
+
+html[data-tema="oscuro"] .calendario-panel,
+html[data-tema="oscuro"] .registro-panel,
+html[data-tema="oscuro"] .biblioteca-eventos,
+html[data-tema="oscuro"] .acciones-calendario-rapidas {
+  border-color: #2a354a;
+  background: #151d2e;
+  box-shadow: 0 12px 32px rgb(0 0 0 / 20%);
+}
+
+html[data-tema="oscuro"] .acciones-calendario-rapidas h2 {
+  color: #edf2fb;
+}
+
+html[data-tema="oscuro"] .acciones-calendario-rapidas button {
+  border-color: #46536c;
+  background: #202b40;
+  color: #e8edf5;
+}
+
+html[data-tema="oscuro"] .acciones-calendario-rapidas .accion-calendario-registro {
+  border-color: #6865d9;
+  background: #4f4bb4;
+  color: #ffffff;
+}
+
+html[data-tema="oscuro"] .acciones-calendario-rapidas .accion-calendario-plan {
+  border-color: #2dd4bf;
+  background: #134e4a;
+  color: #ccfbf1;
+}
+
+html[data-tema="oscuro"] .app-description,
+html[data-tema="oscuro"] .calendario-ayuda,
+html[data-tema="oscuro"] .registro-ayuda,
+html[data-tema="oscuro"] .calendario-fecha-visible,
+html[data-tema="oscuro"] .tiempo-total-dia,
+html[data-tema="oscuro"] .tiempo-total-semana,
+html[data-tema="oscuro"] .biblioteca-eventos-header p,
+html[data-tema="oscuro"] .eventos-vacio,
+html[data-tema="oscuro"] .historial-registros-header p,
+html[data-tema="oscuro"] .historial-vacio,
+html[data-tema="oscuro"] .historial-resumen-principal span,
+html[data-tema="oscuro"] .historial-resumen-secundario,
+html[data-tema="oscuro"] .historial-metricas dt,
+html[data-tema="oscuro"] .detalle-tramo-header p,
+html[data-tema="oscuro"] .lista-registros-tramo time {
+  color: #9ba9bf;
+}
+
+html[data-tema="oscuro"] .leyenda-calendario {
+  color: #b6c2d4;
+}
+
+html[data-tema="oscuro"] .leyenda-calendario-registro {
+  border-color: #818cf8;
+  background: #413f9b;
+}
+
+html[data-tema="oscuro"] .leyenda-calendario-plan {
+  border-color: #2dd4bf;
+  background: #134e4a;
+}
+
+html[data-tema="oscuro"] .app-navigation {
+  border-color: #344158;
+  background: #151d2e;
+}
+
+html[data-tema="oscuro"] .app-navigation button {
+  color: #b6c2d4;
+}
+
+html[data-tema="oscuro"] .app-navigation button[aria-pressed="true"] {
+  border-color: #46536c;
+  background: #27334b;
+  color: #f1f5f9;
+}
+
+html[data-tema="oscuro"] .app-header-actions .app-theme-toggle {
+  border-color: #4b5870;
+  background: #202b40;
+  color: #e8edf5;
+}
+
+html[data-tema="oscuro"] .calendario-vistas,
+html[data-tema="oscuro"] .controles-zoom {
+  border-color: #3a465d;
+  background: #1c2639;
+}
+
+html[data-tema="oscuro"] .calendario-controles {
+  border-color: #2a354a;
+}
+
+html[data-tema="oscuro"] .etiqueta-grupo-calendario {
+  color: #9ba9bf;
+}
+
+html[data-tema="oscuro"] .calendario-vistas button[aria-pressed="true"] {
+  border-color: #46536c;
+  background: #303c55;
+  color: #f1f5f9;
+}
+
+html[data-tema="oscuro"] .formulario-plan,
+html[data-tema="oscuro"] .detalle-plan {
+  border-color: #3a465d;
+  background: #1b2639;
+}
+
+html[data-tema="oscuro"] .formulario-plan h3,
+html[data-tema="oscuro"] .detalle-plan h3,
+html[data-tema="oscuro"] .detalle-plan dd {
+  color: #edf2fb;
+}
+
+html[data-tema="oscuro"] .formulario-plan > p,
+html[data-tema="oscuro"] .formulario-plan label,
+html[data-tema="oscuro"] .ayuda-horario-plan,
+html[data-tema="oscuro"] .detalle-plan header p,
+html[data-tema="oscuro"] .detalle-plan dt {
+  color: #b6c2d4;
+}
+
+html[data-tema="oscuro"] .calendario-controles .boton-edicion-directa[aria-pressed="true"] {
+  border-color: #818cf8;
+  background: #303469;
+  color: #e0e7ff;
+}
+
+html[data-tema="oscuro"] .calendario-dia-scroll,
+html[data-tema="oscuro"] .calendario-semana-scroll,
+html[data-tema="oscuro"] .calendario-franja,
+html[data-tema="oscuro"] .calendario-celda-semanal,
+html[data-tema="oscuro"] .calendario-celda-hora,
+html[data-tema="oscuro"] .calendario-cabecera-semanal {
+  background-color: #111a2a;
+}
+
+html[data-tema="oscuro"] .calendario-semana-scroll {
+  border-color: #344158;
+}
+
+html[data-tema="oscuro"] .ayuda-desplazamiento-semana {
+  border-color: #344158;
+  background: #1b263a;
+  color: #b6c2d4;
+}
+
+html[data-tema="oscuro"] .calendario-hora .calendario-franja,
+html[data-tema="oscuro"] .calendario-celda-semanal,
+html[data-tema="oscuro"] .calendario-celda-hora,
+html[data-tema="oscuro"] .calendario-celda-dia,
+html[data-tema="oscuro"] .calendario-columna-semana,
+html[data-tema="oscuro"] .calendario-cabecera-semanal {
+  border-color: #2a354a;
+}
+
+html[data-tema="oscuro"] .calendario-etiqueta-hora,
+html[data-tema="oscuro"] .calendario-celda-hora,
+html[data-tema="oscuro"] .calendario-celda-dia {
+  color: #9ba9bf;
+}
+
+html[data-tema="oscuro"] .selector-fecha,
+html[data-tema="oscuro"] .formulario-registro label,
+html[data-tema="oscuro"] .campo-evento {
+  color: #c3cede;
+}
+
+html[data-tema="oscuro"] .bloque-registro {
+  border-color: color-mix(in srgb, var(--color-evento), #e2e8f0 18%);
+  background: color-mix(in srgb, var(--color-evento) 54%, #111a2a);
+  color: #f8fafc;
+}
+
+html[data-tema="oscuro"] .bloque-registro-pausado {
+  background: color-mix(in srgb, var(--color-evento), #273247 72%);
+}
+
+html[data-tema="oscuro"] .registro-activo,
+html[data-tema="oscuro"] .formulario-registro,
+html[data-tema="oscuro"] .detalle-registro-calendario,
+html[data-tema="oscuro"] .formulario-evento,
+html[data-tema="oscuro"] .historial-metricas div {
+  border-color: #344158;
+  background: #1b263a;
+}
+
+html[data-tema="oscuro"] .historial-registros {
+  border-color: #344158;
+}
+
+html[data-tema="oscuro"] .historial-fila,
+html[data-tema="oscuro"] .evento-fila {
+  border-color: #344158;
+  background: #192337;
+}
+
+html[data-tema="oscuro"] .historial-estado {
+  background: #2a354a;
+  color: #d2dbea;
+}
+
+html[data-tema="oscuro"] .historial-estado.esta-abierto {
+  background: #174438;
+  color: #86efc4;
+}
+
+html[data-tema="oscuro"] .controles-registro-activo button,
+html[data-tema="oscuro"] .acciones-temporizador button,
+html[data-tema="oscuro"] .acciones-formulario-registro button,
+html[data-tema="oscuro"] .detalle-registro-calendario button,
+html[data-tema="oscuro"] .biblioteca-eventos button {
+  border-color: #46536c;
+  background: #202b40;
+  color: #e8edf5;
+}
+
+html[data-tema="oscuro"] .acciones-temporizador .boton-iniciar-temporizador {
+  border-color: #6865d9;
+  background: #4f4bb4;
+  color: #ffffff;
+  font-weight: 650;
+}
+
+html[data-tema="oscuro"] .acciones-temporizador .boton-iniciar-temporizador:hover:not(:disabled) {
+  background: #5a56c8;
+}
+
+html[data-tema="oscuro"] .acciones-temporizador button:disabled,
+html[data-tema="oscuro"] .controles-registro-activo button:disabled {
+  border-color: #37435a;
+  background: #202a3c;
+  color: #8d9bb1;
+}
+
+html[data-tema="oscuro"] .biblioteca-eventos .boton-crear-evento,
+html[data-tema="oscuro"] .acciones-formulario-registro button[type="submit"] {
+  border-color: #6865d9;
+  background: #4f4bb4;
+  color: #ffffff;
+}
+
+html[data-tema="oscuro"] .biblioteca-eventos .boton-crear-evento:hover:not(:disabled),
+html[data-tema="oscuro"] .acciones-formulario-registro button[type="submit"]:hover:not(:disabled) {
+  background: #5a56c8;
+}
+
+html[data-tema="oscuro"] .mensaje-ajuste-calendario {
+  background: #192e49;
+  color: #bfdbfe;
+}
+
+html[data-tema="oscuro"] .mensaje-ajuste-calendario[role="alert"],
+html[data-tema="oscuro"] .evento-mensaje-error,
+html[data-tema="oscuro"] .mensaje-formulario-registro {
+  background: #3c202b;
+  color: #fda4af;
+}
+
+html[data-tema="oscuro"] .detalle-tramo-calendario {
+  border-color: #344158;
+  background: #1b263a;
+}
+
+html[data-tema="oscuro"] .detalle-tramo-scroll {
+  border-color: #344158;
+  background: #111a2a;
+}
+
+html[data-tema="oscuro"] .marca-tiempo-tramo {
+  border-color: #303d54;
+  color: #b6c2d4;
+}
+
+html[data-tema="oscuro"] .marca-tiempo-tramo time {
+  background: #111a2a;
+}
+
+html[data-tema="oscuro"] .bloque-detalle-tramo {
+  border-color: color-mix(in srgb, var(--color-evento), #e2e8f0 24%);
+  background: color-mix(in srgb, var(--color-evento) 52%, #1b263a);
+  color: #f8fafc;
+}
+
+html[data-tema="oscuro"] .bloque-detalle-tramo.bloque-registro-pausado {
+  border-color: #91a0b8;
+  background: #30394a;
+}
+
+html[data-tema="oscuro"] .bloque-detalle-tramo-estado {
+  background: rgb(13 19 34 / 82%);
+}
+
+html[data-tema="oscuro"] .formulario-registro input,
+html[data-tema="oscuro"] .formulario-registro select,
+html[data-tema="oscuro"] .campo-evento input[type="text"],
+html[data-tema="oscuro"] .campo-color-evento input {
+  border-color: #46536c;
+  background: #111a2a;
+  color: #edf2fb;
+}
+
+html[data-tema="oscuro"] .detalle-registro-metricas div {
+  background: #202b40;
+}
+
+html[data-tema="oscuro"] .detalle-registro-metricas dt,
+html[data-tema="oscuro"] .detalle-tramo-header p,
+html[data-tema="oscuro"] .lista-segmentos li {
+  color: #b6c2d4;
+}
+
+html[data-tema="oscuro"] .historial-motivo {
+  color: #fdba74;
+}

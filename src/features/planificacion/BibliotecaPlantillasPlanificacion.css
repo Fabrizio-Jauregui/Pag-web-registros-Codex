@@ -1,0 +1,170 @@
+.biblioteca-plantillas-plan{min-width:0;padding:24px;border:1px solid #334155;border-radius:16px;background:#fff;box-shadow:0 8px 24px #0f172a0d;color:#172033}
+.biblioteca-plantillas-plan-header{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:20px}
+.biblioteca-plantillas-plan h2,.biblioteca-plantillas-plan h3,.biblioteca-plantillas-plan h4{margin:0;color:inherit}
+.biblioteca-plantillas-plan-header p,.plan-plantillas-vacio{margin:6px 0 0;color:#64748b}
+.biblioteca-plantillas-plan button,.biblioteca-plantillas-plan input,.biblioteca-plantillas-plan select{font:inherit}
+.biblioteca-plantillas-plan button{min-height:38px;padding:7px 12px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#172033;cursor:pointer}
+.biblioteca-plantillas-plan button:hover:not(:disabled){background:#f1f5f9}
+.biblioteca-plantillas-plan button:disabled{opacity:.55;cursor:not-allowed}
+.acciones-crear-plantilla{display:flex;flex-wrap:wrap;gap:7px}
+.biblioteca-plantillas-plan button:focus-visible,.biblioteca-plantillas-plan input:focus-visible,.biblioteca-plantillas-plan select:focus-visible{outline:3px solid #6366f1;outline-offset:2px}
+.biblioteca-plantillas-plan .plan-plantilla-primario{border-color:#4338ca;background:#4f46e5;color:#fff}
+.biblioteca-plantillas-plan .plan-plantilla-primario:hover:not(:disabled){background:#4338ca}
+.formulario-plantilla-plan{display:grid;gap:14px;margin-bottom:20px;padding:18px;border:1px solid #cbd5e1;border-radius:12px;background:#f8fafc}
+.formulario-plantilla-plan>label,.actividad-plantilla-plan>label{display:grid;gap:6px;color:#334155}
+.formulario-plantilla-plan input:not([type=checkbox]),.formulario-plantilla-plan select,.plan-plantilla-fecha input{min-height:40px;padding:7px 9px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#172033}
+.actividad-plantilla-plan{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;border:1px solid #cbd5e1;border-radius:9px;padding:14px}
+.actividad-plantilla-plan legend{padding:0 5px;font-weight:650}
+.actividad-plantilla-plan .fin-dia-siguiente{display:flex;align-items:center;gap:8px}
+.actividad-plantilla-plan>button{justify-self:start}
+.plan-plantilla-acciones,.plantilla-plan-acciones{display:flex;flex-wrap:wrap;gap:8px}
+.plantilla-plan-acciones{grid-column:1/-1;justify-content:flex-end}
+.plantilla-plan-acciones label{display:grid;gap:5px;align-content:start;color:#475569;font-size:.9rem}
+.plantilla-plan-acciones input{min-height:38px;padding:6px 8px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#172033;font:inherit}
+.plan-plantilla-fecha{display:flex;align-items:center;gap:10px;margin-bottom:16px;font-weight:600}
+.plan-plantilla-error{margin:0;color:#b91c1c}
+.lista-plantillas-plan{display:grid;gap:10px;margin:0;padding:0;list-style:none}
+.lista-plantillas-plan>li{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:center;gap:18px;padding:14px;border:1px solid #cbd5e1;border-radius:10px}
+.plantilla-plan-resumen{min-width:0}.plantilla-plan-resumen ul{margin:7px 0 0;padding-left:20px;color:#475569}
+.plantilla-plan-previsualizacion{min-width:0;padding-left:14px;border-left:1px solid #cbd5e1}
+.plantilla-plan-previsualizacion h4{margin-bottom:6px;font-size:.95rem}
+.plantilla-plan-previsualizacion ol{display:grid;gap:5px;margin:0;padding-left:21px;color:#334155}
+.plantilla-plan-previsualizacion li{padding-left:2px}
+.plantilla-plan-previsualizacion li strong,.plantilla-plan-previsualizacion li small,.plantilla-plan-previsualizacion li span{display:block}
+.plantilla-plan-previsualizacion li small{color:#64748b}
+.plantilla-plan-previsualizacion li span{font-size:.88rem;color:#475569}
+.plantilla-plan-previsualizacion>p{margin:0;color:#a42e20;font-size:.9rem;line-height:1.45}
+.plantilla-plan-previsualizacion-error{align-self:stretch;display:grid;align-content:center}
+html[data-tema="oscuro"] .biblioteca-plantillas-plan{background:#141d2e;border-color:#334155;color:#e8edf5}
+html[data-tema="oscuro"] .biblioteca-plantillas-plan-header p,html[data-tema="oscuro"] .plantilla-plan-resumen ul,html[data-tema="oscuro"] .plan-plantillas-vacio{color:#aab7ca}
+html[data-tema="oscuro"] .formulario-plantilla-plan{background:#101827;border-color:#334155}
+html[data-tema="oscuro"] .formulario-plantilla-plan>label,html[data-tema="oscuro"] .actividad-plantilla-plan>label{color:#d4dce8}
+html[data-tema="oscuro"] .actividad-plantilla-plan,html[data-tema="oscuro"] .lista-plantillas-plan>li{border-color:#334155}
+html[data-tema="oscuro"] .plantilla-plan-acciones label{color:#aab7ca}
+html[data-tema="oscuro"] .plantilla-plan-acciones input{background:#1a2437;color:#e8edf5;border-color:#3a465d}
+html[data-tema="oscuro"] .plantilla-plan-previsualizacion{border-color:#334155}
+html[data-tema="oscuro"] .plantilla-plan-previsualizacion ol,html[data-tema="oscuro"] .plantilla-plan-previsualizacion li span{color:#d4dce8}
+html[data-tema="oscuro"] .plantilla-plan-previsualizacion li small{color:#aab7ca}
+html[data-tema="oscuro"] .plantilla-plan-previsualizacion>p{color:#fca5a5}
+html[data-tema="oscuro"] .biblioteca-plantillas-plan button:not(.plan-plantilla-primario){background:#1a2437;color:#e8edf5;border-color:#3a465d}
+html[data-tema="oscuro"] .formulario-plantilla-plan input,html[data-tema="oscuro"] .formulario-plantilla-plan select,html[data-tema="oscuro"] .plan-plantilla-fecha input{background:#1a2437;color:#e8edf5;border-color:#3a465d}
+@media(min-width:901px){.panel-herramientas .biblioteca-plantillas-plan{padding:18px 14px}.panel-herramientas .biblioteca-plantillas-plan-header{align-items:stretch;flex-direction:column;gap:10px}.panel-herramientas .acciones-crear-plantilla{align-items:stretch;flex-direction:column}.panel-herramientas .lista-plantillas-plan>li{grid-template-columns:minmax(0,1fr);gap:12px}.panel-herramientas .plantilla-plan-previsualizacion{padding:12px 0 0;border-top:1px solid #cbd5e1;border-left:0}.panel-herramientas .plantilla-plan-acciones{grid-column:auto;justify-content:flex-start}.panel-herramientas .actividad-plantilla-plan{grid-template-columns:minmax(0,1fr)}}
+@media(min-width:901px){html[data-tema="oscuro"] .panel-herramientas .plantilla-plan-previsualizacion{border-color:#334155}}
+@media(max-width:650px){.biblioteca-plantillas-plan{padding:18px 14px}.biblioteca-plantillas-plan-header{align-items:stretch;flex-direction:column}.lista-plantillas-plan>li{grid-template-columns:1fr;align-items:stretch}.plantilla-plan-previsualizacion{padding:12px 0 0;border-top:1px solid #cbd5e1;border-left:0}.plantilla-plan-acciones{grid-column:auto;width:100%;justify-content:flex-start}.actividad-plantilla-plan{grid-template-columns:1fr}.plan-plantilla-fecha{align-items:stretch;flex-direction:column}}
+.editor-plantilla-calendario{display:grid;gap:14px;margin-top:16px;padding:18px;border:2px solid #0f766e;border-radius:14px;background:#f8fafc;color:#172033}
+.editor-plantilla-calendario>header,.editor-plantilla-lista-header,.editor-plantilla-calendario>footer{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.editor-plantilla-lista-header>div{display:flex;gap:8px;flex-wrap:wrap}
+.editor-plantilla-calendario h3,.editor-plantilla-calendario h4,.editor-plantilla-calendario p{margin:0}
+.editor-plantilla-calendario>header>div{display:grid;gap:5px}
+.editor-plantilla-calendario>header p:last-child{max-width:75ch;color:#475569;font-size:.9rem}
+.editor-plantilla-etiqueta{color:#0f766e;font-size:.75rem;font-weight:750;letter-spacing:.06em;text-transform:uppercase}
+.editor-plantilla-calendario button,.editor-plantilla-calendario input,.editor-plantilla-calendario select{font:inherit}
+.editor-plantilla-calendario button{min-height:38px;padding:6px 11px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#172033;cursor:pointer}
+.editor-plantilla-calendario button:hover{background:#f1f5f9}
+.editor-plantilla-calendario button:focus-visible,.editor-plantilla-calendario input:focus-visible,.editor-plantilla-calendario select:focus-visible{outline:3px solid #0f766e;outline-offset:2px}
+.editor-plantilla-calendario .plan-plantilla-primario{border-color:#0f766e;background:#0f766e;color:white}
+.editor-plantilla-nombre{display:grid;gap:5px;max-width:500px;font-weight:650}
+.editor-plantilla-nombre input,.editor-plantilla-actividad input,.editor-plantilla-actividad select{min-height:38px;padding:6px 8px;border:1px solid #cbd5e1;border-radius:7px;background:#fff;color:#172033}
+.editor-plantilla-calendario .calendario-dia-scroll{max-height:55vh;border:1px solid #cbd5e1;border-radius:10px;background:#fff}
+.editor-plantilla-actividad{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:12px;border:1px solid #cbd5e1;border-radius:9px}
+.editor-plantilla-actividad.seleccionada{border-color:#0f766e;box-shadow:0 0 0 2px #0f766e30}
+.editor-secuencias-acciones{display:flex;flex-wrap:wrap;gap:8px}
+.editor-secuencias{display:flex;align-items:flex-start;gap:14px;overflow:auto;padding:4px 2px 14px}
+.editor-secuencia{display:grid;align-content:start;gap:10px;min-width:270px;max-width:390px;flex:1;padding:12px;border:1px solid #cbd5e1;border-radius:10px;background:#fff}
+.editor-secuencia h4{min-height:1.5em;color:#0f766e}
+.editor-secuencia-desplazamiento{display:flex;align-items:center;flex-wrap:wrap;gap:5px;color:#475569;font-size:.86rem}
+.editor-secuencia-desplazamiento select,.editor-secuencia-desplazamiento input{min-height:34px;max-width:130px;padding:4px 6px;border:1px solid #cbd5e1;border-radius:6px;background:#fff;color:#172033}
+.editor-secuencia-ajuste{display:grid;gap:6px}
+.editor-secuencia-relacion{color:#334155;font-size:.85rem}
+.editor-secuencia-control-posicion{display:grid;gap:4px;color:#475569;font-size:.82rem}
+.editor-secuencia-control-posicion input{width:100%;accent-color:#0f766e}
+.editor-secuencia-tiempo{display:block;margin:-2px 0 8px;color:#0f766e;font-weight:650}
+.editor-secuencia-reordenar{display:flex;flex-wrap:wrap;gap:5px}
+.editor-secuencia-reordenar button{min-height:32px;padding:4px 8px;font-size:.83rem}
+.editor-plantilla-actividad legend{padding:0 5px;font-weight:700}
+.editor-plantilla-actividad label{display:grid;gap:4px;color:#334155;font-size:.88rem}
+.editor-plantilla-calendario>[role=alert]{color:#b91c1c}
+html[data-tema="oscuro"] .editor-plantilla-calendario{background:#101827;border-color:#2dd4bf;color:#e8edf5}
+html[data-tema="oscuro"] .editor-plantilla-calendario>header p:last-child,html[data-tema="oscuro"] .editor-plantilla-actividad label{color:#b6c2d4}
+html[data-tema="oscuro"] .editor-plantilla-etiqueta{color:#5eead4}
+html[data-tema="oscuro"] .editor-plantilla-calendario button:not(.plan-plantilla-primario){background:#1a2437;color:#e8edf5;border-color:#3a465d}
+html[data-tema="oscuro"] .editor-plantilla-actividad{border-color:#3a465d}
+html[data-tema="oscuro"] .editor-secuencia{background:#141d2e;border-color:#3a465d}
+html[data-tema="oscuro"] .editor-secuencia-desplazamiento{color:#b6c2d4}
+html[data-tema="oscuro"] .editor-secuencia-control-posicion{color:#b6c2d4}
+html[data-tema="oscuro"] .editor-secuencia-relacion{color:#d4dce8}
+html[data-tema="oscuro"] .editor-secuencia-desplazamiento select,html[data-tema="oscuro"] .editor-secuencia-desplazamiento input{background:#1a2437;color:#e8edf5;border-color:#3a465d}
+html[data-tema="oscuro"] .editor-plantilla-actividad.seleccionada{border-color:#2dd4bf}
+html[data-tema="oscuro"] .editor-plantilla-nombre input,html[data-tema="oscuro"] .editor-plantilla-actividad input,html[data-tema="oscuro"] .editor-plantilla-actividad select{background:#1a2437;color:#e8edf5;border-color:#3a465d}
+html[data-tema="oscuro"] .editor-plantilla-calendario .calendario-dia-scroll{background:#111827;border-color:#3a465d}
+@media(max-width:650px){.editor-plantilla-actividad{grid-template-columns:1fr}.editor-plantilla-calendario{padding:12px}.editor-plantilla-calendario .calendario-dia-scroll{max-height:45vh}.editor-secuencias{flex-direction:column}.editor-secuencia{width:100%;max-width:none}}
+
+/* Al entrar en Planificaciones, libera el ancho que normalmente ocupa el panel lateral. */
+.app-content-planificaciones .panel-herramientas .biblioteca-plantillas-plan{
+    width:100%;
+    padding:clamp(20px,3vw,40px);
+}
+.app-content-planificaciones .panel-herramientas .biblioteca-plantillas-plan-header{
+    align-items:flex-start;
+    flex-direction:row;
+    justify-content:space-between;
+    gap:24px;
+    margin-bottom:28px;
+}
+.app-content-planificaciones .panel-herramientas .acciones-crear-plantilla{
+    align-items:center;
+    flex-direction:row;
+}
+.app-content-planificaciones .panel-herramientas .editor-plantilla-calendario{
+    gap:22px;
+    margin-top:22px;
+    padding:clamp(20px,3vw,40px);
+}
+.app-content-planificaciones .panel-herramientas .editor-plantilla-nombre{
+    max-width:760px;
+}
+.app-content-planificaciones .panel-herramientas .editor-secuencias{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(min(100%,430px),1fr));
+    align-items:stretch;
+    gap:20px;
+    overflow:visible;
+    padding:4px 0 14px;
+}
+.app-content-planificaciones .panel-herramientas .editor-secuencia{
+    width:auto;
+    min-width:0;
+    max-width:none;
+    padding:20px;
+}
+.app-content-planificaciones .panel-herramientas .editor-plantilla-actividad{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:14px 18px;
+    padding:18px;
+}
+.app-content-planificaciones .panel-herramientas .lista-plantillas-plan>li{
+    grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+    align-items:start;
+    gap:24px;
+    padding:22px;
+}
+.app-content-planificaciones .panel-herramientas .plantilla-plan-previsualizacion{
+    padding:0 0 0 20px;
+    border-top:0;
+    border-left:1px solid #cbd5e1;
+}
+.app-content-planificaciones .panel-herramientas .plantilla-plan-acciones{
+    grid-column:1/-1;
+    justify-content:flex-start;
+}
+html[data-tema="oscuro"] .app-content-planificaciones .panel-herramientas .plantilla-plan-previsualizacion{
+    border-color:#334155;
+}
+@media(max-width:650px){
+    .app-content-planificaciones .panel-herramientas .biblioteca-plantillas-plan-header{flex-direction:column}
+    .app-content-planificaciones .panel-herramientas .editor-secuencias{grid-template-columns:minmax(0,1fr)}
+    .app-content-planificaciones .panel-herramientas .editor-plantilla-actividad{grid-template-columns:minmax(0,1fr)}
+    .app-content-planificaciones .panel-herramientas .lista-plantillas-plan>li{grid-template-columns:minmax(0,1fr);gap:14px}
+    .app-content-planificaciones .panel-herramientas .plantilla-plan-previsualizacion{padding:12px 0 0;border-top:1px solid #cbd5e1;border-left:0}
+    html[data-tema="oscuro"] .app-content-planificaciones .panel-herramientas .plantilla-plan-previsualizacion{border-color:#334155}
+}
