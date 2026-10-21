@@ -32,6 +32,18 @@
 .seguimiento-plan-acciones button { flex: 1 1 100px; }
 .seguimiento-plan-acciones .seguimiento-plan-detener { flex-basis: 100%; }
 .seguimiento-plan-error { color: #b91c1c; }
+.seguimiento-plan-mensaje { color: #166534; }
+.seguimiento-plan-omitidos { color: var(--color-texto-secundario, #64748b); font-size: .9rem; }
+.seguimiento-plan-gestion { display: grid; gap: 10px; padding-top: 8px; border-top: 1px solid color-mix(in srgb, #6366f1 35%, transparent); }
+.seguimiento-plan-gestion summary { cursor: pointer; font-weight: 700; }
+.seguimiento-plan-gestion ol { display: grid; gap: 10px; margin: 0; padding-left: 24px; }
+.seguimiento-plan-gestion li { padding: 10px; border: 1px solid var(--color-borde, #cbd5e1); border-radius: 10px; }
+.seguimiento-plan-gestion li > div:first-child { display: grid; gap: 4px; }
+.seguimiento-plan-gestion li > div:first-child span { color: var(--color-texto-secundario, #64748b); font-size: .85rem; }
+.seguimiento-plan-item-acciones { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.seguimiento-plan-insertar { margin-top: 8px; width: 100%; }
+.seguimiento-plan-gestion > button { width: 100%; }
+.seguimiento-plan-gestion .formulario-plan { margin-top: 8px; }
 
 html[data-tema="oscuro"] .panel-seguimiento-plan {
     --color-panel: #151827;
@@ -42,4 +54,5 @@ html[data-tema="oscuro"] .panel-seguimiento-plan {
 @media (max-width: 520px) {
     .panel-seguimiento-plan { padding: 12px; }
     .seguimiento-plan-acciones button { flex-basis: 100%; }
+    .seguimiento-plan-item-acciones button { flex: 1 1 40%; }
 }

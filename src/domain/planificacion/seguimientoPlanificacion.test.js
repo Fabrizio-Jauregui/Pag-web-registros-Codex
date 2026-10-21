@@ -42,6 +42,24 @@ test("ordena empates de forma estable y conserva actividades sin plantilla", () 
     assert.equal(resultado.secuencia[0].evento, null)
 })
 
+test("respeta el orden explícito de seguimiento sin cambiar los horarios ni perder solapamientos", () => {
+    const planes = [
+        { ...plan("activo", fecha(9), fecha(9, 5), null), ordenSeguimiento: 0 },
+        { ...plan("primero-en-calendario", fecha(9, 5), fecha(9, 20), null), ordenSeguimiento: 2 },
+        { ...plan("segundo-en-calendario", fecha(9, 10), fecha(9, 25), null), ordenSeguimiento: 1 }
+    ]
+
+    const resultado = crearSecuenciaSeguimiento(planes, "activo")
+    assert.equal(resultado.ok, true)
+    assert.deepEqual(resultado.secuencia.map(item => item.planId), [
+        "activo", "segundo-en-calendario", "primero-en-calendario"
+    ])
+    assert.equal(resultado.secuencia[1].inicioPrevisto, fecha(9, 10).toISOString())
+    assert.equal(resultado.secuencia[1].finPrevisto, fecha(9, 25).toISOString())
+    assert.equal(resultado.secuencia[2].inicioPrevisto, fecha(9, 5).toISOString())
+    assert.equal(resultado.secuencia[2].finPrevisto, fecha(9, 20).toISOString())
+})
+
 test("rechaza planes que no pueden producir registros válidos", () => {
     assert.match(crearSecuenciaSeguimiento([
         plan("corto", fecha(9), new Date(fecha(9).getTime() + 999), null)

@@ -16,6 +16,10 @@ export function validarPlan(plan) {
     if (plan.colorEvento !== null && !/^#[\da-fA-F]{6}$/.test(plan.colorEvento)) {
         return "El color del plan no es válido."
     }
+    if (plan.ordenSeguimiento !== undefined
+        && (!Number.isInteger(plan.ordenSeguimiento) || plan.ordenSeguimiento < 0)) {
+        return "El orden de seguimiento del plan no es válido."
+    }
     if (!(plan.inicio instanceof Date) || !Number.isFinite(plan.inicio.getTime())) {
         return "Elegí una fecha y hora de inicio válidas."
     }
@@ -41,14 +45,15 @@ export function validarColeccionPlanes(planes) {
     })
 }
 
-export function crearPlan({ nombre, evento = null, inicio, fin }, generarId = () => globalThis.crypto.randomUUID()) {
+export function crearPlan({ nombre, evento = null, inicio, fin, ordenSeguimiento }, generarId = () => globalThis.crypto.randomUUID()) {
     const plan = {
         id: "pendiente",
         nombre: evento?.nombre ?? nombre,
         eventoId: evento?.id ?? null,
         colorEvento: evento?.color ?? COLOR_PLAN_PREDETERMINADO,
         inicio,
-        fin
+        fin,
+        ...(Number.isInteger(ordenSeguimiento) ? { ordenSeguimiento } : {})
     }
     const error = validarPlan(plan)
     if (error) return { ok: false, error }
@@ -63,6 +68,18 @@ export function crearPlan({ nombre, evento = null, inicio, fin }, generarId = ()
         return { ok: false, error: "No se pudo crear la identidad del plan." }
     }
     return { ok: true, plan: { ...plan, id, nombre: plan.nombre.trim() } }
+}
+
+export function compararPlanesPorSeguimiento(a, b) {
+    const aTieneOrden = Number.isInteger(a?.ordenSeguimiento)
+    const bTieneOrden = Number.isInteger(b?.ordenSeguimiento)
+    if (aTieneOrden && bTieneOrden && a.ordenSeguimiento !== b.ordenSeguimiento) {
+        return a.ordenSeguimiento - b.ordenSeguimiento
+    }
+    if (aTieneOrden !== bTieneOrden) return aTieneOrden ? -1 : 1
+    return a.inicio.getTime() - b.inicio.getTime()
+        || a.fin.getTime() - b.fin.getTime()
+        || a.id.localeCompare(b.id)
 }
 
 export function actualizarPlan(planes, id, cambios) {

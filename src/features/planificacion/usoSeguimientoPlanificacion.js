@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 
 import { calcularTiempoEfectivo } from "../../domain/tiempo/CalculosDuracion.js"
+import { compararPlanesPorSeguimiento } from "../../domain/planificacion/planes.js"
 import {
     cargarSeguimientoPlanificacion,
     guardarSeguimientoPlanificacion
@@ -15,6 +16,7 @@ export function useSeguimientoPlanificacion(estadoRegistro) {
     const [cargaInicial] = useState(cargarSeguimientoPlanificacion)
     const [estado, cambiarEstado] = useState(() => cargaInicial.estado)
     const [error, cambiarError] = useState(() => cargaInicial.error ?? "")
+    const [mensaje, cambiarMensaje] = useState("")
     const [ahora, cambiarAhora] = useState(() => Date.now())
     const estadoRef = useRef(estado)
     const registroRef = useRef(estadoRegistro)
@@ -104,6 +106,7 @@ export function useSeguimientoPlanificacion(estadoRegistro) {
             if (siguienteIndice >= sesion.secuencia.length) {
                 guardar(null)
                 publicar(null)
+                cambiarMensaje("Terminó la secuencia de planificación.")
                 cambiarAhora(instanteActual)
                 return
             }
@@ -130,6 +133,7 @@ export function useSeguimientoPlanificacion(estadoRegistro) {
                 return
             }
             publicar(sesion)
+            cambiarMensaje(`Terminó “${sesion.secuencia[siguienteIndice - 1].nombre}”. Ahora sigue “${sesion.secuencia[siguienteIndice].nombre}”.`)
         }
 
         cambiarAhora(instanteActual)
@@ -163,6 +167,7 @@ export function useSeguimientoPlanificacion(estadoRegistro) {
             estado: "En curso",
             secuencia: resultado.secuencia,
             indiceActual: 0,
+            eventosOmitidos: [],
             registroId,
             inicio: new Date(instante).toISOString(),
             finBloque: new Date(instante + resultado.secuencia[0].duracionMs).toISOString()
@@ -172,6 +177,7 @@ export function useSeguimientoPlanificacion(estadoRegistro) {
             return { ok: false, error: "No se pudo guardar el seguimiento. El registro iniciado se cerró." }
         }
         publicar(sesion)
+        cambiarMensaje("")
         cambiarAhora(instante)
         return { ok: true }
     }
@@ -227,23 +233,24 @@ export function useSeguimientoPlanificacion(estadoRegistro) {
         return true
     }
 
-    function saltar() {
+    function avanzarHasta(indiceDestino, instante, eventosOmitidos = []) {
         const sesion = estadoRef.current
         if (!sesion) return false
-        const instante = Date.now()
         const cierre = cerrarRegistroActual(sesion, instante)
         if (!cierre.ok) {
             cambiarError(cierre.error)
             return false
         }
-        const siguienteIndice = sesion.indiceActual + 1
-        if (siguienteIndice >= sesion.secuencia.length) {
-            guardar(null)
+        if (indiceDestino >= sesion.secuencia.length) {
+            if (!guardar(null)) return false
             publicar(null)
+            cambiarMensaje(eventosOmitidos.length > 0
+                ? `Se omitió ${eventosOmitidos.map(item => `“${item.nombre}”`).join(", ")}. No quedan eventos en la secuencia.`
+                : "Terminó la secuencia de planificación.")
             cambiarAhora(instante)
             return true
         }
-        const registroId = iniciarRegistroDePlan(sesion.secuencia, siguienteIndice, instante)
+        const registroId = iniciarRegistroDePlan(sesion.secuencia, indiceDestino, instante)
         if (!registroId) {
             guardar(null)
             publicar(null)
@@ -253,10 +260,11 @@ export function useSeguimientoPlanificacion(estadoRegistro) {
         const siguiente = {
             ...sesion,
             estado: "En curso",
-            indiceActual: siguienteIndice,
+            indiceActual: indiceDestino,
+            eventosOmitidos: [...(sesion.eventosOmitidos ?? []), ...eventosOmitidos.map(item => item.planId)],
             registroId,
             inicio: new Date(instante).toISOString(),
-            finBloque: new Date(instante + sesion.secuencia[siguienteIndice].duracionMs).toISOString()
+            finBloque: new Date(instante + sesion.secuencia[indiceDestino].duracionMs).toISOString()
         }
         if (!guardar(siguiente)) {
             cerrarRegistroActual(siguiente, instante)
@@ -264,8 +272,45 @@ export function useSeguimientoPlanificacion(estadoRegistro) {
             return false
         }
         publicar(siguiente)
+        cambiarMensaje(eventosOmitidos.length > 0
+            ? `Se omitió ${eventosOmitidos.map(item => `“${item.nombre}”`).join(", ")} sin crear registros. Ahora sigue “${sesion.secuencia[indiceDestino].nombre}”.`
+            : `Ahora sigue “${sesion.secuencia[indiceDestino].nombre}”.`)
         cambiarAhora(instante)
         return true
+    }
+
+    function finalizarYContinuar() {
+        const sesion = estadoRef.current
+        if (!sesion) return false
+        cambiarMensaje("")
+        return avanzarHasta(sesion.indiceActual + 1, Date.now())
+    }
+
+    function finalizarYOmitirSiguiente() {
+        const sesion = estadoRef.current
+        if (!sesion || sesion.indiceActual + 1 >= sesion.secuencia.length) return false
+        const indiceOmitido = sesion.indiceActual + 1
+        const elementoOmitido = sesion.secuencia[indiceOmitido]
+        cambiarMensaje("")
+        return avanzarHasta(indiceOmitido + 1, Date.now(), [elementoOmitido])
+    }
+
+    function sincronizarPlanes(planes, eventos) {
+        const sesion = estadoRef.current
+        if (!sesion) return { ok: true }
+        const planActualId = sesion.secuencia[sesion.indiceActual]?.planId
+        const actualizacion = crearSecuenciaSeguimiento(planes, planActualId, eventos)
+        if (!actualizacion.ok) return actualizacion
+
+        const secuencia = [
+            ...sesion.secuencia.slice(0, sesion.indiceActual),
+            sesion.secuencia[sesion.indiceActual],
+            ...actualizacion.secuencia.slice(1)
+        ]
+        const sincronizada = { ...sesion, secuencia }
+        if (!guardar(sincronizada)) return { ok: false, error: "No se pudo guardar la cola actualizada." }
+        publicar(sincronizada)
+        return { ok: true }
     }
 
     function dejarDeSeguir() {
@@ -284,11 +329,17 @@ export function useSeguimientoPlanificacion(estadoRegistro) {
     }
 
     const elementoActual = estado?.secuencia[estado.indiceActual] ?? null
+    const elementoSiguiente = estado?.secuencia[estado.indiceActual + 1] ?? null
+    const elementoPosterior = estado?.secuencia[estado.indiceActual + 2] ?? null
     const segundosRestantes = estado?.estado === "Pausado"
         ? Math.ceil(estado.restanteMs / 1000)
         : estado?.finBloque ? Math.max(0, Math.ceil((Date.parse(estado.finBloque) - ahora) / 1000)) : 0
 
-    return { estado, error, elementoActual, segundosRestantes, empezar, pausar, reanudar, saltar, dejarDeSeguir }
+    return {
+        estado, error, mensaje, elementoActual, elementoSiguiente, elementoPosterior,
+        segundosRestantes, empezar, pausar, reanudar, finalizarYContinuar,
+        finalizarYOmitirSiguiente, dejarDeSeguir, sincronizarPlanes
+    }
 }
 
 function obtenerPrimerPlanDelDia(planes, idPlan) {
@@ -298,7 +349,5 @@ function obtenerPrimerPlanDelDia(planes, idPlan) {
         .filter(plan => plan.inicio.getFullYear() === seleccionado.inicio.getFullYear()
             && plan.inicio.getMonth() === seleccionado.inicio.getMonth()
             && plan.inicio.getDate() === seleccionado.inicio.getDate())
-        .sort((a, b) => a.inicio.getTime() - b.inicio.getTime()
-            || a.fin.getTime() - b.fin.getTime()
-            || a.id.localeCompare(b.id))[0]?.id ?? idPlan
+        .sort(compararPlanesPorSeguimiento)[0]?.id ?? idPlan
 }

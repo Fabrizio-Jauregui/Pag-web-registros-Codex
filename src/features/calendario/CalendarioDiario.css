@@ -307,6 +307,10 @@
 
 .bloque-plan-editable:active { cursor: grabbing; }
 
+.bloque-plan-en-seguimiento {
+  box-shadow: inset 0 0 0 2px #4f46e5;
+}
+
 .bloque-plan-arrastrando {
   z-index: 6;
   opacity: 0.82;

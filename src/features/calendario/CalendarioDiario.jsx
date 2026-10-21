@@ -197,6 +197,9 @@ export const CalendarioDiario = forwardRef(function CalendarioDiario({
         recurrencias, vista === "dia" ? fechaSeleccionada : diasSemana[0],
         vista === "dia" ? fechaSeleccionada : diasSemana[6]
     )]
+    const planActivoSeguimientoId = seguimientoPlanificacion?.estado
+        ? seguimientoPlanificacion.estado.secuencia[seguimientoPlanificacion.estado.indiceActual]?.planId
+        : null
     const fragmentosCombinadosDia = distribuirCarriles([
         ...obtenerFragmentosCalendario(registros, fechaSeleccionada, ahora)
             .map(fragmento => ({ ...fragmento, tipoVisual: "registro" })),
@@ -508,6 +511,10 @@ export const CalendarioDiario = forwardRef(function CalendarioDiario({
 
     function ajustarPlanDesdeCalendario(plan, cambios, modo) {
         cambiarEstadoAjuste(null)
+        if (plan.id === planActivoSeguimientoId) {
+            cambiarEstadoAjuste({ mensaje: "El evento que está en curso permanece bloqueado hasta que termine." })
+            return
+        }
         if (idAplicacionArmada && modo === "mover" && plan.idAplicacionPlantilla === idAplicacionArmada) {
             const desplazamientoMs = cambios.inicio.getTime() - plan.inicio.getTime()
             const resultadoGrupo = onMoverAplicacionPlan(idAplicacionArmada, desplazamientoMs)
@@ -684,6 +691,7 @@ export const CalendarioDiario = forwardRef(function CalendarioDiario({
                     onAjustarRegistro={ajustarRegistroDesdeCalendario}
                     edicionDirectaHabilitada={edicionDirectaHabilitada}
                     idAplicacionArmada={idAplicacionArmada}
+                    planActivoSeguimientoId={planActivoSeguimientoId}
                 />
             ) : (
                 <VistaCalendarioSemana
@@ -709,6 +717,7 @@ export const CalendarioDiario = forwardRef(function CalendarioDiario({
                     onAjustarRegistro={ajustarRegistroDesdeCalendario}
                     edicionDirectaHabilitada={edicionDirectaHabilitada}
                     idAplicacionArmada={idAplicacionArmada}
+                    planActivoSeguimientoId={planActivoSeguimientoId}
                 />
             )}
             {formulario && (
@@ -759,6 +768,7 @@ export const CalendarioDiario = forwardRef(function CalendarioDiario({
                     onEliminarAplicacion={eliminarAplicacionSeleccionada}
                     onCerrar={() => cambiarPlanSeleccionado(null)}
                     seguimientoActivo={Boolean(seguimientoPlanificacion?.estado)}
+                    planActivoSeguimiento={planSeleccionado.id === planActivoSeguimientoId}
                     onSeguirPlan={(id, modo) => {
                         const resultado = seguimientoPlanificacion?.empezar(id, modo, planesVisibles, eventos)
                         if (resultado?.ok) cambiarPlanSeleccionado(null)

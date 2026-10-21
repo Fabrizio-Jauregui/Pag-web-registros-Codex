@@ -5,13 +5,14 @@ function valorFechaHora(fecha) {
     return obtenerValorFechaHoraLocal(fecha).slice(0, 19)
 }
 
-function crearValoresIniciales(plan, fechaSeleccionada) {
+function crearValoresIniciales(plan, fechaSeleccionada, valoresIniciales = null) {
     if (plan) return {
         nombre: plan.nombre,
         eventoId: plan.eventoId ?? "",
         inicio: valorFechaHora(plan.inicio),
         fin: valorFechaHora(plan.fin)
     }
+    if (valoresIniciales) return valoresIniciales
     const inicio = new Date(fechaSeleccionada)
     inicio.setHours(9, 0, 0, 0)
     const fin = new Date(inicio)
@@ -19,12 +20,12 @@ function crearValoresIniciales(plan, fechaSeleccionada) {
     return { nombre: "", eventoId: "", inicio: valorFechaHora(inicio), fin: valorFechaHora(fin) }
 }
 
-export function FormularioPlan({ plan = null, fechaSeleccionada, eventos, onGuardar, onCrearRecurrencia, onCancelar }) {
+export function FormularioPlan({ plan = null, fechaSeleccionada, eventos, onGuardar, onCrearRecurrencia, onCancelar, valoresIniciales = null }) {
     const [repetirSemanalmente, cambiarRepetirSemanalmente] = useState(false)
     const [diasSemana, cambiarDiasSemana] = useState(() => [fechaSeleccionada.getDay()])
     const [fechaFinSerie, cambiarFechaFinSerie] = useState("")
     const [alcance, cambiarAlcance] = useState("solo")
-    const [valores, cambiarValores] = useState(() => crearValoresIniciales(plan, fechaSeleccionada))
+    const [valores, cambiarValores] = useState(() => crearValoresIniciales(plan, fechaSeleccionada, valoresIniciales))
     const [error, cambiarError] = useState("")
     const nombreRef = useRef(null)
     const eventoRef = useRef(null)

@@ -20,6 +20,7 @@ export function VistaCalendarioDia({
     onAjustarRegistro,
     edicionDirectaHabilitada,
     idAplicacionArmada = null,
+    planActivoSeguimientoId = null,
     ejeTiempoRelativo = false
 }) {
     const gestoFranjaRef = useRef(null)
@@ -115,7 +116,8 @@ export function VistaCalendarioDia({
                         fragmento={fragmento}
                         evento={eventos.find(evento => evento.id === fragmento.plan.eventoId)}
                         onSeleccionar={onSeleccionarPlan}
-                        edicionDirectaHabilitada={edicionDirectaHabilitada}
+                        edicionDirectaHabilitada={edicionDirectaHabilitada && fragmento.plan.id !== planActivoSeguimientoId}
+                        estaEnSeguimiento={fragmento.plan.id === planActivoSeguimientoId}
                         onAjustarPlan={onAjustarPlan}
                         tiempoRelativo={ejeTiempoRelativo}
                     />

@@ -12,6 +12,8 @@ function fechaConHora(fecha, segundosDelDia, milisegundos) {
 
 export function validarReglaRecurrencia(regla) {
     if (!regla || typeof regla !== "object" || typeof regla.id !== "string" || !regla.id.trim()) return false
+    if (regla.ordenSeguimiento !== undefined
+        && (!Number.isInteger(regla.ordenSeguimiento) || regla.ordenSeguimiento < 0)) return false
     if (regla.idSerie !== undefined && (typeof regla.idSerie !== "string" || !regla.idSerie.trim())) return false
     if (typeof regla.nombre !== "string" || !regla.nombre.trim() || regla.nombre.length > 80) return false
     if (regla.eventoId !== null && typeof regla.eventoId !== "string") return false
@@ -73,6 +75,8 @@ export function generarAparicionesRecurrencia(reglas, inicioRango, finRango) {
             if (inicioExcepcion < limiteFin && finExcepcion > limiteInicio
                 && (fecha < formatearFechaISO(desde) || fecha > formatearFechaISO(hasta))) {
                     visibles.push({ ...excepcion, inicio: inicioExcepcion, fin: finExcepcion,
+                    ...(Number.isInteger(excepcion.ordenSeguimiento ?? regla.ordenSeguimiento)
+                        ? { ordenSeguimiento: excepcion.ordenSeguimiento ?? regla.ordenSeguimiento } : {}),
                     idRecurrencia: regla.id, idSerie: regla.idSerie ?? regla.id, fechaRecurrencia: fecha })
             }
         }
@@ -82,12 +86,16 @@ export function generarAparicionesRecurrencia(reglas, inicioRango, finRango) {
             if (regla.diasSemana.includes(cursor.getDay())) {
                 if (Object.hasOwn(regla.excepciones, fecha)) {
                     const excepcion = regla.excepciones[fecha]
-                    if (excepcion) visibles.push({ ...excepcion, inicio: new Date(excepcion.inicio), fin: new Date(excepcion.fin), idRecurrencia: regla.id, fechaRecurrencia: fecha })
+                    if (excepcion) visibles.push({ ...excepcion, inicio: new Date(excepcion.inicio), fin: new Date(excepcion.fin),
+                        ...(Number.isInteger(excepcion.ordenSeguimiento ?? regla.ordenSeguimiento)
+                            ? { ordenSeguimiento: excepcion.ordenSeguimiento ?? regla.ordenSeguimiento } : {}),
+                        idRecurrencia: regla.id, fechaRecurrencia: fecha })
                 } else {
                     const inicio = fechaConHora(cursor, regla.segundosInicio, regla.milisegundosInicio)
                     const fin = new Date(inicio.getTime() + regla.duracionMs)
                     visibles.push({ id: `recurrencia-${regla.id}-${fecha}`, nombre: regla.nombre,
                         eventoId: regla.eventoId, colorEvento: regla.colorEvento, inicio, fin,
+                        ...(Number.isInteger(regla.ordenSeguimiento) ? { ordenSeguimiento: regla.ordenSeguimiento } : {}),
                         idRecurrencia: regla.id, idSerie: regla.idSerie ?? regla.id, fechaRecurrencia: fecha })
                 }
             }
@@ -107,6 +115,7 @@ export function cambiarRecurrencia(reglas, id, fecha, cambios, alcance = "solo")
         const inicio = cambios.inicio.toISOString(); const fin = cambios.fin.toISOString()
         const excepciones = { ...regla.excepciones, [fecha]: { id: `excepcion-${id}-${fecha}`, nombre: cambios.nombre,
             eventoId: cambios.evento?.id ?? null, colorEvento: cambios.evento?.color ?? regla.colorEvento,
+            ...(Number.isInteger(cambios.ordenSeguimiento) ? { ordenSeguimiento: cambios.ordenSeguimiento } : {}),
             inicio, fin } }
         return { ok: true, reglas: reglas.map(item => item.id === id ? { ...item, excepciones } : item) }
     }
@@ -124,6 +133,7 @@ export function cambiarRecurrencia(reglas, id, fecha, cambios, alcance = "solo")
 function actualizarBase(regla, cambios) {
     return { ...regla, nombre: cambios.nombre.trim(), eventoId: cambios.evento?.id ?? null,
         colorEvento: cambios.evento?.color ?? regla.colorEvento,
+        ...(Number.isInteger(cambios.ordenSeguimiento) ? { ordenSeguimiento: cambios.ordenSeguimiento } : {}),
         segundosInicio: cambios.inicio.getHours() * 3600 + cambios.inicio.getMinutes() * 60 + cambios.inicio.getSeconds(),
         milisegundosInicio: cambios.inicio.getMilliseconds(), duracionMs: cambios.fin - cambios.inicio }
 }

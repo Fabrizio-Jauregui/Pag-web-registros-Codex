@@ -1,3 +1,5 @@
+import { compararPlanesPorSeguimiento } from "./planes.js"
+
 const DURACION_MINIMA_REGISTRO_MS = 1000
 const DURACION_MAXIMA_REGISTRO_MS = 24 * 60 * 60 * 1000
 
@@ -19,9 +21,7 @@ export function crearSecuenciaSeguimiento(planes, idPlanSeleccionado, eventos = 
     const dia = seleccionado.inicio
     const ordenados = planes
         .filter(plan => mismoDiaLocal(plan.inicio, dia))
-        .sort((a, b) => a.inicio.getTime() - b.inicio.getTime()
-            || a.fin.getTime() - b.fin.getTime()
-            || a.id.localeCompare(b.id))
+        .sort(compararPlanesPorSeguimiento)
     const indiceSeleccionado = ordenados.findIndex(plan => plan.id === idPlanSeleccionado)
     const diaSinPlantillas = ordenados.slice(indiceSeleccionado)
         .find(plan => plan.eventoId && !eventos.some(evento => evento.id === plan.eventoId))
@@ -66,6 +66,16 @@ export function validarEstadoSeguimiento(estado) {
     if (estado.estado === "En curso" && !instanteValido(estado.finBloque)) return false
     if (estado.estado === "Pausado" && (estado.finBloque !== null
         || !Number.isFinite(estado.restanteMs) || estado.restanteMs < 0)) return false
+
+    const eventosOmitidos = estado.eventosOmitidos ?? []
+    if (!Array.isArray(eventosOmitidos)) return false
+    const idsOmitidos = new Set()
+    for (const planId of eventosOmitidos) {
+        const indiceOmitido = estado.secuencia.findIndex(item => item?.planId === planId)
+        if (typeof planId !== "string" || indiceOmitido < 0 || indiceOmitido >= estado.indiceActual
+            || idsOmitidos.has(planId)) return false
+        idsOmitidos.add(planId)
+    }
 
     return estado.secuencia.every(item => item && typeof item.planId === "string"
         && item.planId.trim() !== "" && typeof item.nombre === "string" && item.nombre.trim() !== ""

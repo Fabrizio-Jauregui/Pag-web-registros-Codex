@@ -28,6 +28,7 @@ export function BloquePlan({
     onSeleccionar,
     onAjustarPlan,
     edicionDirectaHabilitada,
+    estaEnSeguimiento = false,
     permiteCambiarDia = false,
     tiempoRelativo = false
 }) {
@@ -38,11 +39,14 @@ export function BloquePlan({
     const nombre = evento?.nombre ?? plan.nombre
     const color = evento?.color ?? plan.colorEvento ?? "#0F766E"
     const contextoDia = permiteCambiarDia ? formatoFechaSemana.format(fragmento.inicio) + ", " : ""
+    const etiquetaOrden = Number.isInteger(plan.ordenSeguimiento)
+        ? `Orden de seguimiento ${plan.ordenSeguimiento + 1}. `
+        : ""
     const segundosDesdeInicio = fragmento.plan.inicio.getHours() * 3600 + fragmento.plan.inicio.getMinutes() * 60 + fragmento.plan.inicio.getSeconds()
     const duracionSegundos = Math.round((fragmento.plan.fin.getTime() - fragmento.plan.inicio.getTime()) / 1000)
     const etiqueta = tiempoRelativo
-        ? `Planificado: ${nombre}, inicio +${duracionRelativa(segundosDesdeInicio)}, duración ${duracionRelativa(duracionSegundos)}`
-        : `Planificado: ${nombre}, ${contextoDia}${formatearInstante(fragmento.inicio, opcionesHora)} a ${formatearInstante(fragmento.fin, opcionesHora)}`
+        ? `${etiquetaOrden}Planificado: ${nombre}, inicio +${duracionRelativa(segundosDesdeInicio)}, duración ${duracionRelativa(duracionSegundos)}`
+        : `${etiquetaOrden}Planificado: ${nombre}, ${contextoDia}${formatearInstante(fragmento.inicio, opcionesHora)} a ${formatearInstante(fragmento.fin, opcionesHora)}`
     const top = (minutosInicio / 1440) * 100
     const height = ((minutosFin - minutosInicio) / 1440) * 100
     const esExtremoInicio = fragmento.inicio.getTime() === plan.inicio.getTime()
@@ -152,12 +156,13 @@ export function BloquePlan({
     return (
         <button
             type="button"
-            className={`bloque-plan ${edicionDirectaHabilitada ? "bloque-plan-editable" : ""} ${vistaGesto ? "bloque-plan-arrastrando" : ""}`}
+            className={`bloque-plan ${edicionDirectaHabilitada ? "bloque-plan-editable" : ""} ${estaEnSeguimiento ? "bloque-plan-en-seguimiento" : ""} ${vistaGesto ? "bloque-plan-arrastrando" : ""}`}
             style={style}
             aria-label={etiqueta}
             aria-description={edicionDirectaHabilitada
                 ? `Arrastrá para mover. Flechas arriba y abajo: mover un minuto. Mayúsculas más flecha: cambiar el fin. Alt más flecha: cambiar el inicio.${permiteCambiarDia ? " En vista semanal, Alt más flecha izquierda o derecha: mover de día." : ""}`
-                : undefined}
+                : estaEnSeguimiento ? "Evento actual del seguimiento; sus horarios y datos están protegidos hasta que termine."
+                    : undefined}
             aria-keyshortcuts={edicionDirectaHabilitada
                 ? atajosTeclado
                 : undefined}
@@ -177,6 +182,7 @@ export function BloquePlan({
         >
             {edicionDirectaHabilitada && esExtremoInicio && <span className="control-bloque-registro control-bloque-plan control-bloque-inicio" data-extremo="inicio" aria-hidden="true" />}
             <span aria-hidden="true">Plan: {nombre}</span>
+            {Number.isInteger(plan.ordenSeguimiento) && <small className="bloque-plan-orden" aria-hidden="true">Orden {plan.ordenSeguimiento + 1}</small>}
             {height > 1.5 && <small aria-hidden="true">
                 {tiempoRelativo
                     ? `+${duracionRelativa(segundosDesdeInicio)} · ${duracionRelativa(duracionSegundos)} de duración`

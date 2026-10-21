@@ -3,7 +3,7 @@ import { formatearInstante } from "../../domain/tiempo/historial.js"
 
 const opciones = { dateStyle: "full", timeStyle: "short" }
 
-export function DetallePlan({ plan, evento, onEditar, onEliminar, onEliminarAplicacion, onEliminarRecurrencia, onCerrar, onMoverAplicacion, onSeguirPlan, seguimientoActivo = false }) {
+export function DetallePlan({ plan, evento, onEditar, onEliminar, onEliminarAplicacion, onEliminarRecurrencia, onCerrar, onMoverAplicacion, onSeguirPlan, seguimientoActivo = false, planActivoSeguimiento = false }) {
     const [mostrarOpcionesSeguimiento, cambiarMostrarOpcionesSeguimiento] = useState(false)
     const [errorSeguimiento, cambiarErrorSeguimiento] = useState("")
     const [alcanceEliminar, cambiarAlcanceEliminar] = useState("solo")
@@ -40,7 +40,9 @@ export function DetallePlan({ plan, evento, onEditar, onEliminar, onEliminarApli
                     {errorSeguimiento && <p role="alert">{errorSeguimiento}</p>}
                 </div>
             )}
-            <div className="acciones-detalle-plan">
+            {planActivoSeguimiento
+                ? <p role="status">Este evento está en curso y permanece bloqueado hasta que termine.</p>
+                : <div className="acciones-detalle-plan">
                 {plan.idAplicacionPlantilla && <button type="button" onClick={onMoverAplicacion}>Mover aplicación completa</button>}
                 <button type="button" onClick={onEditar}>Editar plan</button>
                 {plan.idRecurrencia ? <>
@@ -52,7 +54,7 @@ export function DetallePlan({ plan, evento, onEditar, onEliminar, onEliminarApli
                 {plan.idAplicacionPlantilla && (
                     <button type="button" onClick={onEliminarAplicacion}>Eliminar aplicación completa</button>
                 )}
-            </div>
+            </div>}
         </section>
     )
 }

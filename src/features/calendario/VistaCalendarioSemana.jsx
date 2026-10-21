@@ -24,7 +24,8 @@ export function VistaCalendarioSemana({
     onAjustarPlan,
     onAjustarRegistro,
     edicionDirectaHabilitada,
-    idAplicacionArmada = null
+    idAplicacionArmada = null,
+    planActivoSeguimientoId = null
 }) {
     const [formatoMovil, cambiarFormatoMovil] = useState("agenda")
     const actividadesPorDia = fragmentosSemana.map(columna => {
@@ -146,7 +147,8 @@ export function VistaCalendarioSemana({
                                     evento={eventos.find(evento => evento.id === fragmento.plan.eventoId)}
                                     onSeleccionar={onSeleccionarPlan}
                                     onAjustarPlan={onAjustarPlan}
-                                    edicionDirectaHabilitada={edicionDirectaHabilitada}
+                                    edicionDirectaHabilitada={edicionDirectaHabilitada && fragmento.plan.id !== planActivoSeguimientoId}
+                                    estaEnSeguimiento={fragmento.plan.id === planActivoSeguimientoId}
                                     permiteCambiarDia
                                 />
                             ))}
