@@ -57,11 +57,11 @@ test("Datos preparados + interacción UI: completa un ciclo de temporizador con 
     })
     expect(registrosGuardados[0].segmentos.map(segmento => segmento.tipo))
         .toEqual(["En curso", "Pausado", "En curso"])
-    await expect(page.getByText("Registros guardados: 1")).toBeVisible()
+    await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("focus.registros.v1") ?? "[]").length)).toBe(1)
 
     await page.reload()
     await expect(page.getByText("Estado actual: Inactivo")).toBeVisible()
-    await expect(page.getByText("Registros guardados: 1")).toBeVisible()
+    await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("focus.registros.v1") ?? "[]").length)).toBe(1)
 })
 
 test("Flujo de usuario: no inicia el temporizador sin nombre ni plantilla seleccionada", async ({ page }) => {
@@ -71,5 +71,5 @@ test("Flujo de usuario: no inicia el temporizador sin nombre ni plantilla selecc
     await expect(page.getByRole("region", { name: "Registro de tiempo" }).getByRole("alert"))
         .toContainText("Escribí un nombre para iniciar el registro")
     await expect(page.getByText("Estado actual: Inactivo")).toBeVisible()
-    await expect(page.getByText("Registros guardados: 0")).toBeVisible()
+    await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("focus.registros.v1") ?? "[]").length)).toBe(0)
 })

@@ -10,7 +10,7 @@ function formatearHora(instante) {
     })
 }
 
-function FilaHistorialContenido({ registro, ahora, tareas = [] }) {
+function FilaHistorialContenido({ registro, ahora, tareas = [], onEditar, onEliminar }) {
     const [expandido, cambiarExpandido] = useState(false)
     const inicio = registro.segmentos[0].inicio
     const fin = registro.segmentos.at(-1).fin
@@ -62,6 +62,12 @@ function FilaHistorialContenido({ registro, ahora, tareas = [] }) {
                     {registro.motivoCancelacion && (
                         <p className="historial-motivo">Motivo de cancelación: {registro.motivoCancelacion}</p>
                     )}
+                    {registro.estado === "Finalizado" && (
+                        <div className="historial-acciones">
+                            <button type="button" onClick={() => onEditar?.(registro)}>Editar registro</button>
+                            <button type="button" onClick={() => onEliminar?.(registro)}>Eliminar registro</button>
+                        </div>
+                    )}
                 </div>
             </details>
         </li>
@@ -73,8 +79,8 @@ function FilaHistorialEnVivo({ registro, tareas }) {
     return <FilaHistorialContenido registro={registro} ahora={ahora} tareas={tareas} />
 }
 
-export function FilaHistorial({ registro, ahora, tareas = [] }) {
+export function FilaHistorial({ registro, ahora, tareas = [], onEditar, onEliminar }) {
     return registro.segmentos.at(-1).fin === null
         ? <FilaHistorialEnVivo registro={registro} tareas={tareas} />
-        : <FilaHistorialContenido registro={registro} ahora={ahora} tareas={tareas} />
+        : <FilaHistorialContenido registro={registro} ahora={ahora} tareas={tareas} onEditar={onEditar} onEliminar={onEliminar} />
 }

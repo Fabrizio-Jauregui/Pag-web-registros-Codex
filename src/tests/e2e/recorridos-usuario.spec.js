@@ -69,6 +69,11 @@ async function resolverConfirmacion(page, boton, aceptar) {
     return respuestaDialogo
 }
 
+async function esperarCantidadRegistros(page, cantidad) {
+    await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("focus.registros.v1") ?? "[]").length))
+        .toBe(cantidad)
+}
+
 test.afterEach(async ({ page }, testInfo) => {
     if (!page.isClosed()) {
         await testInfo.attach("pantalla-final", {
@@ -96,13 +101,15 @@ test("Flujo de usuario: crea una actividad manual, la abre en el calendario y la
     await detalle.getByRole("button", { name: "Cerrar detalle" }).click()
     await expect(detalle).toHaveCount(0)
 
+    await page.getByRole("button", { name: "Historial", exact: true }).click()
     const historial = page.getByRole("region", { name: "Historial" })
     await expect(historial.getByText(nombre)).toBeVisible()
-    await expect(historial.getByText("Registros guardados: 1")).toBeVisible()
+    await expect(historial.getByText("Registros: 1 de 1")).toBeVisible()
 
     await page.reload()
     await abrirFecha(page, inicio)
     await expect(page.getByRole("button", { name: new RegExp(nombre) })).toBeVisible()
+    await page.getByRole("button", { name: "Historial", exact: true }).click()
     await expect(page.getByRole("region", { name: "Historial" }).getByText(nombre)).toBeVisible()
 })
 
@@ -122,7 +129,7 @@ test("Flujo de usuario: cancela o confirma la eliminación de un registro finali
     expect(mensajeCancelar).toContain("no se puede deshacer")
     await expect(detalle).toBeVisible()
     await expect(page.getByRole("button", { name: new RegExp(nombre) })).toBeVisible()
-    await expect(page.getByText("Registros guardados: 1")).toBeVisible()
+    await esperarCantidadRegistros(page, 1)
 
     const mensajeEliminar = await resolverConfirmacion(page, eliminar, true)
     expect(mensajeEliminar).toContain(nombre)
@@ -130,14 +137,16 @@ test("Flujo de usuario: cancela o confirma la eliminación de un registro finali
     await expect(page.getByRole("button", { name: new RegExp(nombre) })).toHaveCount(0)
     await expect(page.locator('.mensaje-ajuste-calendario[role="status"]'))
         .toContainText("Registro eliminado")
-    await expect(page.getByText("Registros guardados: 0")).toBeVisible()
+    await esperarCantidadRegistros(page, 0)
+    await page.getByRole("button", { name: "Historial", exact: true }).click()
     await expect(page.getByRole("region", { name: "Historial" }).getByText(nombre)).toHaveCount(0)
 
     await page.reload()
     await abrirFecha(page, inicio)
     await expect(page.getByRole("button", { name: new RegExp(nombre) })).toHaveCount(0)
+    await page.getByRole("button", { name: "Historial", exact: true }).click()
     await expect(page.getByRole("region", { name: "Historial" }).getByText(nombre)).toHaveCount(0)
-    await expect(page.getByText("Registros guardados: 0")).toBeVisible()
+    await expect(page.getByText("Registros: 0 de 0")).toBeVisible()
 })
 
 test("Flujo de usuario: rechaza horas iguales sin convertirlas en un registro de 24 horas", async ({ page }) => {
@@ -155,7 +164,7 @@ test("Flujo de usuario: rechaza horas iguales sin convertirlas en un registro de
     await page.getByRole("button", { name: "Crear registro", exact: true }).click()
 
     await expect(page.getByRole("alert")).toHaveText("El fin debe ser posterior al inicio.")
-    await expect(page.getByRole("region", { name: "Historial" }).getByText("QA hora igual")).toHaveCount(0)
+    await esperarCantidadRegistros(page, 0)
 })
 
 test("Flujo de usuario: avisa si falta el nombre y permite cancelar un borrador sin guardarlo", async ({ page }) => {
@@ -171,7 +180,7 @@ test("Flujo de usuario: avisa si falta el nombre y permite cancelar un borrador 
     await page.getByLabel("Nombre de la actividad").fill("QA borrador cancelado")
     await page.getByRole("button", { name: "Cancelar", exact: true }).click()
     await expect(page.getByRole("heading", { name: "Nuevo registro manual" })).toHaveCount(0)
-    await expect(page.getByText("Registros guardados: 0")).toBeVisible()
+    await esperarCantidadRegistros(page, 0)
 })
 
 test("Flujo de usuario: crea, edita, cancela y elimina un evento usando sus confirmaciones", async ({ page }) => {
@@ -256,7 +265,7 @@ test("Flujo de usuario: permite crear un segundo registro superpuesto y muestra 
     })
     await expect(page.getByRole("button", { name: /QA bloque superpuesto/ })).toBeVisible()
     await expect(page.getByRole("button", { name: new RegExp(nombre) })).toBeVisible()
-    await expect(page.getByText("Registros guardados: 2")).toBeVisible()
+    await esperarCantidadRegistros(page, 2)
 })
 
 test("Flujo de usuario: mantiene timers simultáneos independientes al pausar, detener y recargar", async ({ page }) => {
@@ -333,7 +342,7 @@ test("Flujo de usuario: acepta registros consecutivos que empiezan cuando termin
 
     await expect(page.getByRole("button", { name: /QA primer bloque/ })).toBeVisible()
     await expect(page.getByRole("button", { name: /QA segundo bloque/ })).toBeVisible()
-    await expect(page.getByText("Registros guardados: 2")).toBeVisible()
+    await esperarCantidadRegistros(page, 2)
 })
 
 test("Flujo de usuario: muestra un registro que cruza medianoche en sus dos días de la semana", async ({ page }) => {
@@ -377,7 +386,7 @@ test("Flujo de usuario: permite registrar exactamente 24 horas y explica cuando 
     })
     await expect(page.getByRole("region", { name: "Calendario" }).getByRole("alert"))
         .toContainText("24 horas")
-    await expect(page.getByText("Registros guardados: 1")).toBeVisible()
+    await esperarCantidadRegistros(page, 1)
 })
 
 test("Flujo de usuario: explica que no se puede guardar un intervalo que todavía no ocurrió", async ({ page }) => {
@@ -394,7 +403,7 @@ test("Flujo de usuario: explica que no se puede guardar un intervalo que todaví
     })
     await expect(page.getByRole("region", { name: "Calendario" }).getByRole("alert"))
         .toContainText("El fin no puede ser posterior a la hora actual")
-    await expect(page.getByText("Registros guardados: 0")).toBeVisible()
+    await esperarCantidadRegistros(page, 0)
 })
 
 test("Flujo de usuario: edita un registro finalizado y permite que la edición se superponga con otro", async ({ page }) => {
@@ -422,7 +431,7 @@ test("Flujo de usuario: edita un registro finalizado y permite que la edición s
 
     await expect(page.getByRole("button", { name: /QA bloque editado/ })).toBeVisible()
     await expect(page.getByRole("button", { name: /QA bloque fijo/ })).toBeVisible()
-    await expect(page.getByText("Registros guardados: 2")).toBeVisible()
+    await esperarCantidadRegistros(page, 2)
 })
 
 test("Flujo de usuario: completa el temporizador por interfaz y recupera el resultado al recargar", async ({ page }) => {
@@ -459,10 +468,11 @@ test("Flujo de usuario: completa el temporizador por interfaz y recupera el resu
     await expect(stop).toBeEnabled({ timeout: 4000 })
     await stop.click()
     await expect(page.getByText("Estado actual: Inactivo")).toBeVisible()
-    await expect(controles.getByText("Registros guardados: 1")).toBeVisible()
+    await esperarCantidadRegistros(page, 1)
 
     await page.reload()
-    await expect(page.getByText("Registros guardados: 1")).toBeVisible()
+    await page.getByRole("button", { name: "Historial", exact: true }).click()
+    await expect(page.getByText("Registros: 1 de 1")).toBeVisible()
     await expect(page.getByRole("region", { name: "Historial" }).getByText(evento)).toBeVisible()
 })
 

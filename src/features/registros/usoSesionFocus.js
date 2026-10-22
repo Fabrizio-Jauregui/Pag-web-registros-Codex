@@ -370,6 +370,23 @@ export function useSesionFocus(estadoRegistro, tareas = [], accionesTareas = {})
     }, [sesion, estadoRegistro, historial])
 
     useEffect(() => {
+        if (!estadoRegistro.datos.ok) return
+        const idsRegistros = new Set(estadoRegistro.registros.map(registro => registro.id))
+        const sesionesConRegistros = historialRef.current.filter(item => {
+            const ids = item.registroIds ?? (item.registroId ? [item.registroId] : [])
+            return ids.length === 0 || ids.some(id => idsRegistros.has(id))
+        })
+        if (sesionesConRegistros.length === historialRef.current.length) return
+        const resultado = guardarHistorialFocus(sesionesConRegistros)
+        if (!resultado.ok) {
+            cambiarError(resultado.error)
+            return
+        }
+        historialRef.current = sesionesConRegistros
+        cambiarHistorial(sesionesConRegistros)
+    }, [estadoRegistro.datos.ok, estadoRegistro.registros])
+
+    useEffect(() => {
         reconciliarRef.current = reconciliar
     })
 
@@ -626,10 +643,6 @@ export function useSesionFocus(estadoRegistro, tareas = [], accionesTareas = {})
         return guardarPlantillas(plantillas.filter(item => item.id !== id))
     }
 
-    function eliminarSesionHistorial(id) {
-        return guardarHistorial(historial.filter(item => item.id !== id))
-    }
-
     const bloqueActual = sesion?.configuracion.bloques[sesion.indiceBloque] ?? null
     const finBloqueMs = sesion?.finBloque ? Date.parse(sesion.finBloque) : null
     const restanteMs = sesion?.estado === "pausada"
@@ -659,7 +672,6 @@ export function useSesionFocus(estadoRegistro, tareas = [], accionesTareas = {})
         finalizarSesion,
         guardarPlantilla,
         eliminarPlantilla,
-        eliminarSesionHistorial,
         limpiarError: () => cambiarError("")
     }
 }

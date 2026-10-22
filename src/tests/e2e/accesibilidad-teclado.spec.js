@@ -170,6 +170,7 @@ test("Flujo de usuario: identifica el día de cada bloque semanal y el estado ex
     await crearRegistro("Lectura", "09:00", "09:30")
     await crearRegistro("Escritura", "09:15", "09:45")
 
+    await page.getByRole("button", { name: "Historial", exact: true }).click()
     const historial = page.getByRole("region", { name: "Historial" })
     const lecturaResumen = historial.locator("summary").filter({ hasText: "Lectura" })
     await expect(lecturaResumen).toHaveAttribute("aria-expanded", "false")
@@ -181,6 +182,7 @@ test("Flujo de usuario: identifica el día de cada bloque semanal y el estado ex
     await page.keyboard.press("Enter")
     await expect(lecturaResumen).toHaveAttribute("aria-expanded", "false")
 
+    await page.getByRole("button", { name: "Calendario", exact: true }).click()
     await page.getByRole("button", { name: "Semana", exact: true }).click()
     const tabla = page.getByRole("table", { name: /Semana del.*grilla de horas/ })
     await expect(tabla.getByRole("row")).toHaveCount(25)

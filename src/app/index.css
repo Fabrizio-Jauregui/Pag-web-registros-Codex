@@ -85,6 +85,7 @@ html[data-tema="oscuro"] .biblioteca-eventos h2,
 html[data-tema="oscuro"] .biblioteca-plantillas-plan h2,
 html[data-tema="oscuro"] .biblioteca-plantillas-plan h3,
 html[data-tema="oscuro"] .biblioteca-eventos h3,
+html[data-tema="oscuro"] .historial-registros h2,
 html[data-tema="oscuro"] .historial-registros h3,
 html[data-tema="oscuro"] .historial-registros h4,
 html[data-tema="oscuro"] .historial-resumen-principal strong,
@@ -310,6 +311,23 @@ html[data-tema="oscuro"] .formulario-evento,
 html[data-tema="oscuro"] .historial-metricas div {
   border-color: #344158;
   background: #1b263a;
+}
+
+html[data-tema="oscuro"] .historial-filtros {
+  border-color: #344158;
+  background: #1b263a;
+}
+
+html[data-tema="oscuro"] .historial-filtros label,
+html[data-tema="oscuro"] .historial-cantidad {
+  color: #c3cede;
+}
+
+html[data-tema="oscuro"] .historial-filtros input,
+html[data-tema="oscuro"] .historial-acciones button {
+  border-color: #46536c;
+  background: #202b40;
+  color: #e8edf5;
 }
 
 html[data-tema="oscuro"] .historial-registros {

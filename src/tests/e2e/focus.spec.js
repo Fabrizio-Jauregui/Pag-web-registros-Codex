@@ -106,6 +106,7 @@ test("Flujo de usuario: configura bloques Focus, espera confirmación, pausa sol
 
     await expect(vista.getByRole("heading", { name: "Sesiones guardadas" })).toBeVisible()
     await expect(vista.getByText("Sesión Focus", { exact: true })).toBeVisible()
+    await expect(vista.getByRole("button", { name: /Eliminar historial/ })).toHaveCount(0)
     await expect(vista.getByRole("article", { name: "Actividad activa: Actividad paralela" }).getByText("Estado actual: En curso")).toBeVisible()
     const registros = await page.evaluate(clave => JSON.parse(localStorage.getItem(clave)), claveRegistros)
     expect(registros).toHaveLength(2)
@@ -114,6 +115,19 @@ test("Flujo de usuario: configura bloques Focus, espera confirmación, pausa sol
     const historialFocus = await page.evaluate(() => JSON.parse(localStorage.getItem("focus.historial-sesion.v1")))
     expect(historialFocus[0].extras.some(extra => extra.tipo === "tiempo-muerto")).toBe(true)
     expect(historialFocus[0].extras.some(extra => extra.tipo === "pausa-sesion")).toBe(true)
+
+    await page.getByRole("button", { name: "Historial", exact: true }).click()
+    const historial = page.getByRole("region", { name: "Historial" })
+    const filaSesion = historial.locator(".historial-fila").filter({ hasText: "Sesión Focus" })
+    await expect(filaSesion).toBeVisible()
+    await filaSesion.locator("summary").click()
+    const confirmarEliminacion = page.waitForEvent("dialog").then(dialogoNativo => dialogoNativo.accept())
+    await filaSesion.getByRole("button", { name: "Eliminar registro" }).click()
+    await confirmarEliminacion
+    await expect(filaSesion).toHaveCount(0)
+    await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("focus.historial-sesion.v1") ?? "[]").length)).toBe(0)
+    await page.getByRole("button", { name: "Focus", exact: true }).click()
+    await expect(vista.locator(".focus-item-historial").filter({ hasText: "Sesión Focus" })).toHaveCount(0)
 
     await vista.getByRole("article", { name: "Actividad activa: Actividad paralela" }).getByRole("button", { name: "Finalizar" }).click()
 })

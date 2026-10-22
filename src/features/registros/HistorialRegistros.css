@@ -4,6 +4,26 @@
   border-top: 1px solid #e2e8f0;
 }
 
+.historial-filtros {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin: 18px 0 10px;
+  padding: 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.historial-filtros label { display: grid; gap: 5px; color: #475569; font-size: .85rem; font-weight: 600; }
+.historial-filtros input { min-width: 0; padding: 8px; border: 1px solid #cbd5e1; border-radius: 7px; background: #fff; color: #172033; }
+.historial-cantidad { margin: 12px 0; color: #64748b; font-size: .9rem; }
+.historial-acciones { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.historial-acciones button { padding: 7px 11px; border: 1px solid #cbd5e1; border-radius: 7px; background: #fff; color: #172033; cursor: pointer; }
+.historial-acciones button:hover { background: #f1f5f9; }
+.historial-editor { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; overflow: auto; padding: 20px; background: rgb(15 23 42 / 65%); }
+.historial-editor .formulario-registro { width: min(760px, 100%); max-height: calc(100vh - 40px); overflow: auto; margin: auto; }
+
 .historial-registros-header {
   margin-bottom: 14px;
 }
@@ -150,4 +170,7 @@
   .historial-detalle {
     padding-left: 16px;
   }
+
+  .historial-editor { align-items: start; padding: 10px; }
+  .historial-editor .formulario-registro { max-height: calc(100vh - 20px); }
 }

@@ -11,6 +11,7 @@ import { EstadosRegistros } from "../features/registros/EstadosRegistros.jsx"
 import { AnaliticaRegistros } from "../features/analitica/AnaliticaRegistros.jsx"
 import { useRegistro } from "../features/registros/usoRegistro.js"
 import { VistaFocus } from "../features/registros/VistaFocus.jsx"
+import { HistorialRegistros } from "../features/registros/HistorialRegistros.jsx"
 import {
     actualizarPlantillaEvento,
     crearPlantillaEvento,
@@ -713,7 +714,8 @@ export function App() {
             : vistaPrincipal === "plantillas-plan"
                 ? "app-shell app-shell-planificaciones"
                 : vistaPrincipal === "analitica" ? "app-shell app-shell-analitica"
-                    : vistaPrincipal === "tareas" ? "app-shell app-shell-tareas" : "app-shell"}>
+                    : vistaPrincipal === "historial" ? "app-shell app-shell-historial"
+                        : vistaPrincipal === "tareas" ? "app-shell app-shell-tareas" : "app-shell"}>
             <header className="app-header">
                 <div className="app-brand-group">
                     <h1 className="app-brand">Focus</h1>
@@ -739,7 +741,8 @@ export function App() {
                 : vistaPrincipal === "plantillas-plan"
                     ? "app-content app-content-planificaciones"
                     : vistaPrincipal === "analitica" ? "app-content app-content-analitica"
-                        : vistaPrincipal === "tareas" ? "app-content app-content-tareas" : "app-content"}>
+                        : vistaPrincipal === "historial" ? "app-content app-content-historial"
+                            : vistaPrincipal === "tareas" ? "app-content app-content-tareas" : "app-content"}>
                 <CalendarioDiario
                     ref={calendarioRef}
                     key={fechaCalendarioSolicitada.version}
@@ -779,6 +782,13 @@ export function App() {
                             onClick={() => cambiarVistaPrincipal("focus")}
                         >
                             Focus
+                        </button>
+                        <button
+                            type="button"
+                            aria-pressed={vistaPrincipal === "historial"}
+                            onClick={() => cambiarVistaPrincipal("historial")}
+                        >
+                            Historial
                         </button>
                         <button
                             type="button"
@@ -908,6 +918,18 @@ export function App() {
                                 ahora={estadoRegistro.ahora}
                                 datosDisponibles={estadoRegistro.datos.ok}
                                 errorCarga={estadoRegistro.datos.error}
+                            />
+                        </div>
+                        <div hidden={vistaPrincipal !== "historial"}>
+                            <HistorialRegistros
+                                registros={estadoRegistro.registros}
+                                ahora={estadoRegistro.ahora}
+                                tareas={estadoTareas.ok ? estadoTareas.tareas : []}
+                                eventos={plantillas}
+                                datosDisponibles={estadoRegistro.datos.ok}
+                                errorCarga={estadoRegistro.datos.error}
+                                onEditar={estadoRegistro.editarFinalizado}
+                                onEliminar={estadoRegistro.eliminarFinalizado}
                             />
                         </div>
                         <div hidden={vistaPrincipal !== "tareas"}>

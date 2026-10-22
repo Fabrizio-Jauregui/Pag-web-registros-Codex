@@ -95,7 +95,7 @@
 .app-navigation {
   display: grid;
   flex: 0 0 auto;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 4px;
   padding: 5px;
   border: 1px solid #e2e8f0;
@@ -377,6 +377,10 @@
   grid-template-columns: minmax(0, 1fr);
 }
 
+.app-content-historial {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .app-content-focus {
   grid-template-columns: minmax(0, 1fr);
 }
@@ -391,6 +395,7 @@
 
 .app-content-planificaciones > .calendario-panel,
 .app-content-analitica > .calendario-panel,
+.app-content-historial > .calendario-panel,
 .app-content-focus > .calendario-panel {
   display: none;
 }
@@ -415,6 +420,16 @@
 }
 
 .app-content-analitica .panel-herramientas-contenido {
+  overflow: visible;
+  max-height: none;
+}
+
+.app-content-historial .panel-herramientas {
+  position: static;
+  max-height: none;
+}
+
+.app-content-historial .panel-herramientas-contenido {
   overflow: visible;
   max-height: none;
 }
@@ -445,6 +460,10 @@
   }
 
   .app-shell-analitica {
+    width: calc(100% - 24px);
+  }
+
+  .app-shell-historial {
     width: calc(100% - 24px);
   }
 

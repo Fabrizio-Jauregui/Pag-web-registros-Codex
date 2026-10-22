@@ -58,6 +58,11 @@ export function VistaFocus({ estadoRegistro, eventos = [], tareas = [], onCrearT
         onEstadoSesionChange,
     })
     const { datos, registrosActivos } = estadoRegistro
+    const idsRegistrosGuardados = new Set(estadoRegistro.registros.map(registro => registro.id))
+    const sesionesFocusVisibles = focus.historial.filter(item => {
+        const ids = item.registroIds ?? (item.registroId ? [item.registroId] : [])
+        return ids.length === 0 || ids.some(id => idsRegistrosGuardados.has(id))
+    })
     const sesion = focus.sesion
     const configuracion = sesion?.configuracion
     const independientes = registrosActivos.filter(registro => registro.id !== sesion?.registroId)
@@ -396,10 +401,11 @@ export function VistaFocus({ estadoRegistro, eventos = [], tareas = [], onCrearT
                 </section>
             ))}
 
-            {vistaActiva && focus.historial.length > 0 && (
+            {vistaActiva && sesionesFocusVisibles.length > 0 && (
                 <section className="focus-panel-lista" aria-labelledby="titulo-historial-focus">
                     <h3 id="titulo-historial-focus">Sesiones guardadas</h3>
-                    <ul>{focus.historial.map(item => (
+                    <p>Este listado resume las sesiones que todavía tienen registros asociados. Los registros se editan y eliminan desde la sección Historial.</p>
+                    <ul>{sesionesFocusVisibles.map(item => (
                         <li key={item.id} className="focus-item-historial">
                             <div>
                                 <strong>{item.configuracion.nombre}</strong>
@@ -424,7 +430,6 @@ export function VistaFocus({ estadoRegistro, eventos = [], tareas = [], onCrearT
                                     </div>
                                 )}
                             </details>
-                            <button type="button" className="focus-boton-secundario" aria-label={"Eliminar historial " + item.configuracion.nombre} onClick={() => focus.eliminarSesionHistorial(item.id)}>Eliminar historial</button>
                         </li>
                     ))}</ul>
                 </section>

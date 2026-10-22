@@ -60,5 +60,5 @@ test("Preparación técnica de almacenamiento: comunica fallos al guardar evento
     await expect(page.getByRole("region", { name: "Registro de tiempo" }).getByRole("alert"))
         .toContainText("No se pudieron guardar los registros")
     await expect(page.getByText("Estado actual: Inactivo")).toBeVisible()
-    await expect(page.getByText("Registros guardados: 0")).toBeVisible()
+    await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("focus.registros.v1") ?? "[]").length)).toBe(0)
 })

@@ -7,7 +7,6 @@ import {
 } from "../../domain/tiempo/CalculosDuracion.js"
 import { ControlesRegistro } from "./ControlesRegistro"
 import { ResumenDuracion } from "./ResumenDuracion"
-import { HistorialRegistros } from "./HistorialRegistros.jsx"
 import { ListaRegistrosActivos } from "./ListaRegistrosActivos.jsx"
 
 export function EstadosRegistros({ estadoRegistro, eventos = [], tareas = [] }) {
@@ -81,7 +80,6 @@ export function EstadosRegistros({ estadoRegistro, eventos = [], tareas = [] }) 
                 />
             )}
 
-            {datos.ok && <HistorialRegistros registros={registros} ahora={ahora} tareas={tareas} />}
         </>
     )
 }
