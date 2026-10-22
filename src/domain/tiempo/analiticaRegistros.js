@@ -19,6 +19,9 @@ export function agruparTiempoPorEvento(registros, eventos, inicio, fin, ahora = 
 
     const grupos = new Map()
     for (const registro of registros) {
+        // Los registros de tarea tienen su propio desglose y no son actividades
+        // "sin evento" en la distribución por eventos.
+        if (registro.tareaId && !(registro.eventoId ?? null)) continue
         const eventoId = registro.eventoId ?? null
         const clave = eventoId ?? "__sin_evento__"
         if (!grupos.has(clave)) grupos.set(clave, { eventoId, registros: [] })
@@ -40,6 +43,27 @@ export function agruparTiempoPorEvento(registros, eventos, inicio, fin, ahora = 
         }
     })
         .filter(grupo => grupo.segundos > 0)
+        .sort((a, b) => b.segundos - a.segundos || a.nombre.localeCompare(b.nombre, "es"))
+}
+
+export function agruparTiempoPorTarea(registros, inicio, fin, ahora = new Date()) {
+    if (!Array.isArray(registros)) return []
+    const grupos = new Map()
+    for (const registro of registros) {
+        const tareaId = registro.tareaId ?? null
+        const clave = tareaId ?? "__sin_tarea__"
+        if (!grupos.has(clave)) grupos.set(clave, { tareaId, registros: [] })
+        grupos.get(clave).registros.push(registro)
+    }
+    return [...grupos.values()].map(grupo => {
+        const registro = grupo.registros.find(item => item.tareaId === grupo.tareaId)
+        return {
+            tareaId: grupo.tareaId,
+            nombre: grupo.tareaId === null ? "Sin tarea vinculada" : registro?.tareaNombre ?? registro?.nombre ?? "Tarea no disponible",
+            color: null,
+            segundos: calcularTiempoRegistradoEnPeriodo(grupo.registros, inicio, fin, ahora)
+        }
+    }).filter(grupo => grupo.segundos > 0)
         .sort((a, b) => b.segundos - a.segundos || a.nombre.localeCompare(b.nombre, "es"))
 }
 
@@ -78,10 +102,11 @@ export function calcularAnaliticaRegistros(registros, eventos, inicio, fin, ahor
                 : categoriaId === categoriaSeleccionada
         })
         : registros
-    const agrupamiento = opciones.agruparPor === "categoria" ? "categoria" : "evento"
+    const agrupamiento = ["categoria", "tarea"].includes(opciones.agruparPor) ? opciones.agruparPor : "evento"
     return {
         totalSegundos: calcularTiempoRegistradoEnPeriodo(registrosFiltrados, inicio, fin, ahora),
         porEvento: agrupamiento === "evento" ? agruparTiempoPorEvento(registrosFiltrados, eventos, inicio, fin, ahora) : [],
-        porCategoria: agrupamiento === "categoria" ? agruparTiempoPorCategoria(registrosFiltrados, eventos, categorias, inicio, fin, ahora) : []
+        porCategoria: agrupamiento === "categoria" ? agruparTiempoPorCategoria(registrosFiltrados, eventos, categorias, inicio, fin, ahora) : [],
+        porTarea: agrupamiento === "tarea" ? agruparTiempoPorTarea(registrosFiltrados, inicio, fin, ahora) : []
     }
 }

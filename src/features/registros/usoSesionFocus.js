@@ -46,12 +46,12 @@ function cerrarExtraAbierto(extras, tipo, instante) {
     return extras.map((extra, actual) => actual === indice ? { ...extra, fin: fechaIso(instante) } : extra)
 }
 
-function crearConfiguracion(nombre, nombreActividad, evento, tarea, bloques, confirmarAutomaticamente, colores, usarColaFocus = false) {
+function crearConfiguracion(nombre, bloques, confirmarAutomaticamente, colores, usarColaFocus = false) {
     return {
         nombre: nombre.trim(),
-        nombreActividad: evento?.nombre ?? nombreActividad.trim(),
-        evento: evento ? { id: evento.id, nombre: evento.nombre, color: evento.color } : null,
-        tarea: tarea ? { id: tarea.id, nombre: tarea.nombre, estado: tarea.estado } : null,
+        nombreActividad: "Concentración",
+        evento: null,
+        tarea: null,
         usarColaFocus: Boolean(usarColaFocus),
         bloques: bloques.map(bloque => ({ ...bloque })),
         confirmarAutomaticamente,
@@ -129,7 +129,7 @@ export function useSesionFocus(estadoRegistro, tareas = [], accionesTareas = {})
 
     function abrirTrabajoCola(actual, instante, tareaId = actual.tareaActivaId, tareasDisponibles = tareasRef.current) {
         if (actual.estado !== "concentracion" || actual.registroId) return actual
-        const cola = obtenerColaFocus(tareasDisponibles)
+        const cola = actual.configuracion.usarColaFocus ? obtenerColaFocus(tareasDisponibles) : []
         const tarea = cola.find(item => item.id === tareaId) ?? cola[0] ?? null
         return {
             ...actual,
@@ -141,11 +141,11 @@ export function useSesionFocus(estadoRegistro, tareas = [], accionesTareas = {})
 
     function iniciarTrabajoPendiente(actual) {
         if (!actual.trabajoPendienteInicio || actual.registroId || actual.estado !== "concentracion") return actual
-        const cola = obtenerColaFocus()
+        const cola = actual.configuracion.usarColaFocus ? obtenerColaFocus() : []
         const tarea = cola.find(item => item.id === actual.tareaActivaId) ?? cola[0] ?? null
         const registroId = registroRef.current.iniciarConId(
-            tarea?.nombre ?? actual.configuracion.nombreActividad ?? actual.configuracion.nombre,
-            tarea ? null : actual.configuracion.evento,
+            tarea?.nombre ?? "Concentración",
+            null,
             new Date(actual.trabajoPendienteInicio),
             tarea
         )
@@ -208,52 +208,8 @@ export function useSesionFocus(estadoRegistro, tareas = [], accionesTareas = {})
 
         const siguiente = actual.configuracion.bloques[siguienteIndice]
         const nuevoEstado = siguiente.tipo
-        if (actual.configuracion.usarColaFocus) {
-            if (!cerrarTrabajoCola(actual, instante)) {
-                cambiarError(registroRef.current.error || "No se pudo cerrar el tramo de trabajo antes del siguiente bloque.")
-                return false
-            }
-            const bloques = actual.bloques.map((bloque, indice) => indice === actual.indiceBloque
-                ? { ...bloque, fin: fechaIso(instante) }
-                : bloque)
-            bloques[siguienteIndice] = { ...siguiente, inicio: fechaIso(instante), fin: null }
-            const extras = actual.estado === "tiempo-muerto"
-                ? cerrarExtraAbierto(actual.extras ?? [], "tiempo-muerto", instante)
-                : actual.extras ?? []
-            let actualizado = {
-                ...actual,
-                registroId: null,
-                trabajoPendienteInicio: null,
-                bloques,
-                extras,
-                indiceBloque: siguienteIndice,
-                estado: nuevoEstado,
-                finBloque: fechaIso(instante + duracionMs(siguiente)),
-                inicioTiempoMuerto: null,
-                tiempoMuertoAcumuladoMs: 0,
-                reanudarEstado: null,
-                restanteMs: 0
-            }
-            if (nuevoEstado === "concentracion") {
-                actualizado = abrirTrabajoCola(actualizado, instante)
-                if (!actualizado) return false
-            }
-            return guardarSesion(actualizado)
-        }
-        const apiRegistro = registroRef.current
-        const registro = apiRegistro.buscar(actual.registroId)
-        if (!registro) {
-            cambiarError("No se encontró el registro vinculado a esta sesión Focus.")
-            return false
-        }
-        if (nuevoEstado === "concentracion" && registro.estado === "Pausado"
-            && !apiRegistro.continuar(actual.registroId, new Date(instante))) {
-            cambiarError(apiRegistro.error || "No se pudo reanudar el registro de Focus.")
-            return false
-        }
-        if (nuevoEstado === "descanso" && registro.estado === "En curso"
-            && !apiRegistro.pausar(actual.registroId, new Date(instante))) {
-            cambiarError(apiRegistro.error || "No se pudo pausar el registro de Focus.")
+        if (!cerrarTrabajoCola(actual, instante)) {
+            cambiarError(registroRef.current.error || "No se pudo cerrar el tramo de trabajo antes del siguiente bloque.")
             return false
         }
 
@@ -264,8 +220,10 @@ export function useSesionFocus(estadoRegistro, tareas = [], accionesTareas = {})
         const extras = actual.estado === "tiempo-muerto"
             ? cerrarExtraAbierto(actual.extras ?? [], "tiempo-muerto", instante)
             : actual.extras ?? []
-        return guardarSesion({
+        let actualizado = {
             ...actual,
+            registroId: null,
+            trabajoPendienteInicio: null,
             bloques,
             extras,
             indiceBloque: siguienteIndice,
@@ -275,13 +233,17 @@ export function useSesionFocus(estadoRegistro, tareas = [], accionesTareas = {})
             tiempoMuertoAcumuladoMs: 0,
             reanudarEstado: null,
             restanteMs: 0
-        })
+        }
+        if (nuevoEstado === "concentracion") {
+            actualizado = abrirTrabajoCola(actualizado, instante)
+            if (!actualizado) return false
+        }
+        return guardarSesion(actualizado)
     }
 
     function reconciliar(instanteActual) {
         let actual = sesionRef.current
-        if (actual?.configuracion.usarColaFocus
-            && actual.estado === "concentracion"
+        if (actual?.estado === "concentracion"
             && actual.trabajoPendienteInicio
             && instanteActual - Date.parse(actual.trabajoPendienteInicio) >= 1000) {
             actual = iniciarTrabajoPendiente(actual)
@@ -301,19 +263,11 @@ export function useSesionFocus(estadoRegistro, tareas = [], accionesTareas = {})
 
             if (bloque.tipo === "concentracion") {
                 const apiRegistro = registroRef.current
-                if (actual.configuracion.usarColaFocus) {
-                    if (!cerrarTrabajoCola(actual, finProgramado)) {
-                        cambiarError(apiRegistro.error || "No se pudo cerrar el registro de trabajo al finalizar la concentración.")
-                        return
-                    }
-                actual = { ...actual, registroId: null, trabajoPendienteInicio: null }
-                } else {
-                    const registro = actual.registroId ? apiRegistro.buscar(actual.registroId) : null
-                    if (registro?.estado === "En curso" && !apiRegistro.pausar(actual.registroId, new Date(finProgramado))) {
-                        cambiarError(apiRegistro.error || "No se pudo registrar el fin del bloque de concentración.")
-                        return
-                    }
+                if (!cerrarTrabajoCola(actual, finProgramado)) {
+                    cambiarError(apiRegistro.error || "No se pudo cerrar el registro de trabajo al finalizar la concentración.")
+                    return
                 }
+                actual = { ...actual, registroId: null, trabajoPendienteInicio: null }
                 const descansoIndice = actual.indiceBloque + 1
                 if (descansoIndice >= actual.configuracion.bloques.length) {
                     if (!guardarSesion(actual)) return
@@ -478,7 +432,7 @@ export function useSesionFocus(estadoRegistro, tareas = [], accionesTareas = {})
         return resultado
     }
 
-    function iniciar({ nombre, nombreActividad, evento = null, tarea = null, usarColaFocus = false, bloques, confirmarAutomaticamente = false, colores }) {
+    function iniciar({ nombre, usarColaFocus = false, bloques, confirmarAutomaticamente = false, colores }) {
         if (sesionRef.current) {
             cambiarError("Ya hay una sesión Focus activa.")
             return false
@@ -504,25 +458,15 @@ export function useSesionFocus(estadoRegistro, tareas = [], accionesTareas = {})
             cambiarError("No se pudo crear una identidad para la sesión Focus.")
             return false
         }
-        const configuracion = crearConfiguracion(nombre, nombreActividad || "", evento, usarColaFocus ? null : tarea, bloques, confirmarAutomaticamente, colores, usarColaFocus)
+        const configuracion = crearConfiguracion(nombre, bloques, confirmarAutomaticamente, colores, usarColaFocus)
         const ahoraMs = Date.now()
-        const registroId = usarColaFocus ? null : registroRef.current.iniciarConId(
-            configuracion.nombreActividad || configuracion.nombre,
-            evento,
-            new Date(ahoraMs),
-            null
-        )
-        if (!usarColaFocus && !registroId) {
-            cambiarError(registroRef.current.error || "No se pudo iniciar el registro vinculado a Focus.")
-            return false
-        }
         const ahoraIso = fechaIso(ahoraMs)
         const primera = configuracion.bloques[0]
         const actual = {
             id,
             configuracion,
-            registroId,
-            registroIds: registroId ? [registroId] : [],
+            registroId: null,
+            registroIds: [],
             tareaActivaId: usarColaFocus ? (obtenerColaFocus()[0]?.id ?? null) : null,
             trabajoPendienteInicio: null,
             inicio: ahoraIso,
@@ -540,7 +484,7 @@ export function useSesionFocus(estadoRegistro, tareas = [], accionesTareas = {})
                 fin: null
             }))
         }
-        const conTrabajo = usarColaFocus ? abrirTrabajoCola(actual, ahoraMs) : actual
+        const conTrabajo = abrirTrabajoCola(actual, ahoraMs)
         if (!conTrabajo) return false
         return guardarSesion(conTrabajo)
     }
@@ -550,17 +494,9 @@ export function useSesionFocus(estadoRegistro, tareas = [], accionesTareas = {})
         if (!actual || !["concentracion", "descanso", "tiempo-muerto"].includes(actual.estado)) return false
         const ahoraMs = Date.now()
         if (actual.estado === "concentracion") {
-            if (actual.configuracion.usarColaFocus) {
-                if (!cerrarTrabajoCola(actual, ahoraMs)) {
-                    cambiarError(registroRef.current.error || "No se pudo cerrar el tramo de Focus al pausarlo.")
-                    return false
-                }
-            } else {
-                const registro = actual.registroId ? registroRef.current.buscar(actual.registroId) : null
-                if (registro?.estado === "En curso" && !registroRef.current.pausar(actual.registroId, new Date(ahoraMs))) {
-                    cambiarError(registroRef.current.error || "No se pudo pausar el registro de Focus.")
-                    return false
-                }
+            if (!cerrarTrabajoCola(actual, ahoraMs)) {
+                cambiarError(registroRef.current.error || "No se pudo cerrar el tramo de Focus al pausarlo.")
+                return false
             }
         }
         let extras = actual.extras ?? []
@@ -572,7 +508,8 @@ export function useSesionFocus(estadoRegistro, tareas = [], accionesTareas = {})
         extras = [...extras, { tipo: "pausa-sesion", inicio: fechaIso(ahoraMs), fin: null }]
         return guardarSesion({
             ...actual,
-            ...(actual.configuracion.usarColaFocus ? { registroId: null, trabajoPendienteInicio: null } : {}),
+            registroId: null,
+            trabajoPendienteInicio: null,
             extras,
             estado: "pausada",
             reanudarEstado: actual.estado,
@@ -589,15 +526,6 @@ export function useSesionFocus(estadoRegistro, tareas = [], accionesTareas = {})
         if (!actual || actual.estado !== "pausada" || !actual.reanudarEstado) return false
         const ahoraMs = Date.now()
         const estado = actual.reanudarEstado
-        if (estado === "concentracion") {
-            if (!actual.configuracion.usarColaFocus) {
-                const registro = actual.registroId ? registroRef.current.buscar(actual.registroId) : null
-                if (registro?.estado === "Pausado" && !registroRef.current.continuar(actual.registroId, new Date(ahoraMs))) {
-                    cambiarError(registroRef.current.error || "No se pudo reanudar el registro de Focus.")
-                    return false
-                }
-            }
-        }
         let extras = cerrarExtraAbierto(actual.extras ?? [], "pausa-sesion", ahoraMs)
         if (estado === "tiempo-muerto") {
             extras = [...extras, { tipo: "tiempo-muerto", inicio: fechaIso(ahoraMs), fin: null }]
@@ -611,7 +539,7 @@ export function useSesionFocus(estadoRegistro, tareas = [], accionesTareas = {})
             restanteMs: 0,
             reanudarEstado: null
         }
-        if (estado === "concentracion" && actual.configuracion.usarColaFocus) {
+        if (estado === "concentracion") {
             actualizado = abrirTrabajoCola(actualizado, ahoraMs)
             if (!actualizado) return false
         }

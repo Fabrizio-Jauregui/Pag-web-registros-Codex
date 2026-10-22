@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test"
 
 const claveRegistros = "focus.registros.v1"
+const claveTareas = "focus.tareas.v1"
 
 test("Flujo de usuario: Focus inicia actividades, mantiene varias y conserva sus controles tras recargar", async ({ page }) => {
     const inicio = new Date(2026, 9, 13, 15, 0, 0)
@@ -53,6 +54,42 @@ test("Flujo de usuario: Focus inicia actividades, mantiene varias y conserva sus
     const guardados = await page.evaluate(clave => JSON.parse(localStorage.getItem(clave)), claveRegistros)
     expect(guardados).toHaveLength(2)
     expect(guardados.every(registro => registro.estado === "Finalizado")).toBe(true)
+})
+
+test("Flujo de usuario: registra cada concentración con su tarea y sin plantilla de evento", async ({ page }) => {
+    const marca = "2026-10-18T15:00:00.000Z"
+    const tareas = [
+        { id: "tarea-a", nombre: "Preparar informe", estado: "Pendiente", destino: "focus", ordenFocus: 1, creadaEn: marca, actualizadaEn: marca },
+        { id: "tarea-b", nombre: "Revisar apuntes", estado: "Pendiente", destino: "focus", ordenFocus: 2, creadaEn: marca, actualizadaEn: marca }
+    ]
+    await page.clock.install({ time: new Date(marca) })
+    await page.addInitScript(({ clave, valores }) => localStorage.setItem(clave, JSON.stringify(valores)), { clave: claveTareas, valores: tareas })
+    await page.goto("/")
+    await page.getByRole("button", { name: "Focus", exact: true }).click()
+    const vista = page.getByRole("region", { name: "Focus" })
+    await expect(vista.locator(".focus-configuracion").getByLabel("Plantilla de evento")).toHaveCount(0)
+    await vista.getByLabel("Usar Cola Focus para asignar las tareas de cada concentración").check()
+    await vista.getByLabel("Pares de bloques").selectOption("1")
+    await vista.getByLabel("Concentración inicial (min)").fill("1")
+    await vista.getByLabel("Descanso inicial (min)").fill("1")
+    await vista.getByRole("button", { name: "Generar bloques" }).click()
+    await vista.getByRole("button", { name: "Confirmar bloques" }).click()
+    await vista.getByRole("button", { name: "Iniciar sesión Focus" }).click()
+    await expect(vista.getByText("Registro de concentración:").locator(".." )).toContainText("Preparar informe")
+    await page.clock.runFor(2_100)
+
+    let registros = await page.evaluate(clave => JSON.parse(localStorage.getItem(clave)), claveRegistros)
+    expect(registros).toHaveLength(1)
+    expect(registros[0]).toMatchObject({ nombre: "Preparar informe", tareaId: "tarea-a", tareaNombre: "Preparar informe", eventoId: null })
+
+    await vista.getByRole("button", { name: "Finalicé esta tarea" }).click()
+    await expect(vista.getByText("Registro de concentración:").locator(".." )).toContainText("Revisar apuntes")
+    await page.clock.runFor(2_100)
+    registros = await page.evaluate(clave => JSON.parse(localStorage.getItem(clave)), claveRegistros)
+    expect(registros).toHaveLength(2)
+    expect(registros.map(registro => registro.nombre)).toEqual(["Preparar informe", "Revisar apuntes"])
+    expect(registros[0].estado).toBe("Finalizado")
+    await vista.getByRole("button", { name: "Finalizar sesión" }).click()
 })
 
 test("Flujo de usuario: configura bloques Focus, espera confirmación, pausa solo su registro y guarda el historial", async ({ page }) => {
@@ -109,8 +146,10 @@ test("Flujo de usuario: configura bloques Focus, espera confirmación, pausa sol
     await expect(vista.getByRole("button", { name: /Eliminar historial/ })).toHaveCount(0)
     await expect(vista.getByRole("article", { name: "Actividad activa: Actividad paralela" }).getByText("Estado actual: En curso")).toBeVisible()
     const registros = await page.evaluate(clave => JSON.parse(localStorage.getItem(clave)), claveRegistros)
-    expect(registros).toHaveLength(2)
-    expect(registros.find(registro => registro.nombre === "Sesión Focus").estado).toBe("Finalizado")
+    expect(registros).toHaveLength(3)
+    const registrosConcentracion = registros.filter(registro => registro.nombre === "Concentración")
+    expect(registrosConcentracion).toHaveLength(2)
+    expect(registrosConcentracion.every(registro => registro.estado === "Finalizado" && registro.eventoId === null)).toBe(true)
     expect(registros.find(registro => registro.nombre === "Actividad paralela").estado).toBe("En curso")
     const historialFocus = await page.evaluate(() => JSON.parse(localStorage.getItem("focus.historial-sesion.v1")))
     expect(historialFocus[0].extras.some(extra => extra.tipo === "tiempo-muerto")).toBe(true)
@@ -118,13 +157,16 @@ test("Flujo de usuario: configura bloques Focus, espera confirmación, pausa sol
 
     await page.getByRole("button", { name: "Historial", exact: true }).click()
     const historial = page.getByRole("region", { name: "Historial" })
-    const filaSesion = historial.locator(".historial-fila").filter({ hasText: "Sesión Focus" })
-    await expect(filaSesion).toBeVisible()
-    await filaSesion.locator("summary").click()
-    const confirmarEliminacion = page.waitForEvent("dialog").then(dialogoNativo => dialogoNativo.accept())
-    await filaSesion.getByRole("button", { name: "Eliminar registro" }).click()
-    await confirmarEliminacion
-    await expect(filaSesion).toHaveCount(0)
+    const filasFocus = historial.locator(".historial-fila").filter({ hasText: "Concentración" })
+    await expect(filasFocus).toHaveCount(2)
+    for (let indice = 0; indice < 2; indice += 1) {
+        const fila = filasFocus.first()
+        await fila.locator("summary").click()
+        const confirmarEliminacion = page.waitForEvent("dialog").then(dialogoNativo => dialogoNativo.accept())
+        await fila.getByRole("button", { name: "Eliminar registro" }).click()
+        await confirmarEliminacion
+        await expect(filasFocus).toHaveCount(1 - indice)
+    }
     await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("focus.historial-sesion.v1") ?? "[]").length)).toBe(0)
     await page.getByRole("button", { name: "Focus", exact: true }).click()
     await expect(vista.locator(".focus-item-historial").filter({ hasText: "Sesión Focus" })).toHaveCount(0)
@@ -194,12 +236,16 @@ test("Flujo de usuario: reconcilia varios bloques vencidos y conserva los límit
     await page.clock.fastForward(120_000)
     const sesionActiva = vista.locator(".focus-sesion-activa")
     await expect(sesionActiva.getByText("Concentración 2", { exact: true }).first()).toBeVisible()
+    await page.clock.runFor(1_000)
+    await expect.poll(() => page.evaluate(clave => JSON.parse(localStorage.getItem(clave)).filter(registro => registro.nombre === "Concentración").length, claveRegistros)).toBe(2)
     const registros = await page.evaluate(clave => JSON.parse(localStorage.getItem(clave)), claveRegistros)
-    const registroFocus = registros.find(registro => registro.nombre === "Sesión Focus")
-    const inicioRegistro = new Date(registroFocus.segmentos[0].inicio).getTime()
-    expect(registroFocus.segmentos.map(segmento => segmento.tipo)).toEqual(["En curso", "Pausado", "En curso"])
-    expect(registroFocus.segmentos[0].fin).toBe(new Date(inicioRegistro + 60_000).toISOString())
-    expect(registroFocus.segmentos[1].fin).toBe(new Date(inicioRegistro + 120_000).toISOString())
+    const registrosConcentracion = registros.filter(registro => registro.nombre === "Concentración")
+    expect(registrosConcentracion).toHaveLength(2)
+    expect(registrosConcentracion[0].estado).toBe("Finalizado")
+    expect(registrosConcentracion[0].segmentos).toHaveLength(1)
+    expect(registrosConcentracion[1].estado).toBe("En curso")
+    expect(registrosConcentracion[1].segmentos).toHaveLength(1)
+    expect(registrosConcentracion.every(registro => registro.eventoId === null)).toBe(true)
 
     await vista.getByRole("button", { name: "Finalizar sesión" }).click()
     await expect(vista.getByRole("heading", { name: "Sesiones guardadas" })).toBeVisible()

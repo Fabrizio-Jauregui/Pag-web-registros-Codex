@@ -31,9 +31,16 @@ export function AnaliticaRegistros({ registros = [], eventos = [], categorias = 
         : ""
     const rango = obtenerRangoAnalitico(fecha, periodo)
     const analitica = rango
-        ? calcularAnaliticaRegistros(registros, eventos, rango.inicio, rango.fin, ahora, { categorias, agruparPor, categoriaId: categoriaFiltro })
-        : { totalSegundos: 0, porEvento: [], porCategoria: [] }
-    const grupos = agruparPor === "categoria" ? analitica.porCategoria : analitica.porEvento
+        ? calcularAnaliticaRegistros(registros, eventos, rango.inicio, rango.fin, ahora, {
+            categorias,
+            agruparPor,
+            categoriaId: agruparPor === "tarea" ? "" : categoriaFiltro
+        })
+        : { totalSegundos: 0, porEvento: [], porCategoria: [], porTarea: [] }
+    const grupos = agruparPor === "categoria"
+        ? analitica.porCategoria
+        : agruparPor === "tarea" ? analitica.porTarea : analitica.porEvento
+    const etiquetaAgrupamiento = agruparPor === "categoria" ? "categoría" : agruparPor === "tarea" ? "tarea" : "evento"
     const mayorDuracion = Math.max(0, ...grupos.map(grupo => grupo.segundos))
     const fechaVisible = !rango
         ? ""
@@ -74,7 +81,7 @@ export function AnaliticaRegistros({ registros = [], eventos = [], categorias = 
                 </label>
                 <label className="analitica-selector-filtro">
                     <span>Filtrar categoría</span>
-                    <select value={categoriaFiltro} disabled={!categoriasDisponibles} onChange={evento => cambiarFiltroCategoria(evento.target.value)}>
+                    <select value={categoriaFiltro} disabled={!categoriasDisponibles || agruparPor === "tarea"} onChange={evento => cambiarFiltroCategoria(evento.target.value)}>
                         <option value="">Todas</option>
                         {categorias.map(categoria => <option key={categoria.id} value={categoria.id}>{categoria.nombre}</option>)}
                         <option value="__sin_categoria__">Sin categoría</option>
@@ -86,6 +93,7 @@ export function AnaliticaRegistros({ registros = [], eventos = [], categorias = 
                 <span>Mostrar tiempo por</span>
                 <select value={agruparPor} onChange={evento => cambiarAgrupamiento(evento.target.value)}>
                     <option value="evento">Evento</option>
+                    <option value="tarea">Tarea</option>
                     <option value="categoria" disabled={!categoriasDisponibles}>Categoría</option>
                 </select>
             </label>
@@ -110,7 +118,7 @@ export function AnaliticaRegistros({ registros = [], eventos = [], categorias = 
                     <section className="analitica-distribucion" aria-labelledby="titulo-distribucion">
                         <header>
                             <div>
-                                <h3 id="titulo-distribucion">Tiempo por {agruparPor === "categoria" ? "categoría" : "actividad"}</h3>
+                                <h3 id="titulo-distribucion">Tiempo por {etiquetaAgrupamiento}</h3>
                                 <p>Duración efectiva. Las pausas no se incluyen.</p>
                             </div>
                         </header>
@@ -119,12 +127,14 @@ export function AnaliticaRegistros({ registros = [], eventos = [], categorias = 
                         ) : (
                             <>
                                 <p className="analitica-ayuda-solapamientos">
-                                    Cada grupo también evita duplicar solapamientos dentro de ese evento. Si actividades de eventos distintos coinciden, sus duraciones pueden sumar más que el total del período.
+                                    Cada grupo evita duplicar sus propios solapamientos. Los registros de grupos distintos que coinciden pueden sumar más que el total del período.
                                 </p>
-                                <ol className="analitica-lista-eventos" aria-label={`Duración por ${agruparPor === "categoria" ? "categoría" : "evento"}, de mayor a menor`}>
+                                <ol className="analitica-lista-eventos" aria-label={`Duración por ${etiquetaAgrupamiento}, de mayor a menor`}>
                                     {grupos.map(grupo => {
                                         const proporcion = (grupo.segundos / mayorDuracion) * 100
-                                        const idGrupo = agruparPor === "categoria" ? grupo.categoriaId ?? "sin-categoria" : grupo.eventoId ?? "sin-evento"
+                                        const idGrupo = agruparPor === "categoria"
+                                            ? grupo.categoriaId ?? "sin-categoria"
+                                            : agruparPor === "tarea" ? grupo.tareaId ?? "sin-tarea" : grupo.eventoId ?? "sin-evento"
                                         return (
                                             <li className="analitica-fila-evento" key={idGrupo}>
                                                 <div className="analitica-evento-etiqueta">

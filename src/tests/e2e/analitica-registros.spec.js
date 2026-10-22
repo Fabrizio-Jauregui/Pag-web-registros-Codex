@@ -38,7 +38,8 @@ test("Flujo de usuario: consulta totales diarios y semanales y distingue el tiem
         registro("estudio-1", "Estudio", "estudio", fechaAyer(9), fechaAyer(10), "#2563EB"),
         registro("estudio-2", "Estudio", "estudio", fechaAyer(9, 30), fechaAyer(10, 30), "#2563EB"),
         registro("trabajo-1", "Trabajo", "trabajo", fechaAyer(9, 30), fechaAyer(10, 30), "#0F766E"),
-        registro("manual-1", "Actividad manual", null, fechaAyer(11), fechaAyer(11, 30))
+        registro("manual-1", "Actividad manual", null, fechaAyer(11), fechaAyer(11, 30)),
+        { ...registro("tarea-1", "Adelantar tarea del colegio", null, fechaAyer(11), fechaAyer(11, 20)), tareaId: "tarea-colegio", tareaNombre: "Adelantar tarea del colegio" }
     ]
 
     await page.addInitScript(({ claveRegistros, claveEventos, registros, eventos }) => {
@@ -58,6 +59,12 @@ test("Flujo de usuario: consulta totales diarios y semanales y distingue el tiem
     await expect(panel.getByRole("list", { name: "Duración por evento, de mayor a menor" }).getByText("Trabajo")).toBeVisible()
     await expect(panel.getByRole("list", { name: "Duración por evento, de mayor a menor" }).getByText("Sin evento vinculado")).toBeVisible()
     await expect(panel.getByText(/pueden sumar más que el total del período/)).toBeVisible()
+
+    await panel.getByLabel("Mostrar tiempo por").selectOption("tarea")
+    const listaTareas = panel.getByRole("list", { name: "Duración por tarea, de mayor a menor" })
+    await expect(listaTareas.getByText("Adelantar tarea del colegio")).toBeVisible()
+    await expect(listaTareas.getByText("00:20:00")).toBeVisible()
+    await expect(listaTareas.getByText("Sin tarea vinculada")).toBeVisible()
 
     await panel.getByRole("button", { name: "Semana", exact: true }).click()
     await expect(panel.getByLabel("Tiempo registrado del período")).toContainText("02:00:00")

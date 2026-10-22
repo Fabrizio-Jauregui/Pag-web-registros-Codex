@@ -144,7 +144,7 @@ test("Flujo de usuario: posponer y completar tareas cambia el registro activo si
     await sesion.getByRole("button", { name: "Finalicé esta tarea" }).click()
     await expect(lista.locator("li").first()).toContainText(cola[0].nombre)
     await expect(lista.locator("li")).toHaveCount(2)
-    await page.clock.runFor(1_100)
+    await page.clock.runFor(2_100)
 
     const tareas = await page.evaluate(clave => JSON.parse(localStorage.getItem(clave)), claveTareas)
     expect(tareas.find(item => item.id === cola[0].id).estado).toBe("En curso")
@@ -168,7 +168,7 @@ test("Flujo de usuario: cola agotada registra trabajo general y permite activar 
 
     await page.clock.runFor(2_100)
     await sesion.getByRole("button", { name: "Finalicé esta tarea" }).click()
-    await expect(sesion.getByText("Sin tarea activa · se registra como trabajo general")).toBeVisible()
+    await expect(sesion.getByText("Sin tarea activa · se registra como Concentración")).toBeVisible()
     await expect(sesion.getByText("Tarea cola 1")).toHaveCount(0)
     await page.clock.runFor(2_100)
     await sesion.getByLabel("Nueva tarea").fill("Tarea surgida durante Focus")
@@ -180,7 +180,7 @@ test("Flujo de usuario: cola agotada registra trabajo general y permite activar 
     const registros = await page.evaluate(clave => JSON.parse(localStorage.getItem(clave)), claveRegistros)
     expect(registros).toHaveLength(3)
     expect(registros[0]).toMatchObject({ nombre: "Tarea cola 1", tareaId: cola[0].id, estado: "Finalizado" })
-    expect(registros[1]).toMatchObject({ nombre: "Sesión Focus", estado: "Finalizado" })
+    expect(registros[1]).toMatchObject({ nombre: "Concentración", estado: "Finalizado" })
     expect(registros[1].tareaId).toBeUndefined()
     expect(registros[2]).toMatchObject({ nombre: "Tarea surgida durante Focus", tareaNombre: "Tarea surgida durante Focus", estado: "En curso" })
 })

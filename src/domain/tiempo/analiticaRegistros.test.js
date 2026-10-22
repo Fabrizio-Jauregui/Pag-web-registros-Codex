@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
-import { agruparTiempoPorEvento, calcularAnaliticaRegistros, obtenerRangoAnalitico } from "./analiticaRegistros.js"
+import { agruparTiempoPorEvento, agruparTiempoPorTarea, calcularAnaliticaRegistros, obtenerRangoAnalitico } from "./analiticaRegistros.js"
 
 const intervalo = (inicio, fin, tipo = "En curso") => ({ tipo, inicio, fin })
 
@@ -67,6 +67,26 @@ test("no muestra grupos sin tiempo en el período", () => {
     const grupos = agruparTiempoPorEvento([], [{ id: "estudio", nombre: "Estudio", color: "#123456" }], inicio, fin)
 
     assert.deepEqual(grupos, [])
+})
+
+test("agrupa por tarea y no confunde los registros de tareas con actividades sin evento", () => {
+    const inicio = new Date(2026, 9, 12)
+    const fin = new Date(2026, 9, 13)
+    const registros = [
+        { tareaId: "colegio", tareaNombre: "Adelantar tarea del colegio", eventoId: null, segmentos: [intervalo(new Date(2026, 9, 12, 9), new Date(2026, 9, 12, 10))] },
+        { tareaId: "colegio", tareaNombre: "Adelantar tarea del colegio", eventoId: null, segmentos: [intervalo(new Date(2026, 9, 12, 10), new Date(2026, 9, 12, 10, 30))] },
+        { tareaId: null, eventoId: null, nombre: "Concentración", segmentos: [intervalo(new Date(2026, 9, 12, 11), new Date(2026, 9, 12, 11, 15))] }
+    ]
+
+    const porTarea = agruparTiempoPorTarea(registros, inicio, fin, fin)
+    assert.deepEqual(porTarea.map(({ tareaId, nombre, segundos }) => ({ tareaId, nombre, segundos })), [
+        { tareaId: "colegio", nombre: "Adelantar tarea del colegio", segundos: 90 * 60 },
+        { tareaId: null, nombre: "Sin tarea vinculada", segundos: 15 * 60 }
+    ])
+    const porEvento = calcularAnaliticaRegistros(registros, [], inicio, fin, fin)
+    assert.deepEqual(porEvento.porEvento.map(({ nombre, segundos }) => ({ nombre, segundos })), [
+        { nombre: "Sin evento vinculado", segundos: 15 * 60 }
+    ])
 })
 
 test("agrupa por categoría, incluye registros manuales en sin categoría y une intervalos simultáneos", () => {

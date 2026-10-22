@@ -28,8 +28,6 @@ function etiquetaEstado(estado) {
 
 export function VistaFocus({ estadoRegistro, eventos = [], tareas = [], onCrearTarea, onActualizarTarea, onReordenarTarea, onPosponerTarea, onEstadoSesionChange, vistaActiva = true }) {
     const [nombreSesion, cambiarNombreSesion] = useState("Sesión Focus")
-    const [nombreActividad, cambiarNombreActividad] = useState("")
-    const [eventoId, cambiarEventoId] = useState("")
     const [usarColaFocus, cambiarUsarColaFocus] = useState(false)
     const [nombreActividadIndependiente, cambiarNombreActividadIndependiente] = useState("")
     const [eventoIndependienteId, cambiarEventoIndependienteId] = useState("")
@@ -67,7 +65,6 @@ export function VistaFocus({ estadoRegistro, eventos = [], tareas = [], onCrearT
     const configuracion = sesion?.configuracion
     const independientes = registrosActivos.filter(registro => registro.id !== sesion?.registroId)
     const totalMinutos = bloques.reduce((total, bloque) => total + (Number(bloque.minutos) || 0), 0)
-    const eventoSeleccionado = eventos.find(evento => evento.id === eventoId) ?? null
     const eventoIndependiente = eventos.find(evento => evento.id === eventoIndependienteId) ?? null
     const tareaIndependiente = tareas.find(tarea => tarea.id === tareaIndependienteId) ?? null
     const colaFocus = tareas.filter(tarea => tarea.destino === "focus"
@@ -105,8 +102,6 @@ export function VistaFocus({ estadoRegistro, eventos = [], tareas = [], onCrearT
     function cargarPlantilla(plantilla) {
         const config = plantilla.configuracion
         cambiarNombreSesion(config.nombre)
-        cambiarNombreActividad(config.nombreActividad ?? "")
-        cambiarEventoId(config.evento?.id ?? "")
         cambiarUsarColaFocus(Boolean(config.usarColaFocus))
         cambiarBloques(config.bloques.map(bloque => ({ ...bloque })))
         cambiarPares(Math.max(1, Math.ceil(config.bloques.length / 2)))
@@ -121,8 +116,6 @@ export function VistaFocus({ estadoRegistro, eventos = [], tareas = [], onCrearT
     function iniciarSesion() {
         focus.iniciar({
             nombre: nombreSesion,
-            nombreActividad: nombreActividad.trim() || nombreSesion.trim(),
-            evento: eventoSeleccionado,
             tarea: null,
             usarColaFocus,
             bloques,
@@ -134,8 +127,6 @@ export function VistaFocus({ estadoRegistro, eventos = [], tareas = [], onCrearT
     function guardarPlantilla() {
         const config = {
             nombre: nombreSesion.trim() || "Sesión Focus",
-            nombreActividad: eventoSeleccionado?.nombre ?? nombreActividad.trim(),
-            evento: eventoSeleccionado,
             usarColaFocus,
             bloques: bloques.map(bloque => ({ ...bloque })),
             confirmarAutomaticamente,
@@ -164,7 +155,7 @@ export function VistaFocus({ estadoRegistro, eventos = [], tareas = [], onCrearT
             {vistaActiva && <header className="focus-cabecera">
                 <p className="focus-etiqueta">SESIÓN DE ENFOQUE</p>
                 <h2 id="titulo-focus">Focus</h2>
-                <p>Organizá bloques de concentración y descanso. El registro vinculado mide el tiempo efectivo; las actividades independientes pueden seguir en paralelo.</p>
+                <p>Solo se registra el tiempo de concentración; los descansos no suman tiempo. Las actividades independientes pueden seguir en paralelo.</p>
             </header>}
 
             {vistaActiva && (datos.advertencia || !datos.ok) && (
@@ -208,10 +199,9 @@ export function VistaFocus({ estadoRegistro, eventos = [], tareas = [], onCrearT
                         <div>
                             <p className="focus-etiqueta">SESIÓN EN CURSO</p>
                             <h3 id="titulo-sesion-activa">{configuracion.nombre}</h3>
-                            <p>Actividad registrada: <strong>{configuracion.nombreActividad}</strong></p>
+                            <p>Registro de concentración: <strong>{tareaFocusActiva?.nombre ?? "Concentración"}</strong></p>
                             {configuracion.usarColaFocus
-                                ? <p>{tareaFocusActiva ? <>Tarea activa: <strong>{tareaFocusActiva.nombre}</strong></> : "Sin tarea activa · se registra como trabajo general"}</p>
-                                : configuracion.tarea && <p>Tarea: <strong>{configuracion.tarea.nombre}</strong></p>}
+                                && <p>{tareaFocusActiva ? <>Tarea activa: <strong>{tareaFocusActiva.nombre}</strong></> : "Sin tarea activa · se registra como Concentración"}</p>}
                         </div>
                         <span className={"focus-estado focus-estado-" + sesion.estado}>{etiquetaEstado(sesion.estado)}</span>
                     </div>
@@ -237,7 +227,7 @@ export function VistaFocus({ estadoRegistro, eventos = [], tareas = [], onCrearT
                                 <div><h4 id="titulo-cola-focus-activa">Cola Focus</h4><p>La tarea activa permanece fija; podés reordenar las que esperan.</p></div>
                             </header>
                             {colaFocus.length === 0
-                                ? <p className="focus-cola-vacia">Cola vacía. El bloque de concentración cuenta como trabajo general.</p>
+                                ? <p className="focus-cola-vacia">Cola vacía. El bloque se registra como Concentración.</p>
                                 : <ol className="focus-cola-lista">{colaFocus.map((tarea, indice) => {
                                     const activa = tarea.id === sesion.tareaActivaId
                                     const primerMovible = sesion.tareaActivaId ? Math.max(1, colaFocus.findIndex(item => item.id === sesion.tareaActivaId) + 1) : 0
@@ -290,19 +280,6 @@ export function VistaFocus({ estadoRegistro, eventos = [], tareas = [], onCrearT
                     <div className="focus-form-grid">
                         <label>Nombre de la sesión
                             <input value={nombreSesion} onChange={evento => cambiarNombreSesion(evento.target.value)} maxLength={100} />
-                        </label>
-                        <label>Actividad a registrar
-                            <input value={nombreActividad} onChange={evento => cambiarNombreActividad(evento.target.value)} placeholder="Usa el nombre de la sesión si queda vacío" maxLength={120} />
-                        </label>
-                        <label>Plantilla de evento
-                            <select value={eventoId} onChange={evento => {
-                                cambiarEventoId(evento.target.value)
-                                const seleccionada = eventos.find(item => item.id === evento.target.value)
-                                if (seleccionada) cambiarNombreActividad(seleccionada.nombre)
-                            }}>
-                                <option value="">Sin plantilla</option>
-                                {eventos.map(evento => <option key={evento.id} value={evento.id}>{evento.nombre}</option>)}
-                            </select>
                         </label>
                         <label className="focus-vincular-cola">
                             <input type="checkbox" checked={usarColaFocus} onChange={evento => cambiarUsarColaFocus(evento.target.checked)} />
@@ -409,7 +386,7 @@ export function VistaFocus({ estadoRegistro, eventos = [], tareas = [], onCrearT
                         <li key={item.id} className="focus-item-historial">
                             <div>
                                 <strong>{item.configuracion.nombre}</strong>
-                                <span>{new Date(item.inicio).toLocaleString()} · {item.bloques.filter(bloque => bloque.fin).length} bloques completados · actividad: {item.configuracion.nombreActividad}</span>
+                                <span>{new Date(item.inicio).toLocaleString()} · {item.bloques.filter(bloque => bloque.fin).length} bloques completados · tiempo de concentración registrado</span>
                             </div>
                             <details><summary>Ver bloques e intervalos</summary>
                                 <ol>{item.bloques.map((bloque, indice) => (
