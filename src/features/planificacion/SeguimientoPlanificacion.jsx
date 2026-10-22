@@ -23,6 +23,7 @@ export function PanelSeguimientoPlanificacion({
     const reloj = useReloj()
     const [administrando, cambiarAdministrando] = useState(false)
     const [formularioPlan, cambiarFormularioPlan] = useState(null)
+    const [formularioCronometro, cambiarFormularioCronometro] = useState(null)
     const [errorCola, cambiarErrorCola] = useState("")
     const {
         estado, error, mensaje, elementoActual, elementoSiguiente, elementoPosterior, segundosRestantes
@@ -34,6 +35,7 @@ export function PanelSeguimientoPlanificacion({
 
     const eventosActivos = estado.registrosActivos ?? []
     const esAplicacionParalela = Boolean(estado.idAplicacionPlantilla)
+    const esCronometro = estado.tipoSeguimiento === "cronometro"
     const actual = estado.indiceActual + 1
     const idsEnCurso = new Set(eventosActivos.map(item => item.planId))
     const idsCerrados = new Set([...(estado.finalizados ?? []), ...(estado.eventosOmitidos ?? [])])
@@ -44,7 +46,7 @@ export function PanelSeguimientoPlanificacion({
     const fechaSeguimiento = new Date(estado.secuencia[0].inicioPrevisto)
     const ahoraMs = reloj.getTime()
     const modoManual = estado.modoAvance === "manual"
-    const excedido = estado.estado === "En curso" && elementoActual
+    const excedido = !esCronometro && estado.estado === "En curso" && elementoActual
         && ahoraMs >= Date.parse(eventosActivos[0]?.finBloque ?? estado.finBloque)
     const segundosExcedidos = excedido
         ? Math.floor((ahoraMs - Date.parse(eventosActivos[0]?.finBloque ?? estado.finBloque)) / 1000)
@@ -119,12 +121,30 @@ export function PanelSeguimientoPlanificacion({
         if (!resultado?.ok) cambiarErrorCola(resultado?.error ?? "No se pudo eliminar el plan.")
         else cambiarErrorCola("")
     }
+    function abrirEventoCronometro(plan = null, grupo = null) {
+        cambiarErrorCola("")
+        cambiarFormularioCronometro({ plan, grupo: grupo ?? Math.max(-1, ...estado.secuencia.map(item => item.grupo ?? 0)) + 1 })
+    }
+    function guardarEventoCronometro(evento) {
+        const indice = formularioCronometro.plan ? proximos.length : (() => {
+            const indices = proximos.map((item, posicion) => (item.grupo ?? 0) === formularioCronometro.grupo ? posicion : -1).filter(posicion => posicion >= 0)
+            return indices.length ? indices.at(-1) + 1 : proximos.length
+        })()
+        const resultado = formularioCronometro.plan
+            ? onActualizarPlan?.(formularioCronometro.plan, evento)
+            : onCrearPlan?.(evento, indice)
+        if (!resultado?.ok) { cambiarErrorCola(resultado?.error ?? "No se pudo guardar el evento."); return }
+        cambiarFormularioCronometro(null)
+        cambiarErrorCola("")
+    }
     return (
         <section className="panel-seguimiento-plan" aria-labelledby="titulo-seguimiento-plan">
             <header>
                 <div>
-                    <h2 id="titulo-seguimiento-plan">Siguiendo la planificación</h2>
-                    <p>{esAplicacionParalela
+                    <h2 id="titulo-seguimiento-plan">{esCronometro ? "Carril de seguimiento" : "Siguiendo la planificación"}</h2>
+                    <p>{esCronometro
+                        ? `${eventosActivos.length} cronómetro${eventosActivos.length === 1 ? "" : "s"} en curso · ${estado.secuencia.length} eventos en la secuencia`
+                        : esAplicacionParalela
                         ? `${eventosActivos.length} evento${eventosActivos.length === 1 ? "" : "s"} en curso · ${estado.secuencia.length} en la planificación`
                         : `Evento ${actual} de ${estado.secuencia.length}`}</p>
                 </div>
@@ -132,9 +152,11 @@ export function PanelSeguimientoPlanificacion({
                     {estado.estado}
                 </span>
             </header>
-            <h3>{esAplicacionParalela
+            <h3>{esCronometro ? estado.secuencia.find(item => item.planId === eventosActivos[0]?.planId)?.nombre ?? "Secuencia activa"
+                : esAplicacionParalela
                 ? `En curso: ${eventosActivos.map(activo => estado.secuencia.find(item => item.planId === activo.planId)?.nombre).filter(Boolean).join(" · ") || elementoActual?.nombre}`
                 : elementoActual?.nombre}</h3>
+            {esCronometro && <p>Cada evento conserva su propio cronómetro. Iniciar el siguiente no detiene los que siguen en curso.</p>}
             {!esAplicacionParalela && <>
                 <p className="seguimiento-plan-restante">
                     {estado.estado === "Pausado" ? "Tiempo restante" : excedido && modoManual ? "Tiempo excedido" : "Tiempo restante"}: <strong>{formatearDuracion(excedido && modoManual ? segundosExcedidos : segundosRestantes)}</strong>
@@ -148,7 +170,7 @@ export function PanelSeguimientoPlanificacion({
             {elementoSiguiente && (
                 <p className="seguimiento-plan-siguiente">Próximo: {elementoSiguiente.nombre}</p>
             )}
-            {esAplicacionParalela && (
+            {esAplicacionParalela && !esCronometro && (
                 <fieldset className="seguimiento-plan-modo" aria-label="Modo de avance de la planificación">
                     <legend>Al cumplirse la duración prevista</legend>
                     <label>
@@ -171,11 +193,12 @@ export function PanelSeguimientoPlanificacion({
                         const restante = estado.estado === "Pausado"
                             ? activo.restanteMs
                             : Date.parse(activo.finBloque) - ahoraMs
+                        const transcurrido = (activo.elapsedMs ?? 0) + (estado.estado === "En curso" && activo.inicioReal ? Math.max(0, ahoraMs - Date.parse(activo.inicioReal)) : 0)
                         const excedidoEvento = restante < 0 && modoManual && estado.estado === "En curso"
                         const segundosEvento = Math.floor(Math.abs(restante) / 1000)
                         return <li key={activo.planId}>
                             <strong>{item?.nombre}</strong>
-                            <span>{excedidoEvento ? "Tiempo excedido" : estado.estado === "Pausado" ? "Tiempo restante" : "Tiempo previsto restante"}: {formatearDuracion(segundosEvento)}</span>
+                            <span>{esCronometro ? `Tiempo registrado: ${formatearDuracion(Math.floor(transcurrido / 1000))}` : `${excedidoEvento ? "Tiempo excedido" : estado.estado === "Pausado" ? "Tiempo restante" : "Tiempo previsto restante"}: ${formatearDuracion(segundosEvento)}`}</span>
                             <button type="button" onClick={() => seguimiento.finalizarEvento(activo.planId)}>
                                 Finalizar “{item?.nombre ?? "evento"}”
                             </button>
@@ -183,6 +206,28 @@ export function PanelSeguimientoPlanificacion({
                     })}</ul>
                 </section>
             )}
+            {esCronometro && proximos.length > 0 && <section aria-label="Eventos pendientes del carril de seguimiento">
+                <h4>Eventos que podés iniciar</h4>
+                <ul>{proximos.map((item, indice) => {
+                    const plan = planes.find(elemento => elemento.id === item.planId)
+                    const grupo = item.grupo ?? 0
+                    const mismoGrupo = proximos.filter(candidato => (candidato.grupo ?? 0) === grupo)
+                    return <li key={item.planId}>
+                        <strong>{item.nombre}</strong>
+                        <span>Etapa {grupo + 1}</span>
+                        <button type="button" aria-label={`Mover ${item.nombre} antes`} disabled={indice === 0} onClick={() => moverPlan(indice, -1)}>↑</button>
+                        <button type="button" aria-label={`Mover ${item.nombre} después`} disabled={indice === proximos.length - 1} onClick={() => moverPlan(indice, 1)}>↓</button>
+                        <button type="button" disabled={!seguimiento.puedeIniciarEvento(item.planId)} onClick={() => seguimiento.iniciarEvento(item.planId)}>Iniciar cronómetro</button>
+                        {mismoGrupo.length > 1 && item.planId === mismoGrupo[0].planId && <button type="button" onClick={() => seguimiento.iniciarGrupo(grupo)}>Iniciar juntos esta etapa</button>}
+                        <button type="button" onClick={() => seguimiento.omitirEvento(item.planId)}>Omitir</button>
+                        {plan && <button type="button" onClick={() => abrirEventoCronometro(plan, grupo)}>Editar</button>}
+                        {plan && <button type="button" onClick={() => eliminarPlan(item.planId)}>Eliminar del calendario</button>}
+                        <button type="button" onClick={() => abrirEventoCronometro(null, grupo)}>Agregar en paralelo</button>
+                    </li>
+                })}</ul>
+                <button type="button" onClick={() => abrirEventoCronometro()}>Agregar etapa siguiente</button>
+            </section>}
+            {esCronometro && proximos.length === 0 && <button type="button" onClick={() => abrirEventoCronometro()}>Agregar próximo evento</button>}
             {(estado.eventosOmitidos ?? []).length > 0 && (
                 <p className="seguimiento-plan-omitidos">
                     Omitidos en esta sesión: {estado.eventosOmitidos
@@ -260,6 +305,12 @@ export function PanelSeguimientoPlanificacion({
                     onCancelar={() => cambiarFormularioPlan(null)}
                 />
             )}
+            {esCronometro && formularioCronometro && <form className="seguimiento-plan-formulario-cronometro" aria-label={formularioCronometro.plan ? "Editar evento pendiente" : "Agregar evento"} onSubmit={evento => { evento.preventDefault(); guardarEventoCronometro({ tipoSecuencial: true, nombre: evento.currentTarget.elements.nombre.value, eventoId: evento.currentTarget.elements.eventoId.value || null, grupoCronometro: formularioCronometro.grupo })}}>
+                <h4>{formularioCronometro.plan ? "Editar evento pendiente" : "Agregar evento"}</h4>
+                <label>Evento (opcional)<select name="eventoId" defaultValue={formularioCronometro.plan?.eventoId ?? ""}><option value="">Sin evento</option>{eventos.map(item => <option key={item.id} value={item.id}>{item.nombre}</option>)}</select></label>
+                <label>Nombre<input name="nombre" maxLength={80} defaultValue={formularioCronometro.plan?.nombre ?? ""} required /></label>
+                <div className="seguimiento-plan-item-acciones"><button type="submit">Guardar</button><button type="button" onClick={() => cambiarFormularioCronometro(null)}>Cancelar</button></div>
+            </form>}
         </section>
     )
 }

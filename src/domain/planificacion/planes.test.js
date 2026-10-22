@@ -89,6 +89,17 @@ test("persiste y recupera fechas como instantes sin alterar otras claves", () =>
     assert.ok(almacenamiento.valores.has(CLAVE_PLANES))
 })
 
+test("persiste una actividad de cronómetro con inicio y sin hora de fin", () => {
+    const almacenamiento = crearAlmacenamiento()
+    const actividad = {
+        id: "plan-cronometro", nombre: "Desayunar", eventoId: null, colorEvento: "#0F766E",
+        inicio, fin: null, modoSeguimientoPlanificacion: "cronometro", idAplicacionPlantilla: "app-crono"
+    }
+    assert.equal(validarPlan(actividad), null)
+    assert.deepEqual(guardarPlanes([actividad], almacenamiento), { ok: true })
+    assert.deepEqual(cargarPlanes(almacenamiento), { ok: true, planes: [actividad] })
+})
+
 test("rechaza datos de planes corruptos sin sobrescribirlos", () => {
     const contenido = "{incompleto"
     const almacenamiento = crearAlmacenamiento()

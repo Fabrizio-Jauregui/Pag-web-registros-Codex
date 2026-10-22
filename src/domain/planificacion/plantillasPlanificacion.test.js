@@ -74,6 +74,27 @@ test("aplica secuencias por duración desde la hora elegida y mantiene las activ
     assert.deepEqual(resultado.planes.map(plan => [plan.fin.getHours(), plan.fin.getMinutes(), plan.fin.getSeconds()]), [[15, 0, 10], [15, 30, 10]])
 })
 
+test("aplica una plantilla de cronómetro sin duración ni horario propio para cada actividad", () => {
+    const cronometro = {
+        id: "cronometro", nombre: "Desayuno", modo: "cronometro", actividades: [
+            { id: "preparar", nombre: "Preparar desayuno", eventoId: null, grupoCronometro: 0, ordenSecuencia: 0 },
+            { id: "desayunar", nombre: "Desayunar", eventoId: null, grupoCronometro: 1, ordenSecuencia: 1 },
+            { id: "youtube", nombre: "Ver YouTube", eventoId: null, grupoCronometro: 1, ordenSecuencia: 1 }
+        ]
+    }
+    assert.equal(validarPlantillaPlanificacion(cronometro), null)
+    const resultado = aplicarPlantillaPlanificacion(cronometro, fecha, [], { ahora, horaInicioSegundos: 9 * 3600 }, (() => { let n = 0; return () => `crono-${++n}` })())
+    assert.equal(resultado.ok, true)
+    assert.deepEqual(resultado.planes.map(plan => [plan.nombre, plan.inicio.getHours(), plan.inicio.getMinutes(), plan.grupoCronometro, plan.modoSeguimientoPlanificacion]), [
+        ["Preparar desayuno", 9, 0, 0, "cronometro"],
+        ["Desayunar", 9, 0, 1, "cronometro"],
+        ["Ver YouTube", 9, 0, 1, "cronometro"]
+    ])
+    assert.equal(resultado.planes.every(plan => plan.fin === null), true)
+    const vista = previsualizarPlantillaPlanificacion(cronometro, fecha, [], { ahora, horaInicioSegundos: 9 * 3600 })
+    assert.equal(vista.actividades.every(item => item.sinDuracion), true)
+})
+
 test("aplica una línea de tiempo relativa con solapamientos parciales y hora de inicio desplazable", () => {
     const relativa = {
         ...plantillaBase,

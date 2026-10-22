@@ -90,6 +90,21 @@ test("la aplicación ejecuta los grupos consecutivos y conserva el orden manual 
     assert.deepEqual(resultado.secuencia.map(item => item.inicioOffsetMs), [0, 5 * 60_000, 12 * 60_000, 17 * 60_000])
 })
 
+test("la secuencia de cronómetro mantiene paralelos disponibles y no asigna duraciones previstas", () => {
+    const planes = [
+        { ...plan("preparar", fecha(9), fecha(9, 1), null), fin: null, idAplicacionPlantilla: "crono-app", modoSeguimientoPlanificacion: "cronometro", grupoCronometro: 0, ordenSeguimiento: 0 },
+        { ...plan("desayunar", fecha(9), fecha(9, 1), null), fin: null, idAplicacionPlantilla: "crono-app", modoSeguimientoPlanificacion: "cronometro", grupoCronometro: 1, ordenSeguimiento: 1 },
+        { ...plan("youtube", fecha(9), fecha(9, 1), null), fin: null, idAplicacionPlantilla: "crono-app", modoSeguimientoPlanificacion: "cronometro", grupoCronometro: 1, ordenSeguimiento: 2 },
+        { ...plan("abuela", fecha(9), fecha(9, 1), null), fin: null, idAplicacionPlantilla: "crono-app", modoSeguimientoPlanificacion: "cronometro", grupoCronometro: 2, ordenSeguimiento: 3 }
+    ]
+    const resultado = crearSecuenciaSeguimiento(planes, "preparar")
+    assert.equal(resultado.ok, true)
+    assert.equal(resultado.tipoSeguimiento, "cronometro")
+    assert.deepEqual(resultado.secuencia.map(item => [item.planId, item.grupo, item.duracionMs]), [
+        ["preparar", 0, null], ["desayunar", 1, null], ["youtube", 1, null], ["abuela", 2, null]
+    ])
+})
+
 test("el seguimiento de una aplicación conserva su secuencia cuando cruza medianoche", () => {
     const planes = [
         { ...plan("noche", fecha(23, 50), fecha(23, 55), null), idAplicacionPlantilla: "app-noche" },

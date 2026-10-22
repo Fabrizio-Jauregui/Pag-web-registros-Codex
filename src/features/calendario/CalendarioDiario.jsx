@@ -200,6 +200,14 @@ export const CalendarioDiario = forwardRef(function CalendarioDiario({
     const planActivoSeguimientoId = seguimientoPlanificacion?.estado
         ? seguimientoPlanificacion.estado.secuencia[seguimientoPlanificacion.estado.indiceActual]?.planId
         : null
+    const aplicacionesCronometroDia = vista === "dia" ? [...new Map(planesVisibles
+        .filter(plan => plan.modoSeguimientoPlanificacion === "cronometro"
+            && plan.inicio.getFullYear() === fechaSeleccionada.getFullYear()
+            && plan.inicio.getMonth() === fechaSeleccionada.getMonth()
+            && plan.inicio.getDate() === fechaSeleccionada.getDate())
+        .map(plan => [plan.idAplicacionPlantilla, plan])).values()]
+        .map(ancla => ({ ancla, actividades: planesVisibles.filter(plan => plan.idAplicacionPlantilla === ancla.idAplicacionPlantilla && plan.modoSeguimientoPlanificacion === "cronometro")
+            .sort((a, b) => a.ordenSeguimiento - b.ordenSeguimiento || a.id.localeCompare(b.id)) })) : []
     const fragmentosCombinadosDia = distribuirCarriles([
         ...obtenerFragmentosCalendario(registros, fechaSeleccionada, ahora)
             .map(fragmento => ({ ...fragmento, tipoVisual: "registro" })),
@@ -672,6 +680,32 @@ export const CalendarioDiario = forwardRef(function CalendarioDiario({
                     fechaVisible={fechaVisible}
                     fragmentos={fragmentosDia}
                     fragmentosPlanes={fragmentosPlanesDia}
+                    tarjetasSecuenciales={aplicacionesCronometroDia.map(({ ancla, actividades }) => {
+                        const sesion = seguimientoPlanificacion?.estado?.idAplicacionPlantilla === ancla.idAplicacionPlantilla ? seguimientoPlanificacion.estado : null
+                        const primero = actividades[0]
+                        const horaAncla = formatearInstante(ancla.inicio, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
+                        const iniciar = (planId, modo) => {
+                            const resultado = seguimientoPlanificacion?.empezar(planId, modo, planesVisibles, eventos)
+                            cambiarEstadoAjuste(resultado?.ok ? { mensaje: "Empezó el seguimiento de la planificación." } : { error: resultado?.error ?? "No se pudo iniciar el cronómetro." })
+                        }
+                        return <section className="tarjeta-secuencia-cronometro" key={ancla.idAplicacionPlantilla} style={{ top: `${((ancla.inicio.getHours() * 3600 + ancla.inicio.getMinutes() * 60 + ancla.inicio.getSeconds()) / 86400) * 100}%` }} aria-label={`Planificación ${ancla.plantillaOrigenNombre}`}>
+                            <header><div><h3>{ancla.plantillaOrigenNombre}</h3><p>Secuencia sin duraciones · inicio previsto {horaAncla}</p></div><span>{sesion ? "En seguimiento" : "Pendiente"}</span></header>
+                            <ol>{actividades.map(plan => {
+                                const elemento = sesion?.secuencia.find(item => item.planId === plan.id)
+                                const activo = sesion?.registrosActivos?.find(item => item.planId === plan.id)
+                                const completado = sesion?.finalizados?.includes(plan.id)
+                                const omitido = sesion?.eventosOmitidos?.includes(plan.id)
+                                return <li key={plan.id} className={activo ? "secuencia-cronometro-activo" : ""}>
+                                    <span>{elemento?.nombre ?? eventos.find(evento => evento.id === plan.eventoId)?.nombre ?? plan.nombre}</span>
+                                    <span>{activo ? "En curso" : completado ? "Finalizado" : omitido ? "Omitido" : "Pendiente"}</span>
+                                    {!sesion && <button type="button" onClick={() => iniciar(plan.id, "actual")}>Iniciar este evento</button>}
+                                </li>
+                            })}</ol>
+                            {!sesion && actividades.filter(plan => (plan.grupoCronometro ?? 0) === (primero.grupoCronometro ?? 0)).length > 1
+                                && <button type="button" className="secuencia-cronometro-iniciar-grupo" onClick={() => iniciar(primero.id, "grupo")}>Iniciar juntos los eventos de la primera etapa</button>}
+                            {sesion && <p>Los cronómetros de los eventos activos continúan por separado. Podés iniciar la siguiente etapa desde el panel de seguimiento.</p>}
+                        </section>
+                    })}
                     eventos={eventos}
                     onSeleccionar={(registro, fragmento) => {
                         cambiarFranjaSeleccionada(null)

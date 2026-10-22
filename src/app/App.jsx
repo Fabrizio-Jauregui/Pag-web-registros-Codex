@@ -164,7 +164,10 @@ export function App() {
         const activos = new Set((sesion.registrosActivos ?? []).map(item => item.planId))
         const finalizados = new Set(sesion.finalizados ?? [])
         const grupoActivo = sesion.secuencia[sesion.indiceActual]?.grupo
-        const prefijo = sesion.idAplicacionPlantilla
+        const prefijo = sesion.tipoSeguimiento === "cronometro"
+            ? sesion.secuencia.filter(item => activos.has(item.planId) || finalizados.has(item.planId)
+                || (sesion.eventosOmitidos ?? []).includes(item.planId) || (sesion.iniciados ?? []).includes(item.planId)).map(item => item.planId)
+            : sesion.idAplicacionPlantilla
             ? sesion.secuencia.filter(item => activos.has(item.planId) || finalizados.has(item.planId)
                 || item.grupo === grupoActivo).map(item => item.planId)
             : sesion.secuencia.slice(0, sesion.indiceActual + 1).map(item => item.planId)
@@ -177,8 +180,17 @@ export function App() {
         const orden = [...anteriores.map(plan => plan.id), ...idsCola]
         const ordenPorId = new Map(orden.map((id, indice) => [id, indice]))
 
+        const gruposCronometro = new Map()
+        let grupoAnterior = null
+        let grupoNormalizado = -1
+        for (const id of orden) {
+            const plan = [...planesBase, ...visibles].find(item => item.id === id)
+            if (!plan || plan.modoSeguimientoPlanificacion !== "cronometro") continue
+            if (grupoAnterior !== plan.grupoCronometro) { grupoNormalizado += 1; grupoAnterior = plan.grupoCronometro }
+            gruposCronometro.set(id, grupoNormalizado)
+        }
         const nuevosPlanes = planesBase.map(plan => ordenPorId.has(plan.id)
-            ? { ...plan, ordenSeguimiento: ordenPorId.get(plan.id) }
+            ? { ...plan, ordenSeguimiento: ordenPorId.get(plan.id), ...(gruposCronometro.has(plan.id) ? { grupoCronometro: gruposCronometro.get(plan.id) } : {}) }
             : plan)
         let nuevasReglas = reglasBase
         for (const aparicion of visibles.filter(plan => plan.idRecurrencia && ordenPorId.has(plan.id))) {
@@ -230,7 +242,26 @@ export function App() {
 
     function crearPlanEnSeguimiento(cambios, indiceInsercion = 0) {
         if (!estadoPlanes.ok || !seguimientoPlanificacion.estado) return { ok: false, error: "No hay una secuencia activa para editar." }
-        const fecha = new Date(seguimientoPlanificacion.estado.secuencia[seguimientoPlanificacion.estado.indiceActual].inicioPrevisto)
+        const sesion = seguimientoPlanificacion.estado
+        const fecha = new Date(sesion.secuencia[sesion.indiceActual].inicioPrevisto)
+        if (sesion.tipoSeguimiento === "cronometro" && cambios.tipoSecuencial) {
+            const evento = cambios.eventoId ? plantillas.find(item => item.id === cambios.eventoId) : null
+            const creado = crearPlan({ nombre: evento?.nombre ?? cambios.nombre, evento, inicio: fecha, fin: new Date(fecha.getTime() + 1000) })
+            if (!creado.ok) return creado
+            const planCreado = { ...creado.plan, fin: null, plantillaOrigenId: sesion.secuencia[0].plantillaOrigenId,
+                plantillaOrigenNombre: sesion.secuencia[0].plantillaOrigenNombre, idAplicacionPlantilla: sesion.idAplicacionPlantilla,
+                fechaAplicacion: formatearFechaISO(fecha), modoSeguimientoPlanificacion: "cronometro",
+                grupoCronometro: cambios.grupoCronometro, ordenSeguimiento: Math.max(-1, ...sesion.secuencia.map(item => item.grupo ?? 0)) + 1 }
+            const pendientes = sesion.secuencia.filter(item => !(sesion.iniciados ?? []).includes(item.planId)
+                && !(sesion.finalizados ?? []).includes(item.planId) && !(sesion.eventosOmitidos ?? []).includes(item.planId)).map(item => item.planId)
+            pendientes.splice(Math.max(0, Math.min(indiceInsercion, pendientes.length)), 0, planCreado.id)
+            const nuevos = [...estadoPlanes.planes, planCreado]
+            const guardado = guardarPlanes(nuevos)
+            if (!guardado.ok) return guardado
+            const cola = guardarColaSeguimiento(pendientes, nuevos)
+            if (!cola.ok) { guardarPlanes(estadoPlanes.planes); return cola }
+            return { ok: true, plan: planCreado }
+        }
         if (!seguimientoPlanificacion.estado.idAplicacionPlantilla
             && (cambios.inicio.getFullYear() !== fecha.getFullYear()
             || cambios.inicio.getMonth() !== fecha.getMonth()
@@ -242,9 +273,10 @@ export function App() {
         const planCreado = seguimientoPlanificacion.estado.idAplicacionPlantilla
             ? { ...creado.plan, idAplicacionPlantilla: seguimientoPlanificacion.estado.idAplicacionPlantilla }
             : creado.plan
-        const futuros = seguimientoPlanificacion.estado.secuencia
-            .slice(seguimientoPlanificacion.estado.indiceActual + 1)
-            .map(item => item.planId)
+        const futuros = sesion.tipoSeguimiento === "cronometro"
+            ? sesion.secuencia.filter(item => !(sesion.iniciados ?? []).includes(item.planId)
+                && !(sesion.finalizados ?? []).includes(item.planId) && !(sesion.eventosOmitidos ?? []).includes(item.planId)).map(item => item.planId)
+            : sesion.secuencia.slice(sesion.indiceActual + 1).map(item => item.planId)
         futuros.splice(Math.max(0, Math.min(indiceInsercion, futuros.length)), 0, planCreado.id)
         const resultado = guardarColaSeguimiento(futuros, [...estadoPlanes.planes, planCreado])
         return resultado.ok ? { ok: true, plan: planCreado } : resultado
@@ -280,6 +312,17 @@ export function App() {
                 fechaRecurrencia: plan.fechaRecurrencia,
                 ordenSeguimiento: plan.ordenSeguimiento
             })
+        }
+        if (seguimientoPlanificacion.estado?.tipoSeguimiento === "cronometro") {
+            if ((seguimientoPlanificacion.estado.iniciados ?? []).includes(plan.id)) return { ok: false, error: "Un evento iniciado ya no se puede editar." }
+            const evento = cambios.eventoId ? plantillas.find(item => item.id === cambios.eventoId) : null
+            const resultadoSecuencial = actualizarPlan(estadoPlanes.planes, plan.id, {
+                nombre: evento?.nombre ?? cambios.nombre, evento, inicio: plan.inicio, fin: plan.fin
+            })
+            if (!resultadoSecuencial.ok) return resultadoSecuencial
+            const nuevos = resultadoSecuencial.planes.map(item => item.id === plan.id ? { ...item, grupoCronometro: cambios.grupoCronometro } : item)
+            const guardado = confirmarPlanes(nuevos)
+            return guardado.ok ? { ok: true, plan: nuevos.find(item => item.id === plan.id) } : guardado
         }
         const resultado = actualizarPlan(estadoPlanes.planes, plan.id, cambios)
         if (!resultado.ok) return resultado

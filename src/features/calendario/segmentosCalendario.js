@@ -79,6 +79,7 @@ export function obtenerFragmentosPlanesCalendario(planes, fecha) {
     if (!fechaISO || !Array.isArray(planes)) return []
 
     return planes.flatMap(plan => {
+        if (plan.modoSeguimientoPlanificacion === "cronometro") return []
         const inicio = new Date(Math.max(plan.inicio.getTime(), inicioDia.getTime()))
         const fin = new Date(Math.min(plan.fin.getTime(), finDia.getTime()))
         if (fin <= inicio) return []

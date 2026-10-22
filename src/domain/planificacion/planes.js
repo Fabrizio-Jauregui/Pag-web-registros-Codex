@@ -23,6 +23,10 @@ export function validarPlan(plan) {
     if (!(plan.inicio instanceof Date) || !Number.isFinite(plan.inicio.getTime())) {
         return "Elegí una fecha y hora de inicio válidas."
     }
+    if (plan.modoSeguimientoPlanificacion === "cronometro") {
+        if (plan.fin !== null) return "Los eventos de cronómetro no tienen una hora de fin planificada."
+        return null
+    }
     if (!(plan.fin instanceof Date) || !Number.isFinite(plan.fin.getTime())) {
         return "Elegí una fecha y hora de fin válidas."
     }
@@ -78,7 +82,7 @@ export function compararPlanesPorSeguimiento(a, b) {
     }
     if (aTieneOrden !== bTieneOrden) return aTieneOrden ? -1 : 1
     return a.inicio.getTime() - b.inicio.getTime()
-        || a.fin.getTime() - b.fin.getTime()
+        || (a.fin?.getTime() ?? a.inicio.getTime()) - (b.fin?.getTime() ?? b.inicio.getTime())
         || a.id.localeCompare(b.id)
 }
 

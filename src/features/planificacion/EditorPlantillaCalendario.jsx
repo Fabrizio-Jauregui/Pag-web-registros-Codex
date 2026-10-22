@@ -53,6 +53,7 @@ function convertirPlantillaAEditor(plantilla) {
 }
 
 export function EditorPlantillaCalendario({ plantilla = null, eventos, onGuardar, onCancelar }) {
+    const [modoEdicion, cambiarModoEdicion] = useState(plantilla?.modo === "cronometro" ? "cronometro" : "secuencias")
     const [nombre, cambiarNombre] = useState(plantilla?.nombre ?? "")
     const [actividades, cambiarActividades] = useState(() => convertirPlantillaAEditor(plantilla))
     const [seleccionada, cambiarSeleccionada] = useState(() => actividades[0]?.id ?? null)
@@ -165,9 +166,12 @@ export function EditorPlantillaCalendario({ plantilla = null, eventos, onGuardar
         onCancelar()
     }
 
+    if (modoEdicion === "cronometro") return <EditorPlantillaCronometro plantilla={plantilla} eventos={eventos} onGuardar={onGuardar} onCancelar={onCancelar} onCambiarModo={() => cambiarModoEdicion("secuencias")} />
+
     return <section className="editor-plantilla-calendario" aria-labelledby="titulo-editor-plantilla">
         <header><div><p className="editor-plantilla-etiqueta">Diseñador de secuencias</p><h3 id="titulo-editor-plantilla">{plantilla?.id ? `Editar: ${plantilla.nombre}` : "Crear plantilla"}</h3><p>Las actividades de una secuencia empiezan cuando termina la anterior. Para solapar, seleccioná una actividad y agregá una secuencia paralela.</p></div><button type="button" onClick={onCancelar}>Cancelar</button></header>
         <label className="editor-plantilla-nombre">Nombre de la plantilla<input aria-label="Nombre de la plantilla" maxLength={80} value={nombre} onChange={e => cambiarNombre(e.target.value)} /></label>
+        <button type="button" onClick={() => cambiarModoEdicion("cronometro")}>Crear planificación sin duraciones</button>
         <div className="editor-secuencias-acciones"><button type="button" onClick={agregarAlFinal} disabled={!seleccion}>Agregar al final de la secuencia seleccionada</button><button type="button" onClick={agregarEnParalelo} disabled={!seleccion}>Agregar en paralelo a la actividad seleccionada</button></div>
         <div className="editor-secuencias" aria-label="Secuencias de la plantilla">
             {secuencias.map((secuenciaId, indiceSecuencia) => {
@@ -228,6 +232,90 @@ export function EditorPlantillaCalendario({ plantilla = null, eventos, onGuardar
                     })}
                 </section>
             })}
+        </div>
+        {error && <p role="alert">{error}</p>}
+        <footer><button type="button" className="plan-plantilla-primario" onClick={guardar}>Guardar plantilla</button><button type="button" onClick={onCancelar}>Cancelar</button></footer>
+    </section>
+}
+
+function EditorPlantillaCronometro({ plantilla, eventos, onGuardar, onCancelar, onCambiarModo }) {
+    const crearGrupo = (actividades = []) => Math.max(-1, ...actividades.map(item => item.grupoCronometro ?? -1)) + 1
+    const [nombre, cambiarNombre] = useState(plantilla?.nombre ?? "")
+    const [actividades, cambiarActividades] = useState(() => {
+        if (plantilla?.modo === "cronometro") return plantilla.actividades.map(item => ({ ...item }))
+        if (plantilla?.actividades?.length) return plantilla.actividades.map((item, indice) => ({
+            id: item.id ?? globalThis.crypto.randomUUID(), nombre: item.nombre ?? "", eventoId: item.eventoId ?? null, grupoCronometro: indice
+        }))
+        return [
+            { id: globalThis.crypto.randomUUID(), nombre: "", eventoId: null, grupoCronometro: 0 },
+            { id: globalThis.crypto.randomUUID(), nombre: "", eventoId: null, grupoCronometro: 1 }
+        ]
+    })
+    const [error, cambiarError] = useState("")
+    const grupos = [...new Set(actividades.map(item => item.grupoCronometro))].sort((a, b) => a - b)
+
+    function actualizar(id, cambios) {
+        cambiarActividades(actuales => actuales.map(item => item.id === id ? { ...item, ...cambios } : item))
+    }
+    function agregarSiguiente(id) {
+        const seleccionado = actividades.find(item => item.id === id)
+        if (!seleccionado) return
+        cambiarActividades(actuales => [...actuales, { id: globalThis.crypto.randomUUID(), nombre: "", eventoId: null, grupoCronometro: crearGrupo(actuales) }])
+    }
+    function agregarParalelo(grupo) {
+        cambiarActividades(actuales => [...actuales, { id: globalThis.crypto.randomUUID(), nombre: "", eventoId: null, grupoCronometro: grupo }])
+    }
+    function mover(id, delta) {
+        const ordenados = [...actividades]
+        const indice = ordenados.findIndex(item => item.id === id)
+        const destino = indice + delta
+        if (destino < 0 || destino >= ordenados.length) return
+        ;[ordenados[indice], ordenados[destino]] = [ordenados[destino], ordenados[indice]]
+        const mapa = new Map()
+        let siguiente = 0
+        const normalizados = ordenados.map(item => {
+            if (!mapa.has(item.grupoCronometro)) mapa.set(item.grupoCronometro, siguiente++)
+            return { ...item, grupoCronometro: mapa.get(item.grupoCronometro) }
+        })
+        cambiarActividades(normalizados)
+    }
+    function quitar(id) {
+        const restantes = actividades.filter(item => item.id !== id)
+        const mapa = new Map()
+        cambiarActividades(restantes.map(item => {
+            if (!mapa.has(item.grupoCronometro)) mapa.set(item.grupoCronometro, mapa.size)
+            return { ...item, grupoCronometro: mapa.get(item.grupoCronometro) }
+        }))
+    }
+    function guardar() {
+        if (!nombre.trim()) { cambiarError("Escribí el nombre de la plantilla."); return }
+        if (actividades.length < 2) { cambiarError("Agregá al menos dos eventos."); return }
+        if (actividades.some(item => !item.nombre.trim() && !item.eventoId)) { cambiarError("Escribí un nombre o elegí un evento para cada actividad."); return }
+        const indices = new Map()
+        const items = actividades.map(item => {
+            if (!indices.has(item.grupoCronometro)) indices.set(item.grupoCronometro, indices.size)
+            const evento = eventos.find(elemento => elemento.id === item.eventoId)
+            return { id: item.id, nombre: (evento?.nombre ?? item.nombre).trim(), eventoId: item.eventoId ?? null, grupoCronometro: indices.get(item.grupoCronometro), ordenSecuencia: indices.get(item.grupoCronometro) }
+        })
+        const resultado = onGuardar({ id: plantilla?.id, nombre: nombre.trim(), modo: "cronometro", actividades: items })
+        if (!resultado.ok) { cambiarError(resultado.error); return }
+        onCancelar()
+    }
+    return <section className="editor-plantilla-calendario editor-plantilla-cronometro" aria-labelledby="titulo-editor-plantilla">
+        <header><div><p className="editor-plantilla-etiqueta">Planificación con cronómetro</p><h3 id="titulo-editor-plantilla">{plantilla?.id ? `Editar: ${plantilla.nombre}` : "Crear plantilla"}</h3><p>Definí el orden. Cada evento empezará cuando lo inicies y continuará hasta que lo finalices.</p></div><button type="button" onClick={onCancelar}>Cancelar</button></header>
+        <label className="editor-plantilla-nombre">Nombre de la plantilla<input aria-label="Nombre de la plantilla" maxLength={80} value={nombre} onChange={e => cambiarNombre(e.target.value)} /></label>
+        <button type="button" onClick={onCambiarModo}>Volver a la planificación con duraciones</button>
+        <div className="editor-secuencias-acciones"><p>Agregá eventos a la misma etapa para iniciarlos juntos o por separado; la etapa siguiente se puede iniciar aunque estos sigan activos.</p></div>
+        <div className="editor-secuencias" aria-label="Eventos secuenciales">
+            {grupos.map((grupo, indiceGrupo) => <section className="editor-secuencia" key={grupo} aria-label={`Etapa ${indiceGrupo + 1}`}>
+                <h4>Etapa {indiceGrupo + 1}{actividades.filter(item => item.grupoCronometro === grupo).length > 1 ? " · eventos paralelos" : ""}</h4>
+                {actividades.filter(item => item.grupoCronometro === grupo).map((actividad, indice) => <fieldset className="editor-plantilla-actividad" key={actividad.id}>
+                    <legend>Evento {indice + 1}</legend>
+                    <label>Evento (opcional)<select value={actividad.eventoId ?? ""} onChange={e => { const evento = eventos.find(item => item.id === e.target.value); actualizar(actividad.id, { eventoId: evento?.id ?? null, ...(evento ? { nombre: evento.nombre } : {}) }) }}><option value="">Sin evento</option>{eventos.map(item => <option key={item.id} value={item.id}>{item.nombre}</option>)}</select></label>
+                    <label>Nombre<input aria-label="Nombre" value={eventos.find(item => item.id === actividad.eventoId)?.nombre ?? actividad.nombre} disabled={Boolean(actividad.eventoId)} maxLength={80} onChange={e => actualizar(actividad.id, { nombre: e.target.value })} /></label>
+                    <div className="editor-secuencia-reordenar"><button type="button" onClick={() => mover(actividad.id, -1)} disabled={actividades[0]?.id === actividad.id}>Subir</button><button type="button" onClick={() => mover(actividad.id, 1)} disabled={actividades.at(-1)?.id === actividad.id}>Bajar</button><button type="button" onClick={() => agregarSiguiente(actividad.id)}>Agregar etapa siguiente</button><button type="button" onClick={() => agregarParalelo(grupo)}>Agregar en paralelo</button><button type="button" disabled={actividades.length <= 2} onClick={() => quitar(actividad.id)}>Quitar evento</button></div>
+                </fieldset>)}
+            </section>)}
         </div>
         {error && <p role="alert">{error}</p>}
         <footer><button type="button" className="plan-plantilla-primario" onClick={guardar}>Guardar plantilla</button><button type="button" onClick={onCancelar}>Cancelar</button></footer>

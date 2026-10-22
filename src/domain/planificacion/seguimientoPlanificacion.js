@@ -21,15 +21,18 @@ export function crearSecuenciaSeguimiento(planes, idPlanSeleccionado, eventos = 
     const dia = seleccionado.inicio
     const esAplicacion = typeof seleccionado.idAplicacionPlantilla === "string"
         && seleccionado.idAplicacionPlantilla.trim() !== ""
+    const esCronometro = seleccionado.modoSeguimientoPlanificacion === "cronometro"
     const planesDia = planes.filter(plan => mismoDiaLocal(plan.inicio, dia))
     const planesAlcance = esAplicacion
         ? planes.filter(plan => plan.idAplicacionPlantilla === seleccionado.idAplicacionPlantilla)
         : planesDia
-    const ordenados = [...planesAlcance].sort(esAplicacion
+    const ordenados = [...planesAlcance].sort(esCronometro
+        ? (a, b) => (a.ordenSeguimiento ?? 0) - (b.ordenSeguimiento ?? 0) || a.id.localeCompare(b.id)
+        : esAplicacion
         ? (a, b) => a.inicio.getTime() - b.inicio.getTime()
             || a.fin.getTime() - b.fin.getTime() || a.id.localeCompare(b.id)
         : compararPlanesPorSeguimiento)
-    let indiceSeleccionado = ordenados.findIndex(plan => plan.id === idPlanSeleccionado)
+    let indiceSeleccionado = esCronometro ? 0 : ordenados.findIndex(plan => plan.id === idPlanSeleccionado)
     if (esAplicacion && indiceSeleccionado > 0) {
         let inicioGrupoSeleccionado = ordenados[indiceSeleccionado].inicio.getTime()
         let cambio = true
@@ -57,13 +60,14 @@ export function crearSecuenciaSeguimiento(planes, idPlanSeleccionado, eventos = 
             nombre: evento?.nombre ?? plan.nombre,
             evento: evento ? { id: evento.id, nombre: evento.nombre, color: evento.color } : null,
             inicioPrevisto: plan.inicio.toISOString(),
-            finPrevisto: plan.fin.toISOString(),
-            duracionMs: plan.fin.getTime() - plan.inicio.getTime(),
-            ...(esAplicacion ? { idAplicacionPlantilla: seleccionado.idAplicacionPlantilla } : {})
+            finPrevisto: esCronometro ? null : plan.fin.toISOString(),
+            duracionMs: esCronometro ? null : plan.fin.getTime() - plan.inicio.getTime(),
+            ...(esAplicacion ? { idAplicacionPlantilla: seleccionado.idAplicacionPlantilla } : {}),
+            ...(esCronometro ? { grupo: plan.grupoCronometro ?? 0, inicioOffsetMs: 0 } : {})
         }
     })
 
-    if (esAplicacion) {
+    if (esAplicacion && !esCronometro) {
         const grupos = []
         let grupo = null
         for (const item of secuencia) {
@@ -99,7 +103,7 @@ export function crearSecuenciaSeguimiento(planes, idPlanSeleccionado, eventos = 
         secuencia.splice(0, secuencia.length, ...grupos.flatMap(item => item.items))
     }
 
-    if (secuencia.some(item => !Number.isFinite(item.duracionMs)
+    if (!esCronometro && secuencia.some(item => !Number.isFinite(item.duracionMs)
         || item.duracionMs < DURACION_MINIMA_REGISTRO_MS
         || item.duracionMs > DURACION_MAXIMA_REGISTRO_MS)) {
         return {
@@ -108,7 +112,7 @@ export function crearSecuenciaSeguimiento(planes, idPlanSeleccionado, eventos = 
         }
     }
 
-    return { ok: true, secuencia, idAplicacionPlantilla: esAplicacion ? seleccionado.idAplicacionPlantilla : null }
+    return { ok: true, secuencia, idAplicacionPlantilla: esAplicacion ? seleccionado.idAplicacionPlantilla : null, tipoSeguimiento: esCronometro ? "cronometro" : "duracion" }
 }
 
 export function validarEstadoSeguimiento(estado) {
@@ -121,18 +125,22 @@ export function validarEstadoSeguimiento(estado) {
         || estado.indiceActual < 0 || estado.indiceActual >= estado.secuencia.length
         || typeof estado.registroId !== "string" || estado.registroId.trim() === "") return false
 
+    if (estado.tipoSeguimiento !== undefined && !["cronometro", "duracion"].includes(estado.tipoSeguimiento)) return false
+    const esCronometro = estado.tipoSeguimiento === "cronometro"
+
     if (estado.modoAvance !== undefined && !["automatico", "manual"].includes(estado.modoAvance)) return false
     if (estado.idAplicacionPlantilla !== undefined && estado.idAplicacionPlantilla !== null
         && typeof estado.idAplicacionPlantilla !== "string") return false
     if (estado.registrosActivos !== undefined && (!Array.isArray(estado.registrosActivos)
         || !estado.registrosActivos.every(item => item && typeof item.planId === "string"
-            && typeof item.registroId === "string" && instanteValido(item.finBloque)))) return false
+            && typeof item.registroId === "string" && (esCronometro ? item.finBloque === null : instanteValido(item.finBloque))
+            && (item.inicioReal === undefined || item.inicioReal === null || instanteValido(item.inicioReal))))) return false
     if (estado.finalizados !== undefined && (!Array.isArray(estado.finalizados)
         || !estado.finalizados.every(id => typeof id === "string"))) return false
     if (estado.inicioSeguimiento !== undefined && !instanteValido(estado.inicioSeguimiento)) return false
 
     if (!instanteValido(estado.inicio)) return false
-    if (estado.estado === "En curso" && !instanteValido(estado.finBloque)) return false
+    if (estado.estado === "En curso" && !(esCronometro && estado.finBloque === null) && !instanteValido(estado.finBloque)) return false
     if (estado.estado === "Pausado" && (estado.finBloque !== null
         || !Number.isFinite(estado.restanteMs) || estado.restanteMs < 0)) return false
 
@@ -152,9 +160,9 @@ export function validarEstadoSeguimiento(estado) {
 
     return estado.secuencia.every(item => item && typeof item.planId === "string"
         && item.planId.trim() !== "" && typeof item.nombre === "string" && item.nombre.trim() !== ""
-        && Number.isFinite(item.duracionMs) && item.duracionMs >= DURACION_MINIMA_REGISTRO_MS
-        && item.duracionMs <= DURACION_MAXIMA_REGISTRO_MS
-        && instanteValido(item.inicioPrevisto) && instanteValido(item.finPrevisto)
+        && (esCronometro ? item.duracionMs === null : Number.isFinite(item.duracionMs) && item.duracionMs >= DURACION_MINIMA_REGISTRO_MS
+            && item.duracionMs <= DURACION_MAXIMA_REGISTRO_MS)
+        && instanteValido(item.inicioPrevisto) && (esCronometro ? item.finPrevisto === null : instanteValido(item.finPrevisto))
         && (item.grupo === undefined || Number.isInteger(item.grupo) && item.grupo >= 0)
         && (item.inicioOffsetMs === undefined || Number.isFinite(item.inicioOffsetMs) && item.inicioOffsetMs >= 0)
         && (item.evento === null || (typeof item.evento?.id === "string"

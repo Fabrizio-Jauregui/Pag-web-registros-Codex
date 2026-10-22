@@ -13,8 +13,8 @@ function deserializarPlanes(datos) {
     const planes = datos.map(plan => {
         if (!plan || typeof plan !== "object" || Array.isArray(plan)) return null
         const inicio = convertirFecha(plan.inicio)
-        const fin = convertirFecha(plan.fin)
-        if (!inicio || !fin) return null
+        const fin = plan.modoSeguimientoPlanificacion === "cronometro" && plan.fin === null ? null : convertirFecha(plan.fin)
+        if (!inicio || (plan.modoSeguimientoPlanificacion === "cronometro" ? plan.fin !== null : !fin)) return null
         return { ...plan, inicio, fin }
     })
     return planes.some(plan => plan === null) ? null : planes
@@ -50,7 +50,7 @@ export function guardarPlanes(planes, almacenamiento = null) {
         almacen.setItem(CLAVE_PLANES, JSON.stringify(planes.map(plan => ({
             ...plan,
             inicio: plan.inicio.toISOString(),
-            fin: plan.fin.toISOString()
+            fin: plan.fin?.toISOString() ?? null
         }))))
         return { ok: true }
     } catch {

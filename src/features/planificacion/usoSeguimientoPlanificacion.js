@@ -33,6 +33,7 @@ export function useSeguimientoPlanificacion(estadoRegistro) {
         if (!idSeguimiento || !estadoRegistro.datos.ok) return undefined
         const temporizador = setTimeout(() => {
             const activos = estadoRef.current?.registrosActivos
+            if (estadoRef.current?.tipoSeguimiento === "cronometro" && (!activos || activos.length === 0)) return
             if (estadoRef.current?.idAplicacionPlantilla && (!activos || activos.length === 0)) return
             const registrosValidos = activos?.length
                 ? activos.every(item => {
@@ -80,6 +81,35 @@ export function useSeguimientoPlanificacion(estadoRegistro) {
             null,
             { planId: elemento.planId }
         )
+    }
+
+    function iniciarEventosCronometro(sesion, ids, instante) {
+        const activos = [...(sesion.registrosActivos ?? [])]
+        const iniciados = new Set(sesion.iniciados ?? [])
+        for (const planId of ids) {
+            const indice = sesion.secuencia.findIndex(item => item.planId === planId)
+            if (indice < 0 || iniciados.has(planId) || (sesion.eventosOmitidos ?? []).includes(planId)) continue
+            const registroId = iniciarRegistroDePlan(sesion.secuencia, indice, instante)
+            if (!registroId) {
+                for (const activo of activos.filter(item => !sesion.registrosActivos?.some(anterior => anterior.registroId === item.registroId))) cerrarRegistroActual({ registroId: activo.registroId }, instante)
+                return { ok: false, error: registroRef.current.error || "No se pudo iniciar el evento planificado." }
+            }
+            const item = sesion.secuencia[indice]
+            activos.push({ planId, registroId, inicioReal: new Date(instante).toISOString(), elapsedMs: 0, finBloque: null, grupo: item.grupo ?? 0 })
+            iniciados.add(planId)
+        }
+        return { ok: true, activos, iniciados: [...iniciados] }
+    }
+
+    function completarSesionCronometro(sesion, activos, finalizados, eventosOmitidos = sesion.eventosOmitidos ?? []) {
+        const todosResueltos = sesion.secuencia.every(item => finalizados.includes(item.planId) || eventosOmitidos.includes(item.planId))
+        if (todosResueltos && activos.length === 0) {
+            if (!guardar(null)) return false
+            publicar(null)
+            cambiarMensaje("Terminó la planificación.")
+            return true
+        }
+        return false
     }
 
     function iniciarGrupoAplicacion(sesion, grupo, instante) {
@@ -191,6 +221,10 @@ export function useSeguimientoPlanificacion(estadoRegistro) {
 
     function procesarVencimientos(instanteActual) {
         let sesion = estadoRef.current
+        if (sesion?.tipoSeguimiento === "cronometro") {
+            if (sesion.estado === "En curso") cambiarAhora(instanteActual)
+            return
+        }
         if (sesion?.idAplicacionPlantilla) {
             procesarAplicacion(instanteActual, sesion)
             return
@@ -263,6 +297,36 @@ export function useSeguimientoPlanificacion(estadoRegistro) {
         const id = crearId()
         if (!id) return { ok: false, error: "No se pudo crear la identidad del seguimiento." }
         const instante = Date.now()
+        if (resultado.tipoSeguimiento === "cronometro") {
+            const grupoInicial = resultado.secuencia[0]?.grupo ?? 0
+            const seleccionado = resultado.secuencia.find(item => item.planId === planId)
+            if (modo !== "grupo" && seleccionado?.grupo !== grupoInicial) return { ok: false, error: "Empezá por un evento de la primera etapa de la secuencia." }
+            const idsIniciales = modo === "grupo"
+                ? resultado.secuencia.filter(item => item.grupo === grupoInicial).map(item => item.planId)
+                : [resultado.secuencia.find(item => item.planId === planId)?.planId ?? resultado.secuencia[0].planId]
+            const base = {
+                id,
+                estado: "En curso",
+                tipoSeguimiento: "cronometro",
+                secuencia: resultado.secuencia,
+                indiceActual: resultado.secuencia.findIndex(item => idsIniciales.includes(item.planId)),
+                eventosOmitidos: [], finalizados: [], iniciados: [], registrosActivos: [],
+                registroId: "pendiente", inicio: new Date(instante).toISOString(),
+                inicioSeguimiento: new Date(instante).toISOString(), finBloque: null,
+                idAplicacionPlantilla: resultado.idAplicacionPlantilla
+            }
+            const iniciados = iniciarEventosCronometro(base, idsIniciales, instante)
+            if (!iniciados.ok || iniciados.activos.length === 0) return { ok: false, error: iniciados.error ?? "No se pudo iniciar la secuencia." }
+            const sesion = { ...base, registrosActivos: iniciados.activos, iniciados: iniciados.iniciados, registroId: iniciados.activos[0].registroId }
+            if (!guardar(sesion)) {
+                iniciados.activos.forEach(activo => cerrarRegistroActual({ registroId: activo.registroId }, Date.now()))
+                return { ok: false, error: "No se pudo guardar el seguimiento. Los registros iniciados se cerraron." }
+            }
+            publicar(sesion)
+            cambiarMensaje("")
+            cambiarAhora(instante)
+            return { ok: true }
+        }
         if (resultado.idAplicacionPlantilla) {
             const sesion = {
                 id,
@@ -321,6 +385,26 @@ export function useSeguimientoPlanificacion(estadoRegistro) {
         let sesion = estadoRef.current
         if (!sesion || sesion.estado !== "En curso") return false
         const instante = Date.now()
+        if (sesion.tipoSeguimiento === "cronometro") {
+            const pausados = []
+            for (const activo of sesion.registrosActivos ?? []) {
+                if (!registroRef.current.pausar(activo.registroId, new Date(instante))) {
+                    pausados.forEach(id => registroRef.current.continuar(id, new Date(instante)))
+                    return false
+                }
+                pausados.push(activo.registroId)
+            }
+            const pausa = {
+                ...sesion, estado: "Pausado", pausaInicio: new Date(instante).toISOString(), finBloque: null, restanteMs: 0,
+                registrosActivos: sesion.registrosActivos.map(activo => ({
+                    ...activo, elapsedMs: (activo.elapsedMs ?? 0) + Math.max(0, instante - Date.parse(activo.inicioReal)), inicioReal: null
+                }))
+            }
+            if (!guardar(pausa)) { pausados.forEach(id => registroRef.current.continuar(id, new Date(instante))); return false }
+            publicar(pausa)
+            cambiarAhora(instante)
+            return true
+        }
         if (sesion.idAplicacionPlantilla) {
             const pausados = []
             for (const activo of sesion.registrosActivos ?? []) {
@@ -377,6 +461,23 @@ export function useSeguimientoPlanificacion(estadoRegistro) {
         const sesion = estadoRef.current
         if (!sesion || sesion.estado !== "Pausado") return false
         const instante = Date.now()
+        if (sesion.tipoSeguimiento === "cronometro") {
+            const reanudados = []
+            for (const activo of sesion.registrosActivos ?? []) {
+                if (!registroRef.current.continuar(activo.registroId, new Date(instante))) {
+                    reanudados.forEach(id => registroRef.current.pausar(id, new Date(instante)))
+                    return false
+                }
+                reanudados.push(activo.registroId)
+            }
+            const reanudada = { ...sesion, estado: "En curso", finBloque: null,
+                registrosActivos: sesion.registrosActivos.map(activo => ({ ...activo, inicioReal: new Date(instante).toISOString() })) }
+            delete reanudada.pausaInicio
+            if (!guardar(reanudada)) { reanudados.forEach(id => registroRef.current.pausar(id, new Date(instante))); return false }
+            publicar(reanudada)
+            cambiarAhora(instante)
+            return true
+        }
         if (sesion.idAplicacionPlantilla) {
             const reanudados = []
             for (const activo of sesion.registrosActivos ?? []) {
@@ -498,6 +599,17 @@ export function useSeguimientoPlanificacion(estadoRegistro) {
             finalizados: [...(sesion.finalizados ?? []), planId],
             finBloque: sesion.finBloque
         }
+        if (sesion.tipoSeguimiento === "cronometro") {
+            if (completarSesionCronometro(sesion, actualizada.registrosActivos, actualizada.finalizados)) {
+                cambiarAhora(instante)
+                return true
+            }
+            if (!guardar(actualizada)) return false
+            publicar(actualizada)
+            cambiarMensaje(`Se finalizó “${sesion.secuencia.find(item => item.planId === planId)?.nombre}”.`)
+            cambiarAhora(instante)
+            return true
+        }
         if (!guardar(actualizada)) return false
         publicar(actualizada)
         procesarAplicacion(instante, actualizada)
@@ -522,6 +634,15 @@ export function useSeguimientoPlanificacion(estadoRegistro) {
             || (sesion.registrosActivos ?? []).some(item => item.planId === planId)
             || (sesion.eventosOmitidos ?? []).includes(planId)) return false
         const omitido = sesion.secuencia.find(item => item.planId === planId)
+        if (sesion.tipoSeguimiento === "cronometro") {
+            const eventosOmitidos = [...(sesion.eventosOmitidos ?? []), planId]
+            if (completarSesionCronometro(sesion, sesion.registrosActivos ?? [], sesion.finalizados ?? [], eventosOmitidos)) return true
+            const actualizada = { ...sesion, eventosOmitidos }
+            if (!guardar(actualizada)) return false
+            publicar(actualizada)
+            cambiarMensaje(`Se omitió “${omitido.nombre}” en este seguimiento. El plan sigue en el calendario.`)
+            return true
+        }
         const grupo = sesion.secuencia.filter(item => item.grupo === omitido.grupo)
         const inicioGrupo = Math.min(...grupo.map(item => item.inicioOffsetMs))
         const finAntes = Math.max(...grupo.map(item => item.inicioOffsetMs + item.duracionMs))
@@ -552,12 +673,77 @@ export function useSeguimientoPlanificacion(estadoRegistro) {
         return avanzarHasta(indiceOmitido + 1, Date.now(), [elementoOmitido])
     }
 
+    function puedeIniciarGrupo(sesion, grupo) {
+        const previos = [...new Set(sesion.secuencia.map(item => item.grupo ?? 0))].filter(valor => valor < grupo)
+        const resueltos = new Set([...(sesion.iniciados ?? []), ...(sesion.finalizados ?? []), ...(sesion.eventosOmitidos ?? [])])
+        return previos.every(grupoPrevio => sesion.secuencia.some(item => item.grupo === grupoPrevio && resueltos.has(item.planId)))
+    }
+
+    function registrarNuevosEventos(sesion, ids) {
+        const instante = Date.now()
+        const resultado = iniciarEventosCronometro(sesion, ids, instante)
+        if (!resultado.ok || resultado.activos.length === (sesion.registrosActivos ?? []).length) return false
+        const actualizada = {
+            ...sesion, estado: "En curso", registrosActivos: resultado.activos,
+            iniciados: resultado.iniciados,
+            indiceActual: sesion.secuencia.findIndex(item => ids.includes(item.planId)),
+            registroId: resultado.activos[0]?.registroId ?? sesion.registroId,
+            inicio: new Date(instante).toISOString(), finBloque: null
+        }
+        if (!guardar(actualizada)) {
+            resultado.activos.filter(activo => !(sesion.registrosActivos ?? []).some(anterior => anterior.registroId === activo.registroId))
+                .forEach(activo => cerrarRegistroActual({ registroId: activo.registroId }, instante))
+            return false
+        }
+        publicar(actualizada)
+        cambiarMensaje("")
+        cambiarAhora(instante)
+        return true
+    }
+
+    function iniciarEventoSecuencial(planId) {
+        const sesion = estadoRef.current
+        if (!sesion || sesion.tipoSeguimiento !== "cronometro") return false
+        const item = sesion.secuencia.find(elemento => elemento.planId === planId)
+        if (!item || !puedeIniciarGrupo(sesion, item.grupo ?? 0)) return false
+        return registrarNuevosEventos(sesion, [planId])
+    }
+
+    function puedeIniciarEventoSecuencial(planId) {
+        const sesion = estadoRef.current
+        const item = sesion?.secuencia.find(elemento => elemento.planId === planId)
+        return Boolean(sesion?.tipoSeguimiento === "cronometro" && item && sesion.estado === "En curso"
+            && !(sesion.iniciados ?? []).includes(planId) && !(sesion.eventosOmitidos ?? []).includes(planId)
+            && puedeIniciarGrupo(sesion, item.grupo ?? 0))
+    }
+
+    function iniciarGrupoSecuencial(grupo) {
+        const sesion = estadoRef.current
+        if (!sesion || sesion.tipoSeguimiento !== "cronometro" || !puedeIniciarGrupo(sesion, grupo)) return false
+        const ids = sesion.secuencia.filter(item => item.grupo === grupo).map(item => item.planId)
+        return registrarNuevosEventos(sesion, ids)
+    }
+
     function sincronizarPlanes(planes, eventos) {
         const sesion = estadoRef.current
         if (!sesion) return { ok: true }
         const planActualId = sesion.secuencia[sesion.indiceActual]?.planId
         const actualizacion = crearSecuenciaSeguimiento(planes, planActualId, eventos)
         if (!actualizacion.ok) return actualizacion
+
+        if (sesion.tipoSeguimiento === "cronometro") {
+            const activos = new Set((sesion.registrosActivos ?? []).map(item => item.planId))
+            const resueltos = new Set([...(sesion.finalizados ?? []), ...(sesion.eventosOmitidos ?? [])])
+            const secuencia = actualizacion.secuencia.map(item => {
+                const anterior = sesion.secuencia.find(elemento => elemento.planId === item.planId)
+                return activos.has(item.planId) || resueltos.has(item.planId) ? anterior ?? item : item
+            })
+            const indiceActivo = secuencia.findIndex(item => activos.has(item.planId))
+            const sincronizada = { ...sesion, secuencia, indiceActual: Math.max(0, indiceActivo >= 0 ? indiceActivo : secuencia.findIndex(item => !resueltos.has(item.planId))) }
+            if (!guardar(sincronizada)) return { ok: false, error: "No se pudo guardar la secuencia actualizada." }
+            publicar(sincronizada)
+            return { ok: true }
+        }
 
         if (sesion.idAplicacionPlantilla) {
             const grupoBase = sesion.secuencia[sesion.indiceActual]?.grupo ?? 0
@@ -642,7 +828,11 @@ export function useSeguimientoPlanificacion(estadoRegistro) {
     return {
         estado, error, mensaje, elementoActual, elementoSiguiente, elementoPosterior,
         segundosRestantes, empezar, pausar, reanudar, finalizarYContinuar,
-        finalizarYOmitirSiguiente, dejarDeSeguir, sincronizarPlanes, finalizarEvento, cambiarModoAvance, omitirEvento
+        finalizarYOmitirSiguiente, dejarDeSeguir, sincronizarPlanes, finalizarEvento, cambiarModoAvance, omitirEvento,
+        iniciarEvento: iniciarEventoSecuencial,
+        iniciarGrupo: iniciarGrupoSecuencial,
+        puedeIniciarEvento: puedeIniciarEventoSecuencial,
+        ahora
     }
 }
 

@@ -1344,3 +1344,34 @@ html[data-tema="oscuro"] .marco-aplicacion-planificacion {
   .detalle-tramo-calendario { padding: 12px; }
   .detalle-tramo-header { flex-direction: column; }
 }
+.tarjeta-secuencia-cronometro {
+    position: absolute;
+    z-index: 5;
+    right: 0;
+    left: 0;
+    max-width: 760px;
+    display: grid;
+    gap: 12px;
+    margin: 12px 0;
+    padding: 16px;
+    border: 2px solid #0f766e;
+    border-left-width: 8px;
+    border-radius: 14px;
+    background: color-mix(in srgb, #14b8a6 9%, var(--color-panel, white));
+}
+.tarjeta-secuencia-cronometro > header { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.tarjeta-secuencia-cronometro h3, .tarjeta-secuencia-cronometro p { margin: 0; }
+.tarjeta-secuencia-cronometro header p, .tarjeta-secuencia-cronometro li > span:nth-child(2) { color: var(--color-texto-secundario, #64748b); }
+.tarjeta-secuencia-cronometro ol { display: grid; gap: 6px; margin: 0; padding-left: 24px; }
+.tarjeta-secuencia-cronometro li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 7px 0; }
+.tarjeta-secuencia-cronometro li > span:first-child { flex: 1 1 180px; }
+.tarjeta-secuencia-cronometro .secuencia-cronometro-activo { color: #0f766e; font-weight: 700; }
+.secuencia-cronometro-iniciar-grupo { justify-self: start; }
+
+html[data-tema="oscuro"] .tarjeta-secuencia-cronometro { background: color-mix(in srgb, #14b8a6 12%, #151827); color: #f1f5f9; }
+
+@media (max-width: 600px) {
+    .tarjeta-secuencia-cronometro { padding: 12px; }
+    .tarjeta-secuencia-cronometro li { align-items: stretch; }
+    .tarjeta-secuencia-cronometro li button, .secuencia-cronometro-iniciar-grupo { width: 100%; }
+}

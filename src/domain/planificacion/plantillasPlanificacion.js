@@ -45,12 +45,13 @@ export function validarPlantillaPlanificacion(plantilla, { minimoActividades = 2
     if (plantilla.nombre.trim().length > 80) return "El nombre de la plantilla no puede superar los 80 caracteres."
     if (!Array.isArray(plantilla.actividades) || plantilla.actividades.length < minimoActividades) return "Agregá al menos dos actividades a la plantilla."
     const modo = plantilla.modo ?? "horarios"
-    if (modo !== "horarios" && modo !== "duraciones" && modo !== "relativo" && modo !== "secuencias") return "Elegí si la plantilla usa horarios, duraciones o secuencias."
+    if (modo !== "horarios" && modo !== "duraciones" && modo !== "relativo" && modo !== "secuencias" && modo !== "cronometro") return "Elegí si la plantilla usa horarios, duraciones, secuencias o cronómetro."
     const ids = new Set()
     for (const actividad of plantilla.actividades) {
         const error = modo === "duraciones" ? validarActividadPorDuracion(actividad)
             : modo === "relativo" ? validarActividadRelativa(actividad, permitirSecuenciaExtendida)
                 : modo === "secuencias" ? validarActividadPorDuracion(actividad)
+                    : modo === "cronometro" ? validarActividadSinDuracion(actividad)
                 : validarActividadPlantilla(actividad)
         if (error) return error
         if (typeof actividad.id !== "string" || !actividad.id.trim() || ids.has(actividad.id)) return "Cada actividad necesita una identidad única."
@@ -60,15 +61,35 @@ export function validarPlantillaPlanificacion(plantilla, { minimoActividades = 2
         const errorSecuencias = validarEstructuraSecuencias(plantilla.actividades, permitirSecuenciaExtendida)
         if (errorSecuencias) return errorSecuencias
     }
+    if (modo === "cronometro") {
+        const idsGrupos = new Set()
+        for (const actividad of plantilla.actividades) {
+            if (!Number.isInteger(actividad.ordenSecuencia) || actividad.ordenSecuencia < 0
+                || !Number.isInteger(actividad.grupoCronometro) || actividad.grupoCronometro < 0) return "Ordená los eventos en grupos secuenciales válidos."
+            idsGrupos.add(actividad.grupoCronometro)
+        }
+        const grupos = [...idsGrupos].map(id => plantilla.actividades.filter(item => item.grupoCronometro === id))
+        const ordenes = grupos.map(grupo => grupo[0].ordenSecuencia).sort((a, b) => a - b)
+        if (ordenes.some((orden, indice) => orden !== indice)
+            || grupos.some(grupo => grupo.some(item => item.ordenSecuencia !== grupo[0].ordenSecuencia))) return "El orden de los grupos de eventos no es válido."
+    }
     if (!permitirSecuenciaExtendida) {
         const duracionSecuencia = modo === "duraciones"
             ? plantilla.actividades.reduce((total, actividad) => total + actividad.duracionSegundos, 0)
                 : modo === "relativo"
                 ? Math.max(...plantilla.actividades.map(actividad => actividad.inicioDesplazamientoSegundos + actividad.duracionSegundos))
-                : modo === "secuencias" ? Math.max(...obtenerActividadesSecuenciadas(plantilla.actividades).map(actividad => actividad.inicioDesplazamientoSegundos + actividad.duracionSegundos))
+                    : modo === "secuencias" ? Math.max(...obtenerActividadesSecuenciadas(plantilla.actividades).map(actividad => actividad.inicioDesplazamientoSegundos + actividad.duracionSegundos))
                     : 0
         if (duracionSecuencia > 86400) return "La secuencia completa no puede superar 24 horas desde su inicio."
     }
+    return null
+}
+
+function validarActividadSinDuracion(actividad) {
+    if (!actividad || typeof actividad !== "object" || Array.isArray(actividad)) return "Un evento de la plantilla no tiene un formato válido."
+    if (typeof actividad.nombre !== "string" || !actividad.nombre.trim()) return "Escribí el nombre de cada evento."
+    if (actividad.nombre.trim().length > 80) return "El nombre de un evento no puede superar los 80 caracteres."
+    if (actividad.eventoId !== null && (typeof actividad.eventoId !== "string" || !actividad.eventoId.trim())) return "La plantilla de evento vinculada no es válida."
     return null
 }
 
@@ -207,21 +228,26 @@ function prepararActividadesPlantilla(plantilla, fecha, eventos, opciones = {}) 
     if (dia < hoy) return { ok: false, error: "No se puede aplicar una planificación en una fecha pasada. Elegí hoy o un día futuro." }
     const modo = plantilla.modo ?? "horarios"
     const horaInicio = opciones.horaInicioSegundos
-    if ((modo === "duraciones" || modo === "relativo" || modo === "secuencias") && (!Number.isInteger(horaInicio) || horaInicio < 0 || horaInicio >= 86400)) return { ok: false, error: "Elegí una hora de inicio válida para aplicar esta secuencia." }
+    if ((modo === "duraciones" || modo === "relativo" || modo === "secuencias" || modo === "cronometro") && (!Number.isInteger(horaInicio) || horaInicio < 0 || horaInicio >= 86400)) return { ok: false, error: "Elegí una hora de inicio válida para aplicar esta secuencia." }
     const actividades = []
     let cursor = horaInicio
-    for (const actividad of materializarActividades(plantilla)) {
+    const actividadesMaterializadas = modo === "cronometro"
+        ? [...plantilla.actividades].sort((a, b) => a.ordenSecuencia - b.ordenSecuencia)
+        : materializarActividades(plantilla)
+    for (let indice = 0; indice < actividadesMaterializadas.length; indice += 1) {
+        const actividad = actividadesMaterializadas[indice]
         const evento = actividad.eventoId ? eventos.find(item => item.id === actividad.eventoId) : null
         if (actividad.eventoId && !evento) return { ok: false, error: `No se pudo aplicar "${plantilla.nombre}": el evento "${actividad.nombre}" ya no está disponible. Editá la plantilla y elegí otro evento.` }
-        const inicioSegundos = modo === "duraciones" ? cursor : modo === "relativo" || modo === "secuencias" ? horaInicio + actividad.inicioDesplazamientoSegundos : actividad.inicioSegundos
+        const inicioSegundos = modo === "duraciones" ? cursor : modo === "relativo" || modo === "secuencias" ? horaInicio + actividad.inicioDesplazamientoSegundos : modo === "cronometro" ? horaInicio : actividad.inicioSegundos
         const finAbsoluto = modo === "duraciones" ? cursor + actividad.duracionSegundos : modo === "relativo" || modo === "secuencias" ? inicioSegundos + actividad.duracionSegundos : null
         const inicio = fechaConSegundos(dia, inicioSegundos)
         const fin = modo === "duraciones" || modo === "relativo" || modo === "secuencias"
             ? fechaConSegundos(dia, finAbsoluto)
+            : modo === "cronometro" ? null
             : fechaConSegundos(dia, actividad.finSegundos, actividad.finDia)
-        if (!inicio || !fin || fin <= inicio) return { ok: false, error: `No se pudo crear el horario de "${actividad.nombre}" en esa fecha.` }
-        if (inicio <= ahora) return { ok: false, error: `No se puede aplicar la actividad "${actividad.nombre}" a las ${inicio.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" })}: ese horario ya pasó o ya está transcurriendo. Ajustá el horario o elegí una fecha futura.` }
-        actividades.push({ actividad, evento, inicio, fin })
+        if (!inicio || (modo !== "cronometro" && (!fin || fin <= inicio))) return { ok: false, error: `No se pudo crear el horario de "${actividad.nombre}" en esa fecha.` }
+        if (modo !== "cronometro" && inicio <= ahora) return { ok: false, error: `No se puede aplicar la actividad "${actividad.nombre}" a las ${inicio.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" })}: ese horario ya pasó o ya está transcurriendo. Ajustá el horario o elegí una fecha futura.` }
+        actividades.push({ actividad: { ...actividad, ordenSeguimientoCronometro: indice }, evento, inicio, fin })
         if (modo === "duraciones") cursor = finAbsoluto
     }
     return { ok: true, dia, actividades }
@@ -236,7 +262,8 @@ export function previsualizarPlantillaPlanificacion(plantilla, fecha, eventos, o
             nombre: evento?.nombre ?? actividad.nombre,
             eventoNombre: evento?.nombre ?? null,
             inicio,
-            fin
+            fin,
+            sinDuracion: plantilla.modo === "cronometro"
         }))
     }
 }
@@ -248,9 +275,14 @@ export function aplicarPlantillaPlanificacion(plantilla, fecha, eventos, opcione
     if (typeof idAplicacion !== "string") return { ok: false, error: idAplicacion.error }
     const planes = []
     for (const { actividad, evento, inicio, fin } of preparado.actividades) {
-        const resultado = crearPlan({ nombre: actividad.nombre, evento, inicio, fin }, generarId)
+        const resultado = crearPlan({ nombre: actividad.nombre, evento, inicio, fin: fin ?? new Date(inicio.getTime() + 1000) }, generarId)
         if (!resultado.ok) return resultado
-        planes.push({ ...resultado.plan, plantillaOrigenId: plantilla.id, plantillaOrigenNombre: plantilla.nombre, fechaAplicacion: formatearFechaISO(preparado.dia), idAplicacionPlantilla: idAplicacion })
+        planes.push({ ...resultado.plan, ...(plantilla.modo === "cronometro" ? { fin: null } : {}), plantillaOrigenId: plantilla.id, plantillaOrigenNombre: plantilla.nombre, fechaAplicacion: formatearFechaISO(preparado.dia), idAplicacionPlantilla: idAplicacion,
+            ...(plantilla.modo === "cronometro" ? {
+                modoSeguimientoPlanificacion: "cronometro",
+                ordenSeguimiento: actividad.ordenSeguimientoCronometro,
+                grupoCronometro: actividad.grupoCronometro
+            } : {}) })
     }
     return { ok: true, planes }
 }

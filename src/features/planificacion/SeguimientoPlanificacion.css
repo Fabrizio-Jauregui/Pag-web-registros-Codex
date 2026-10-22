@@ -43,6 +43,15 @@
 .seguimiento-plan-error { color: #b91c1c; }
 .seguimiento-plan-mensaje { color: #166534; }
 .seguimiento-plan-omitidos { color: var(--color-texto-secundario, #64748b); font-size: .9rem; }
+.panel-seguimiento-plan section[aria-label="Eventos pendientes del carril de seguimiento"] ul { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.panel-seguimiento-plan section[aria-label="Eventos pendientes del carril de seguimiento"] li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; padding: 10px; border: 1px solid color-mix(in srgb, #0f766e 40%, transparent); border-radius: 10px; }
+.panel-seguimiento-plan section[aria-label="Eventos pendientes del carril de seguimiento"] li strong,
+.panel-seguimiento-plan section[aria-label="Eventos pendientes del carril de seguimiento"] li span { grid-column: 1 / -1; }
+.panel-seguimiento-plan section[aria-label="Eventos pendientes del carril de seguimiento"] li span { color: var(--color-texto-secundario, #64748b); }
+.panel-seguimiento-plan section[aria-label="Eventos pendientes del carril de seguimiento"] button { min-height: 38px; }
+.seguimiento-plan-formulario-cronometro { display: grid; gap: 10px; padding: 12px; border: 1px solid var(--color-borde, #cbd5e1); border-radius: 10px; }
+.seguimiento-plan-formulario-cronometro label { display: grid; gap: 5px; }
+.seguimiento-plan-formulario-cronometro input, .seguimiento-plan-formulario-cronometro select { min-height: 40px; width: 100%; }
 .seguimiento-plan-gestion { display: grid; gap: 10px; padding-top: 8px; border-top: 1px solid color-mix(in srgb, #6366f1 35%, transparent); }
 .seguimiento-plan-gestion summary { cursor: pointer; font-weight: 700; }
 .seguimiento-plan-gestion ol { display: grid; gap: 10px; margin: 0; padding-left: 24px; }
