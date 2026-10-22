@@ -9,7 +9,7 @@ export default defineConfig({
     testDir: "./tests/e2e",
     // Keep Focus artifacts separate from other Playwright projects and from
     // any stale, locked files in the shared TestResults directory.
-    outputDir: "D:/fabri/Playwright/FocusTestResults",
+    outputDir: "D:/fabri/Playwright/FocusParallelTestResults",
     fullyParallel: true,
     reporter: "list",
     use: {

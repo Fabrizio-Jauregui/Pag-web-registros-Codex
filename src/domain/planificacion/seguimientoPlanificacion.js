@@ -19,16 +19,38 @@ export function crearSecuenciaSeguimiento(planes, idPlanSeleccionado, eventos = 
     if (!seleccionado) return { ok: false, error: "No se encontró el plan seleccionado." }
 
     const dia = seleccionado.inicio
-    const ordenados = planes
-        .filter(plan => mismoDiaLocal(plan.inicio, dia))
-        .sort(compararPlanesPorSeguimiento)
-    const indiceSeleccionado = ordenados.findIndex(plan => plan.id === idPlanSeleccionado)
+    const esAplicacion = typeof seleccionado.idAplicacionPlantilla === "string"
+        && seleccionado.idAplicacionPlantilla.trim() !== ""
+    const planesDia = planes.filter(plan => mismoDiaLocal(plan.inicio, dia))
+    const planesAlcance = esAplicacion
+        ? planes.filter(plan => plan.idAplicacionPlantilla === seleccionado.idAplicacionPlantilla)
+        : planesDia
+    const ordenados = [...planesAlcance].sort(esAplicacion
+        ? (a, b) => a.inicio.getTime() - b.inicio.getTime()
+            || a.fin.getTime() - b.fin.getTime() || a.id.localeCompare(b.id)
+        : compararPlanesPorSeguimiento)
+    let indiceSeleccionado = ordenados.findIndex(plan => plan.id === idPlanSeleccionado)
+    if (esAplicacion && indiceSeleccionado > 0) {
+        let inicioGrupoSeleccionado = ordenados[indiceSeleccionado].inicio.getTime()
+        let cambio = true
+        while (cambio) {
+            cambio = false
+            for (let indice = indiceSeleccionado - 1; indice >= 0; indice -= 1) {
+                if (ordenados[indice].fin.getTime() > inicioGrupoSeleccionado) {
+                    indiceSeleccionado = indice
+                    inicioGrupoSeleccionado = ordenados[indice].inicio.getTime()
+                    cambio = true
+                }
+            }
+        }
+    }
     const diaSinPlantillas = ordenados.slice(indiceSeleccionado)
         .find(plan => plan.eventoId && !eventos.some(evento => evento.id === plan.eventoId))
     if (diaSinPlantillas) {
         return { ok: false, error: "No se pudo cargar una plantilla de evento vinculada a la secuencia." }
     }
-    const secuencia = ordenados.slice(indiceSeleccionado).map(plan => {
+    const planesSecuencia = ordenados.slice(indiceSeleccionado)
+    const secuencia = planesSecuencia.map(plan => {
         const evento = eventos.find(item => item.id === plan.eventoId)
         return {
             planId: plan.id,
@@ -36,9 +58,46 @@ export function crearSecuenciaSeguimiento(planes, idPlanSeleccionado, eventos = 
             evento: evento ? { id: evento.id, nombre: evento.nombre, color: evento.color } : null,
             inicioPrevisto: plan.inicio.toISOString(),
             finPrevisto: plan.fin.toISOString(),
-            duracionMs: plan.fin.getTime() - plan.inicio.getTime()
+            duracionMs: plan.fin.getTime() - plan.inicio.getTime(),
+            ...(esAplicacion ? { idAplicacionPlantilla: seleccionado.idAplicacionPlantilla } : {})
         }
     })
+
+    if (esAplicacion) {
+        const grupos = []
+        let grupo = null
+        for (const item of secuencia) {
+            const inicio = Date.parse(item.inicioPrevisto)
+            const fin = Date.parse(item.finPrevisto)
+            if (!grupo || inicio >= grupo.fin) {
+                grupo = { items: [], inicio, fin }
+                grupos.push(grupo)
+            } else {
+                grupo.fin = Math.max(grupo.fin, fin)
+            }
+            grupo.items.push(item)
+        }
+        const ordenes = new Map(planesSecuencia.map(plan => [plan.id, plan.ordenSeguimiento]))
+        const hayOrdenExplicito = planesSecuencia.some(plan => Number.isInteger(plan.ordenSeguimiento))
+        if (hayOrdenExplicito) {
+            grupos.sort((a, b) => {
+                const ordenA = Math.min(...a.items.map(item => ordenes.get(item.planId) ?? Number.MAX_SAFE_INTEGER))
+                const ordenB = Math.min(...b.items.map(item => ordenes.get(item.planId) ?? Number.MAX_SAFE_INTEGER))
+                return ordenA - ordenB || a.inicio - b.inicio
+            })
+        }
+        const grupoSeleccionado = grupos.findIndex(item => item.items.some(elemento => elemento.planId === idPlanSeleccionado))
+        if (grupoSeleccionado > 0) grupos.unshift(...grupos.splice(grupoSeleccionado, 1))
+        let offsetGrupo = 0
+        grupos.forEach((grupoActual, indiceGrupo) => {
+            grupoActual.items.forEach(item => {
+                item.grupo = indiceGrupo
+                item.inicioOffsetMs = offsetGrupo + Date.parse(item.inicioPrevisto) - grupoActual.inicio
+            })
+            offsetGrupo += grupoActual.fin - grupoActual.inicio
+        })
+        secuencia.splice(0, secuencia.length, ...grupos.flatMap(item => item.items))
+    }
 
     if (secuencia.some(item => !Number.isFinite(item.duracionMs)
         || item.duracionMs < DURACION_MINIMA_REGISTRO_MS
@@ -49,10 +108,11 @@ export function crearSecuenciaSeguimiento(planes, idPlanSeleccionado, eventos = 
         }
     }
 
-    return { ok: true, secuencia }
+    return { ok: true, secuencia, idAplicacionPlantilla: esAplicacion ? seleccionado.idAplicacionPlantilla : null }
 }
 
 export function validarEstadoSeguimiento(estado) {
+    const instanteValido = valor => typeof valor === "string" && Number.isFinite(Date.parse(valor))
     if (!estado || typeof estado !== "object" || Array.isArray(estado)
         || typeof estado.id !== "string" || estado.id.trim() === ""
         || !["En curso", "Pausado"].includes(estado.estado)
@@ -61,7 +121,16 @@ export function validarEstadoSeguimiento(estado) {
         || estado.indiceActual < 0 || estado.indiceActual >= estado.secuencia.length
         || typeof estado.registroId !== "string" || estado.registroId.trim() === "") return false
 
-    const instanteValido = valor => typeof valor === "string" && Number.isFinite(Date.parse(valor))
+    if (estado.modoAvance !== undefined && !["automatico", "manual"].includes(estado.modoAvance)) return false
+    if (estado.idAplicacionPlantilla !== undefined && estado.idAplicacionPlantilla !== null
+        && typeof estado.idAplicacionPlantilla !== "string") return false
+    if (estado.registrosActivos !== undefined && (!Array.isArray(estado.registrosActivos)
+        || !estado.registrosActivos.every(item => item && typeof item.planId === "string"
+            && typeof item.registroId === "string" && instanteValido(item.finBloque)))) return false
+    if (estado.finalizados !== undefined && (!Array.isArray(estado.finalizados)
+        || !estado.finalizados.every(id => typeof id === "string"))) return false
+    if (estado.inicioSeguimiento !== undefined && !instanteValido(estado.inicioSeguimiento)) return false
+
     if (!instanteValido(estado.inicio)) return false
     if (estado.estado === "En curso" && !instanteValido(estado.finBloque)) return false
     if (estado.estado === "Pausado" && (estado.finBloque !== null
@@ -70,9 +139,13 @@ export function validarEstadoSeguimiento(estado) {
     const eventosOmitidos = estado.eventosOmitidos ?? []
     if (!Array.isArray(eventosOmitidos)) return false
     const idsOmitidos = new Set()
+    const idsActivos = new Set((estado.registrosActivos ?? []).map(item => item.planId))
     for (const planId of eventosOmitidos) {
         const indiceOmitido = estado.secuencia.findIndex(item => item?.planId === planId)
-        if (typeof planId !== "string" || indiceOmitido < 0 || indiceOmitido >= estado.indiceActual
+        const fueraDePosicion = estado.idAplicacionPlantilla
+            ? idsActivos.has(planId)
+            : indiceOmitido >= estado.indiceActual
+        if (typeof planId !== "string" || indiceOmitido < 0 || fueraDePosicion
             || idsOmitidos.has(planId)) return false
         idsOmitidos.add(planId)
     }
@@ -82,6 +155,8 @@ export function validarEstadoSeguimiento(estado) {
         && Number.isFinite(item.duracionMs) && item.duracionMs >= DURACION_MINIMA_REGISTRO_MS
         && item.duracionMs <= DURACION_MAXIMA_REGISTRO_MS
         && instanteValido(item.inicioPrevisto) && instanteValido(item.finPrevisto)
+        && (item.grupo === undefined || Number.isInteger(item.grupo) && item.grupo >= 0)
+        && (item.inicioOffsetMs === undefined || Number.isFinite(item.inicioOffsetMs) && item.inicioOffsetMs >= 0)
         && (item.evento === null || (typeof item.evento?.id === "string"
             && typeof item.evento?.nombre === "string" && typeof item.evento?.color === "string")))
 }

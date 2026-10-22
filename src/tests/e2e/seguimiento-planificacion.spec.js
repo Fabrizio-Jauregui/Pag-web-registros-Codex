@@ -9,7 +9,11 @@ function datosHoy() {
     const hoy = new Date()
     const pad = numero => String(numero).padStart(2, "0")
     const fecha = `${hoy.getFullYear()}-${pad(hoy.getMonth() + 1)}-${pad(hoy.getDate())}`
-    return { fecha, hora: (hora, minuto) => `${fecha}T${pad(hora)}:${pad(minuto)}` }
+    return {
+        fecha,
+        hora: (hora, minuto) => `${fecha}T${pad(hora)}:${pad(minuto)}`,
+        instante: (hora, minuto, segundo) => new Date(`${fecha}T${pad(hora)}:${pad(minuto)}:${pad(segundo)}`).toISOString()
+    }
 }
 
 async function crearPlan(page, nombre, inicio, fin) {
@@ -275,4 +279,165 @@ test("Flujo de usuario: ante un fallo de guardado conserva planes y cola anterio
     }), { planes: clavePlanes, seguimiento: claveSeguimiento })).toEqual(antes)
     await expect(panel).toContainText("Plan actual")
     await expect(gestion.getByRole("listitem").first()).toContainText("Plan siguiente")
+})
+
+test("Flujo de usuario: registra en paralelo los eventos de una aplicación y conserva el excedente manual", async ({ page }) => {
+    const { fecha, instante } = datosHoy()
+    const idAplicacion = "aplicacion-seguimiento-paralelo"
+    const planes = [
+        { id: "plan-cocinar", nombre: "Cocinar", eventoId: null, colorEvento: "#0F766E", inicio: instante(9, 0, 0), fin: instante(9, 0, 2), idAplicacionPlantilla: idAplicacion },
+        { id: "plan-comer", nombre: "Comer", eventoId: null, colorEvento: "#0F766E", inicio: instante(9, 0, 1), fin: instante(9, 0, 3), idAplicacionPlantilla: idAplicacion },
+        { id: "plan-otra-aplicacion", nombre: "Plan ajeno", eventoId: null, colorEvento: "#0F766E", inicio: instante(9, 0, 0), fin: instante(9, 0, 5), idAplicacionPlantilla: "otra-aplicacion" }
+    ]
+    await page.clock.install({ time: new Date() })
+    await page.addInitScript(({ planesIniciales, clavePlanes }) => {
+        localStorage.setItem(clavePlanes, JSON.stringify(planesIniciales))
+    }, { planesIniciales: planes, clavePlanes })
+    await page.goto("/")
+    await page.getByLabel("Ir a fecha").fill(fecha)
+    await bloqueDelPlan(page, "Cocinar").click()
+    const detalle = page.getByRole("region", { name: "Plan: Cocinar" })
+    await detalle.getByRole("button", { name: "Seguir planificación" }).click()
+    await detalle.getByRole("button", { name: "Desde el primer evento de esta planificación" }).click()
+
+    const panel = page.getByRole("region", { name: "Siguiendo la planificación" })
+    await expect(panel.getByLabel("Modo de avance de la planificación").getByLabel(/Manual/)).toBeChecked()
+    await page.clock.fastForward(1100)
+    let registros = await page.evaluate(clave => JSON.parse(localStorage.getItem(clave)), claveRegistros)
+    expect(registros.filter(registro => registro.estado === "En curso").map(registro => registro.planId).sort())
+        .toEqual(["plan-cocinar", "plan-comer"])
+    await expect(panel).toContainText("En curso en paralelo")
+
+    await page.reload()
+    const panelRecargado = page.getByRole("region", { name: "Siguiendo la planificación" })
+    await expect(panelRecargado.getByLabel("Modo de avance de la planificación").getByLabel(/Manual/)).toBeChecked()
+    registros = await page.evaluate(clave => JSON.parse(localStorage.getItem(clave)), claveRegistros)
+    expect(registros.filter(registro => registro.estado === "En curso")).toHaveLength(2)
+
+    await page.clock.fastForward(1500)
+    await expect(panelRecargado).toContainText("Tiempo excedido")
+    registros = await page.evaluate(clave => JSON.parse(localStorage.getItem(clave)), claveRegistros)
+    expect(registros.find(registro => registro.planId === "plan-cocinar").estado).toBe("En curso")
+    expect(registros.find(registro => registro.planId === "plan-comer").estado).toBe("En curso")
+    expect(registros.some(registro => registro.planId === "plan-otra-aplicacion")).toBe(false)
+
+    await panelRecargado.getByRole("button", { name: "Finalizar “Cocinar”" }).click()
+    registros = await page.evaluate(clave => JSON.parse(localStorage.getItem(clave)), claveRegistros)
+    expect(registros.find(registro => registro.planId === "plan-cocinar").estado).toBe("Finalizado")
+    expect(registros.find(registro => registro.planId === "plan-comer").estado).toBe("En curso")
+    await panelRecargado.getByRole("button", { name: "Finalizar “Comer”" }).click()
+    await expect(panelRecargado).toHaveCount(0)
+})
+
+test("Flujo de usuario: el modo automático termina cada evento al cumplirse su duración", async ({ page }) => {
+    const { fecha, instante } = datosHoy()
+    const idAplicacion = "aplicacion-seguimiento-automatico"
+    const planes = [
+        { id: "plan-uno", nombre: "Evento uno", eventoId: null, colorEvento: "#0F766E", inicio: instante(9, 0, 0), fin: instante(9, 0, 2), idAplicacionPlantilla: idAplicacion },
+        { id: "plan-dos", nombre: "Evento dos", eventoId: null, colorEvento: "#0F766E", inicio: instante(9, 0, 1), fin: instante(9, 0, 3), idAplicacionPlantilla: idAplicacion },
+        { id: "plan-tres", nombre: "Evento tres", eventoId: null, colorEvento: "#0F766E", inicio: instante(9, 0, 3), fin: instante(9, 0, 4), idAplicacionPlantilla: idAplicacion }
+    ]
+    await page.clock.install({ time: new Date() })
+    await page.addInitScript(({ planesIniciales, clavePlanes }) => {
+        localStorage.setItem(clavePlanes, JSON.stringify(planesIniciales))
+    }, { planesIniciales: planes, clavePlanes })
+    await page.goto("/")
+    await page.getByLabel("Ir a fecha").fill(fecha)
+    await bloqueDelPlan(page, "Evento uno").focus()
+    await bloqueDelPlan(page, "Evento uno").press("Enter")
+    const detalle = page.getByRole("region", { name: "Plan: Evento uno" })
+    await detalle.getByRole("button", { name: "Seguir planificación" }).click()
+    await detalle.getByRole("button", { name: "Desde el primer evento de esta planificación" }).click()
+    const panel = page.getByRole("region", { name: "Siguiendo la planificación" })
+    await panel.getByLabel(/Automático/).check()
+
+    await page.clock.fastForward(1100)
+    let registros = await page.evaluate(clave => JSON.parse(localStorage.getItem(clave)), claveRegistros)
+    expect(registros.find(registro => registro.planId === "plan-dos").estado).toBe("En curso")
+    await page.clock.fastForward(1100)
+    registros = await page.evaluate(clave => JSON.parse(localStorage.getItem(clave)), claveRegistros)
+    expect(registros.find(registro => registro.planId === "plan-uno").estado).toBe("Finalizado")
+    expect(registros.find(registro => registro.planId === "plan-dos")?.estado,
+        JSON.stringify({ registros, seguimiento: await page.evaluate(clave => JSON.parse(localStorage.getItem(clave)), claveSeguimiento) }))
+        .toBe("En curso")
+    expect(registros.some(registro => registro.planId === "plan-tres")).toBe(false)
+    await page.clock.fastForward(1200)
+    const registrosSiguientes = await page.evaluate(clave => JSON.parse(localStorage.getItem(clave)), claveRegistros)
+    expect(registrosSiguientes.find(registro => registro.planId === "plan-dos").estado).toBe("Finalizado")
+    expect(registrosSiguientes.find(registro => registro.planId === "plan-tres").estado).toBe("En curso")
+    await expect(panel).toContainText("Evento tres")
+})
+
+test("Flujo de usuario: omite un evento futuro sin quitarlo del calendario y continúa tras el paralelo", async ({ page }) => {
+    const { fecha, instante } = datosHoy()
+    const idAplicacion = "aplicacion-seguimiento-omision"
+    const planes = [
+        { id: "plan-actual-omision", nombre: "Preparar", eventoId: null, colorEvento: "#0F766E", inicio: instante(9, 0, 0), fin: instante(9, 0, 2), idAplicacionPlantilla: idAplicacion },
+        { id: "plan-omitido", nombre: "Paso opcional", eventoId: null, colorEvento: "#0F766E", inicio: instante(9, 0, 1), fin: instante(9, 0, 3), idAplicacionPlantilla: idAplicacion },
+        { id: "plan-despues-omision", nombre: "Continuar", eventoId: null, colorEvento: "#0F766E", inicio: instante(9, 0, 3), fin: instante(9, 0, 4), idAplicacionPlantilla: idAplicacion }
+    ]
+    await page.clock.install({ time: new Date() })
+    await page.addInitScript(({ planesIniciales, clavePlanes }) => {
+        localStorage.setItem(clavePlanes, JSON.stringify(planesIniciales))
+    }, { planesIniciales: planes, clavePlanes })
+    await page.goto("/")
+    await page.getByLabel("Ir a fecha").fill(fecha)
+    await bloqueDelPlan(page, "Preparar").focus()
+    await bloqueDelPlan(page, "Preparar").press("Enter")
+    const detalle = page.getByRole("region", { name: "Plan: Preparar" })
+    await detalle.getByRole("button", { name: "Seguir planificación" }).click()
+    await detalle.getByRole("button", { name: "Desde el primer evento de esta planificación" }).click()
+    const panel = page.getByRole("region", { name: "Siguiendo la planificación" })
+    const gestion = panel.locator("details.seguimiento-plan-gestion")
+    await gestion.locator("summary").click()
+    const pasoOpcional = gestion.getByRole("listitem").filter({ hasText: "Paso opcional" })
+    await pasoOpcional.getByRole("button", { name: "Omitir Paso opcional en este seguimiento" }).click()
+
+    const seguimiento = await page.evaluate(clave => JSON.parse(localStorage.getItem(clave)), claveSeguimiento)
+    expect(seguimiento.eventosOmitidos).toContain("plan-omitido")
+    expect((await page.evaluate(clave => JSON.parse(localStorage.getItem(clave)), clavePlanes))
+        .some(plan => plan.id === "plan-omitido")).toBe(true)
+
+    await page.clock.fastForward(2200)
+    await panel.getByRole("button", { name: "Finalizar “Preparar”" }).click()
+    const registros = await page.evaluate(clave => JSON.parse(localStorage.getItem(clave)), claveRegistros)
+    expect(registros.some(registro => registro.planId === "plan-omitido")).toBe(false)
+    expect(registros.find(registro => registro.planId === "plan-despues-omision").estado).toBe("En curso")
+})
+
+test("Flujo de usuario: editar un evento futuro de la aplicación actualiza calendario y seguimiento sin alterar el activo", async ({ page }) => {
+    const { fecha, hora } = datosHoy()
+    const idAplicacion = "aplicacion-edicion-seguimiento"
+    const planes = [
+        { id: "plan-activo-edicion", nombre: "Preparar", eventoId: null, colorEvento: "#0F766E", inicio: new Date(hora(9, 0)).toISOString(), fin: new Date(hora(9, 30)).toISOString(), idAplicacionPlantilla: idAplicacion },
+        { id: "plan-futuro-edicion", nombre: "Almorzar", eventoId: null, colorEvento: "#0F766E", inicio: new Date(hora(9, 5)).toISOString(), fin: new Date(hora(9, 20)).toISOString(), idAplicacionPlantilla: idAplicacion }
+    ]
+    await page.clock.install({ time: new Date() })
+    await page.addInitScript(({ planesIniciales, clavePlanes }) => {
+        localStorage.setItem(clavePlanes, JSON.stringify(planesIniciales))
+    }, { planesIniciales: planes, clavePlanes })
+    await page.goto("/")
+    await page.getByLabel("Ir a fecha").fill(fecha)
+    await bloqueDelPlan(page, "Preparar").click()
+    const detalle = page.getByRole("region", { name: "Plan: Preparar" })
+    await detalle.getByRole("button", { name: "Seguir planificación" }).click()
+    await detalle.getByRole("button", { name: "Desde el primer evento de esta planificación" }).click()
+    const panel = page.getByRole("region", { name: "Siguiendo la planificación" })
+    const gestion = panel.locator("details.seguimiento-plan-gestion")
+    await gestion.locator("summary").click()
+    await gestion.getByRole("listitem").filter({ hasText: "Almorzar" }).getByRole("button", { name: "Editar" }).click()
+    const formulario = page.getByRole("form", { name: "Editar actividad planificada" })
+    await formulario.getByLabel("Fin", { exact: true }).fill(hora(9, 25))
+    await formulario.getByRole("button", { name: "Guardar cambios" }).click()
+
+    const planesActualizados = await page.evaluate(clave => JSON.parse(localStorage.getItem(clave)), clavePlanes)
+    const seguimiento = await page.evaluate(clave => JSON.parse(localStorage.getItem(clave)), claveSeguimiento)
+    expect(planesActualizados.find(plan => plan.id === "plan-futuro-edicion").fin)
+        .toBe(new Date(hora(9, 25)).toISOString())
+    expect(seguimiento.secuencia.find(item => item.planId === "plan-futuro-edicion").duracionMs).toBe(20 * 60_000)
+    expect(seguimiento.secuencia[seguimiento.indiceActual].planId).toBe("plan-activo-edicion")
+    const registros = await page.evaluate(clave => JSON.parse(localStorage.getItem(clave)), claveRegistros)
+    expect(registros).toHaveLength(1)
+    expect(registros[0].planId).toBe("plan-activo-edicion")
+    await expect(gestion.getByRole("listitem").filter({ hasText: "Almorzar" })).toContainText("09:25")
 })

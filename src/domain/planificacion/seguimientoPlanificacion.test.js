@@ -60,6 +60,49 @@ test("respeta el orden explícito de seguimiento sin cambiar los horarios ni per
     assert.equal(resultado.secuencia[2].finPrevisto, fecha(9, 20).toISOString())
 })
 
+test("la aplicación limita el seguimiento a su grupo y representa solapamientos en paralelo", () => {
+    const planes = [
+        { ...plan("cocinar", fecha(9), fecha(9, 10), null), idAplicacionPlantilla: "aplicacion-1" },
+        { ...plan("comer", fecha(9, 5), fecha(9, 20), null), idAplicacionPlantilla: "aplicacion-1" },
+        { ...plan("video", fecha(9, 8), fecha(9, 15), null), idAplicacionPlantilla: "aplicacion-1" },
+        { ...plan("otra-aplicacion", fecha(9), fecha(9, 30), null), idAplicacionPlantilla: "aplicacion-2" },
+        plan("sin-aplicacion", fecha(9), fecha(9, 30))
+    ]
+    const resultado = crearSecuenciaSeguimiento(planes, "comer")
+    assert.equal(resultado.ok, true)
+    assert.equal(resultado.idAplicacionPlantilla, "aplicacion-1")
+    assert.deepEqual(resultado.secuencia.map(item => item.planId), ["cocinar", "comer", "video"])
+    assert.deepEqual(resultado.secuencia.map(item => item.grupo), [0, 0, 0])
+    assert.deepEqual(resultado.secuencia.map(item => item.inicioOffsetMs), [0, 5 * 60_000, 8 * 60_000])
+    assert.equal(resultado.secuencia.some(item => item.planId === "otra-aplicacion" || item.planId === "sin-aplicacion"), false)
+})
+
+test("la aplicación ejecuta los grupos consecutivos y conserva el orden manual entre grupos", () => {
+    const planes = [
+        { ...plan("grupo-a1", fecha(9), fecha(9, 10), null), idAplicacionPlantilla: "app", ordenSeguimiento: 0 },
+        { ...plan("grupo-a2", fecha(9, 5), fecha(9, 12), null), idAplicacionPlantilla: "app", ordenSeguimiento: 1 },
+        { ...plan("grupo-b", fecha(9, 20), fecha(9, 25), null), idAplicacionPlantilla: "app", ordenSeguimiento: 3 },
+        { ...plan("grupo-c", fecha(9, 30), fecha(9, 35), null), idAplicacionPlantilla: "app", ordenSeguimiento: 2 }
+    ]
+    const resultado = crearSecuenciaSeguimiento(planes, "grupo-a1")
+    assert.deepEqual(resultado.secuencia.map(item => item.planId), ["grupo-a1", "grupo-a2", "grupo-c", "grupo-b"])
+    assert.deepEqual(resultado.secuencia.map(item => item.grupo), [0, 0, 1, 2])
+    assert.deepEqual(resultado.secuencia.map(item => item.inicioOffsetMs), [0, 5 * 60_000, 12 * 60_000, 17 * 60_000])
+})
+
+test("el seguimiento de una aplicación conserva su secuencia cuando cruza medianoche", () => {
+    const planes = [
+        { ...plan("noche", fecha(23, 50), fecha(23, 55), null), idAplicacionPlantilla: "app-noche" },
+        { ...plan("madrugada", new Date(2026, 9, 19, 0, 5), new Date(2026, 9, 19, 0, 10), null), idAplicacionPlantilla: "app-noche" },
+        { ...plan("otra", new Date(2026, 9, 19, 0, 0), new Date(2026, 9, 19, 0, 10), null), idAplicacionPlantilla: "otra-app" }
+    ]
+    const resultado = crearSecuenciaSeguimiento(planes, "noche")
+    assert.equal(resultado.ok, true)
+    assert.deepEqual(resultado.secuencia.map(item => item.planId), ["noche", "madrugada"])
+    assert.deepEqual(resultado.secuencia.map(item => item.grupo), [0, 1])
+    assert.deepEqual(resultado.secuencia.map(item => item.inicioOffsetMs), [0, 5 * 60_000])
+})
+
 test("rechaza planes que no pueden producir registros válidos", () => {
     assert.match(crearSecuenciaSeguimiento([
         plan("corto", fecha(9), new Date(fecha(9).getTime() + 999), null)

@@ -34,7 +34,7 @@ export function DetallePlan({ plan, evento, onEditar, onEliminar, onEliminarApli
                         : <>
                             <p>¿Desde dónde querés comenzar?</p>
                             <button type="button" onClick={() => empezarSeguimiento("actual")}>Desde este evento</button>
-                            <button type="button" onClick={() => empezarSeguimiento("primero")}>Desde el primero del día</button>
+                            <button type="button" onClick={() => empezarSeguimiento("primero")}>{plan.idAplicacionPlantilla ? "Desde el primer evento de esta planificación" : "Desde el primero del día"}</button>
                             <button type="button" onClick={() => cambiarMostrarOpcionesSeguimiento(false)}>Cancelar</button>
                         </>}
                     {errorSeguimiento && <p role="alert">{errorSeguimiento}</p>}

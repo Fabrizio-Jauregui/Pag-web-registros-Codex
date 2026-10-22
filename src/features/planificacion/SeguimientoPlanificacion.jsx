@@ -32,10 +32,23 @@ export function PanelSeguimientoPlanificacion({
         {mensaje && <p className="seguimiento-plan-mensaje" role="status">{mensaje}</p>}
     </>
 
+    const eventosActivos = estado.registrosActivos ?? []
+    const esAplicacionParalela = Boolean(estado.idAplicacionPlantilla)
     const actual = estado.indiceActual + 1
-    const proximos = estado.secuencia.slice(estado.indiceActual + 1)
+    const idsEnCurso = new Set(eventosActivos.map(item => item.planId))
+    const idsCerrados = new Set([...(estado.finalizados ?? []), ...(estado.eventosOmitidos ?? [])])
+    const proximos = esAplicacionParalela
+        ? estado.secuencia.filter((item, indice) => indice !== estado.indiceActual
+            && !idsEnCurso.has(item.planId) && !idsCerrados.has(item.planId))
+        : estado.secuencia.slice(estado.indiceActual + 1)
     const fechaSeguimiento = new Date(estado.secuencia[0].inicioPrevisto)
     const ahoraMs = reloj.getTime()
+    const modoManual = estado.modoAvance === "manual"
+    const excedido = estado.estado === "En curso" && elementoActual
+        && ahoraMs >= Date.parse(eventosActivos[0]?.finBloque ?? estado.finBloque)
+    const segundosExcedidos = excedido
+        ? Math.floor((ahoraMs - Date.parse(eventosActivos[0]?.finBloque ?? estado.finBloque)) / 1000)
+        : 0
     const comienzoEstimado = estado.estado === "Pausado"
         ? new Date(ahoraMs + estado.restanteMs)
         : new Date(Math.max(ahoraMs, Date.parse(estado.finBloque)))
@@ -111,23 +124,64 @@ export function PanelSeguimientoPlanificacion({
             <header>
                 <div>
                     <h2 id="titulo-seguimiento-plan">Siguiendo la planificación</h2>
-                    <p>Evento {actual} de {estado.secuencia.length}</p>
+                    <p>{esAplicacionParalela
+                        ? `${eventosActivos.length} evento${eventosActivos.length === 1 ? "" : "s"} en curso · ${estado.secuencia.length} en la planificación`
+                        : `Evento ${actual} de ${estado.secuencia.length}`}</p>
                 </div>
                 <span className={`seguimiento-plan-estado seguimiento-plan-estado-${estado.estado === "Pausado" ? "pausado" : "activo"}`}>
                     {estado.estado}
                 </span>
             </header>
-            <h3>{elementoActual?.nombre}</h3>
-            <p className="seguimiento-plan-restante">
-                {estado.estado === "Pausado" ? "Tiempo restante" : "Termina en"}: <strong>{formatearDuracion(segundosRestantes)}</strong>
-            </p>
-            <progress max={elementoActual?.duracionMs ?? 1}
-                value={estado.estado === "Pausado"
-                    ? Math.max(0, (elementoActual?.duracionMs ?? 0) - estado.restanteMs)
-                    : Math.max(0, (elementoActual?.duracionMs ?? 0) - Math.max(0, Date.parse(estado.finBloque) - reloj.getTime()))}
-                aria-label="Progreso del evento actual" />
-            {estado.secuencia.length > actual && (
+            <h3>{esAplicacionParalela
+                ? `En curso: ${eventosActivos.map(activo => estado.secuencia.find(item => item.planId === activo.planId)?.nombre).filter(Boolean).join(" · ") || elementoActual?.nombre}`
+                : elementoActual?.nombre}</h3>
+            {!esAplicacionParalela && <>
+                <p className="seguimiento-plan-restante">
+                    {estado.estado === "Pausado" ? "Tiempo restante" : excedido && modoManual ? "Tiempo excedido" : "Tiempo restante"}: <strong>{formatearDuracion(excedido && modoManual ? segundosExcedidos : segundosRestantes)}</strong>
+                </p>
+                <progress max={elementoActual?.duracionMs ?? 1}
+                    value={estado.estado === "Pausado"
+                        ? Math.max(0, (elementoActual?.duracionMs ?? 0) - estado.restanteMs)
+                        : Math.max(0, (elementoActual?.duracionMs ?? 0) - Math.max(0, Date.parse(estado.finBloque) - reloj.getTime()))}
+                    aria-label="Progreso del evento actual" />
+            </>}
+            {elementoSiguiente && (
                 <p className="seguimiento-plan-siguiente">Próximo: {elementoSiguiente.nombre}</p>
+            )}
+            {esAplicacionParalela && (
+                <fieldset className="seguimiento-plan-modo" aria-label="Modo de avance de la planificación">
+                    <legend>Al cumplirse la duración prevista</legend>
+                    <label>
+                        <input type="radio" name="modo-avance-planificacion" value="manual"
+                            checked={modoManual} onChange={() => seguimiento.cambiarModoAvance("manual")} />
+                        Manual: seguir registrando y mostrar el tiempo excedido
+                    </label>
+                    <label>
+                        <input type="radio" name="modo-avance-planificacion" value="automatico"
+                            checked={!modoManual} onChange={() => seguimiento.cambiarModoAvance("automatico")} />
+                        Automático: finalizar el evento al cumplirse su duración
+                    </label>
+                </fieldset>
+            )}
+            {esAplicacionParalela && eventosActivos.length > 0 && (
+                <section aria-label={eventosActivos.length > 1 ? "Eventos registrándose en paralelo" : "Evento registrándose"}>
+                    <h4>{eventosActivos.length > 1 ? "En curso en paralelo" : "Evento registrándose"}</h4>
+                    <ul>{eventosActivos.map(activo => {
+                        const item = estado.secuencia.find(elemento => elemento.planId === activo.planId)
+                        const restante = estado.estado === "Pausado"
+                            ? activo.restanteMs
+                            : Date.parse(activo.finBloque) - ahoraMs
+                        const excedidoEvento = restante < 0 && modoManual && estado.estado === "En curso"
+                        const segundosEvento = Math.floor(Math.abs(restante) / 1000)
+                        return <li key={activo.planId}>
+                            <strong>{item?.nombre}</strong>
+                            <span>{excedidoEvento ? "Tiempo excedido" : estado.estado === "Pausado" ? "Tiempo restante" : "Tiempo previsto restante"}: {formatearDuracion(segundosEvento)}</span>
+                            <button type="button" onClick={() => seguimiento.finalizarEvento(activo.planId)}>
+                                Finalizar “{item?.nombre ?? "evento"}”
+                            </button>
+                        </li>
+                    })}</ul>
+                </section>
             )}
             {(estado.eventosOmitidos ?? []).length > 0 && (
                 <p className="seguimiento-plan-omitidos">
@@ -143,10 +197,10 @@ export function PanelSeguimientoPlanificacion({
                 {estado.estado === "En curso"
                     ? <button type="button" onClick={seguimiento.pausar}>Pausar</button>
                     : <button type="button" onClick={seguimiento.reanudar}>Continuar</button>}
-                <button type="button" onClick={seguimiento.finalizarYContinuar}>
+                {!esAplicacionParalela && <button type="button" onClick={seguimiento.finalizarYContinuar}>
                     {elementoSiguiente ? "Finalizar y continuar con el próximo" : "Finalizar secuencia"}
-                </button>
-                {elementoSiguiente && (
+                </button>}
+                {!esAplicacionParalela && elementoSiguiente && (
                     <button type="button" onClick={seguimiento.finalizarYOmitirSiguiente}>
                         {elementoPosterior
                             ? `Finalizar, omitir “${elementoSiguiente.nombre}” y continuar con “${elementoPosterior.nombre}”`
@@ -176,6 +230,14 @@ export function PanelSeguimientoPlanificacion({
                                     <button type="button" aria-label={`Mover ${item.nombre} después`} disabled={indice === proximos.length - 1} onClick={() => moverPlan(indice, 1)}>↓</button>
                                     <button type="button" disabled={!plan} onClick={() => plan && cambiarFormularioPlan({ plan })}>Editar</button>
                                     <button type="button" disabled={!plan} onClick={() => eliminarPlan(item.planId)}>Eliminar</button>
+                                    {esAplicacionParalela && <button type="button"
+                                        aria-label={`Omitir ${item.nombre} en este seguimiento`}
+                                        onClick={() => {
+                                            if (!seguimiento.omitirEvento(item.planId)) cambiarErrorCola("No se pudo omitir el evento en este seguimiento.")
+                                            else cambiarErrorCola("")
+                                        }}>
+                                        Omitir de esta sesión
+                                    </button>}
                                 </div>
                                 <button type="button" className="seguimiento-plan-insertar" onClick={() => abrirNuevoPlan(indice + 1)}>
                                     Agregar después de {item.nombre}

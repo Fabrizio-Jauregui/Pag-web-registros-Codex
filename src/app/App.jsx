@@ -65,10 +65,13 @@ export function App() {
     const estadoRegistro = useRegistro()
     const seguimientoPlanificacion = useSeguimientoPlanificacion(estadoRegistro)
     const plantillas = estadoPlantillas.ok ? estadoPlantillas.plantillas : []
+    const idAplicacionSeguimiento = seguimientoPlanificacion.estado?.idAplicacionPlantilla
     const fechaSeguimiento = seguimientoPlanificacion.estado
         ? new Date(seguimientoPlanificacion.estado.secuencia[seguimientoPlanificacion.estado.indiceActual].inicioPrevisto)
         : null
-    const planesSeguimiento = fechaSeguimiento
+    const planesSeguimiento = idAplicacionSeguimiento && estadoPlanes.ok
+        ? estadoPlanes.planes.filter(plan => plan.idAplicacionPlantilla === idAplicacionSeguimiento)
+        : fechaSeguimiento
         ? [
             ...(estadoPlanes.ok ? estadoPlanes.planes : []),
             ...generarAparicionesRecurrencia(
@@ -113,9 +116,11 @@ export function App() {
         const planActivo = seguimiento.secuencia[seguimiento.indiceActual]
         const fecha = new Date(planActivo.inicioPrevisto)
         const apariciones = generarAparicionesRecurrencia(reglas, fecha, fecha)
-        const visibles = [...planes, ...apariciones].filter(plan => plan.inicio.getFullYear() === fecha.getFullYear()
-            && plan.inicio.getMonth() === fecha.getMonth()
-            && plan.inicio.getDate() === fecha.getDate())
+        const visibles = seguimiento.idAplicacionPlantilla
+            ? planes.filter(plan => plan.idAplicacionPlantilla === seguimiento.idAplicacionPlantilla)
+            : [...planes, ...apariciones].filter(plan => plan.inicio.getFullYear() === fecha.getFullYear()
+                && plan.inicio.getMonth() === fecha.getMonth()
+                && plan.inicio.getDate() === fecha.getDate())
         return seguimientoPlanificacion.sincronizarPlanes(visibles, plantillas)
     }
 
@@ -151,13 +156,24 @@ export function App() {
         const activo = sesion.secuencia[sesion.indiceActual]
         const fecha = new Date(activo.inicioPrevisto)
         const apariciones = generarAparicionesRecurrencia(reglasBase, fecha, fecha)
-        const visibles = [...planesBase, ...apariciones].filter(plan => plan.inicio.getFullYear() === fecha.getFullYear()
-            && plan.inicio.getMonth() === fecha.getMonth()
-            && plan.inicio.getDate() === fecha.getDate())
-        const prefijo = sesion.secuencia.slice(0, sesion.indiceActual + 1).map(item => item.planId)
+        const visibles = sesion.idAplicacionPlantilla
+            ? planesBase.filter(plan => plan.idAplicacionPlantilla === sesion.idAplicacionPlantilla)
+            : [...planesBase, ...apariciones].filter(plan => plan.inicio.getFullYear() === fecha.getFullYear()
+                && plan.inicio.getMonth() === fecha.getMonth()
+                && plan.inicio.getDate() === fecha.getDate())
+        const activos = new Set((sesion.registrosActivos ?? []).map(item => item.planId))
+        const finalizados = new Set(sesion.finalizados ?? [])
+        const grupoActivo = sesion.secuencia[sesion.indiceActual]?.grupo
+        const prefijo = sesion.idAplicacionPlantilla
+            ? sesion.secuencia.filter(item => activos.has(item.planId) || finalizados.has(item.planId)
+                || item.grupo === grupoActivo).map(item => item.planId)
+            : sesion.secuencia.slice(0, sesion.indiceActual + 1).map(item => item.planId)
         const idsCola = [...new Set([...prefijo, ...idsFuturos])]
         const idsIncluidos = new Set(idsCola)
-        const anteriores = visibles.filter(plan => !idsIncluidos.has(plan.id)).sort(compararPlanesPorSeguimiento)
+        const alcanceVisible = sesion.idAplicacionPlantilla
+            ? visibles.filter(plan => plan.idAplicacionPlantilla === sesion.idAplicacionPlantilla)
+            : visibles
+        const anteriores = alcanceVisible.filter(plan => !idsIncluidos.has(plan.id)).sort(compararPlanesPorSeguimiento)
         const orden = [...anteriores.map(plan => plan.id), ...idsCola]
         const ordenPorId = new Map(orden.map((id, indice) => [id, indice]))
 
@@ -191,11 +207,15 @@ export function App() {
             guardarPlanes(planesBase)
             return guardadoRecurrencias
         }
-        const nuevasApariciones = generarAparicionesRecurrencia(nuevasReglas, fecha, fecha)
+        const nuevasApariciones = sesion.idAplicacionPlantilla
+            ? []
+            : generarAparicionesRecurrencia(nuevasReglas, fecha, fecha)
         const sincronizacion = seguimientoPlanificacion.sincronizarPlanes(
-            [...nuevosPlanes, ...nuevasApariciones].filter(plan => plan.inicio.getFullYear() === fecha.getFullYear()
-                && plan.inicio.getMonth() === fecha.getMonth()
-                && plan.inicio.getDate() === fecha.getDate()),
+            sesion.idAplicacionPlantilla
+                ? nuevosPlanes.filter(plan => plan.idAplicacionPlantilla === sesion.idAplicacionPlantilla)
+                : [...nuevosPlanes, ...nuevasApariciones].filter(plan => plan.inicio.getFullYear() === fecha.getFullYear()
+                    && plan.inicio.getMonth() === fecha.getMonth()
+                    && plan.inicio.getDate() === fecha.getDate()),
             plantillas
         )
         if (!sincronizacion.ok) {
@@ -211,19 +231,23 @@ export function App() {
     function crearPlanEnSeguimiento(cambios, indiceInsercion = 0) {
         if (!estadoPlanes.ok || !seguimientoPlanificacion.estado) return { ok: false, error: "No hay una secuencia activa para editar." }
         const fecha = new Date(seguimientoPlanificacion.estado.secuencia[seguimientoPlanificacion.estado.indiceActual].inicioPrevisto)
-        if (cambios.inicio.getFullYear() !== fecha.getFullYear()
+        if (!seguimientoPlanificacion.estado.idAplicacionPlantilla
+            && (cambios.inicio.getFullYear() !== fecha.getFullYear()
             || cambios.inicio.getMonth() !== fecha.getMonth()
-            || cambios.inicio.getDate() !== fecha.getDate()) {
+            || cambios.inicio.getDate() !== fecha.getDate())) {
             return { ok: false, error: "El evento nuevo debe pertenecer al mismo día de la planificación en curso." }
         }
         const creado = crearPlan(cambios)
         if (!creado.ok) return creado
+        const planCreado = seguimientoPlanificacion.estado.idAplicacionPlantilla
+            ? { ...creado.plan, idAplicacionPlantilla: seguimientoPlanificacion.estado.idAplicacionPlantilla }
+            : creado.plan
         const futuros = seguimientoPlanificacion.estado.secuencia
             .slice(seguimientoPlanificacion.estado.indiceActual + 1)
             .map(item => item.planId)
-        futuros.splice(Math.max(0, Math.min(indiceInsercion, futuros.length)), 0, creado.plan.id)
-        const resultado = guardarColaSeguimiento(futuros, [...estadoPlanes.planes, creado.plan])
-        return resultado.ok ? { ok: true, plan: creado.plan } : resultado
+        futuros.splice(Math.max(0, Math.min(indiceInsercion, futuros.length)), 0, planCreado.id)
+        const resultado = guardarColaSeguimiento(futuros, [...estadoPlanes.planes, planCreado])
+        return resultado.ok ? { ok: true, plan: planCreado } : resultado
     }
 
     function crearRecurrenciaEnSeguimiento(cambios, indiceInsercion = 0) {
@@ -411,7 +435,8 @@ export function App() {
     function actualizarPlanificacion(id, cambios) {
         const elementoActivo = seguimientoPlanificacion.estado?.secuencia[seguimientoPlanificacion.estado.indiceActual]
         const planActivo = planesSeguimiento.find(plan => plan.id === elementoActivo?.planId)
-        if (id === elementoActivo?.planId
+        const planEnCurso = seguimientoPlanificacion.estado?.registrosActivos?.some(item => item.planId === id)
+        if (id === elementoActivo?.planId || planEnCurso
             || (cambios.idRecurrencia && planActivo?.idRecurrencia === cambios.idRecurrencia
                 && (planActivo?.fechaRecurrencia === cambios.fechaRecurrencia
                     || cambios.alcance === "toda"
@@ -444,8 +469,9 @@ export function App() {
         if (!estadoPlanes.ok) return { ok: false, error: estadoPlanes.error }
         const aplicacion = estadoPlanes.planes.filter(plan => plan.idAplicacionPlantilla === idAplicacion)
         if (aplicacion.length === 0 || !Number.isFinite(desplazamientoMs)) return { ok: false, error: "No se encontró esa aplicación de plantilla en el calendario." }
+        const planesActivos = new Set((seguimientoPlanificacion.estado?.registrosActivos ?? []).map(item => item.planId))
         const planActivoId = seguimientoPlanificacion.estado?.secuencia[seguimientoPlanificacion.estado.indiceActual]?.planId
-        if (aplicacion.some(plan => plan.id === planActivoId)) {
+        if (aplicacion.some(plan => plan.id === planActivoId || planesActivos.has(plan.id))) {
             return { ok: false, error: "No se puede mover la aplicación completa mientras uno de sus eventos está en curso." }
         }
         const ids = new Set(aplicacion.map(plan => plan.id))
@@ -459,7 +485,7 @@ export function App() {
 
     function eliminarPlanificacion(id) {
         const elementoActivo = seguimientoPlanificacion.estado?.secuencia[seguimientoPlanificacion.estado.indiceActual]
-        if (id === elementoActivo?.planId) {
+        if (id === elementoActivo?.planId || seguimientoPlanificacion.estado?.registrosActivos?.some(item => item.planId === id)) {
             return { ok: false, error: "El evento que está en curso no se puede eliminar hasta que termine." }
         }
         if (!estadoPlanes.ok) return { ok: false, error: estadoPlanes.error }
@@ -471,7 +497,13 @@ export function App() {
     function eliminarRecurrenciaPlanificacion(id, fecha, alcance) {
         const elementoActivo = seguimientoPlanificacion.estado?.secuencia[seguimientoPlanificacion.estado.indiceActual]
         const planActivo = planesSeguimiento.find(plan => plan.id === elementoActivo?.planId)
-        if (planActivo?.idRecurrencia === id && (planActivo?.fechaRecurrencia === fecha
+        const ocurrenciaEnCurso = seguimientoPlanificacion.estado?.registrosActivos?.some(item => {
+            const plan = planesSeguimiento.find(candidato => candidato.id === item.planId)
+            return plan?.idRecurrencia === id
+                && (plan.fechaRecurrencia === fecha || alcance === "toda"
+                    || (alcance === "siguientes" && plan.fechaRecurrencia >= fecha))
+        })
+        if (ocurrenciaEnCurso || planActivo?.idRecurrencia === id && (planActivo?.fechaRecurrencia === fecha
             || alcance === "toda"
             || (alcance === "siguientes" && planActivo?.fechaRecurrencia >= fecha))) {
             return { ok: false, error: "El evento que está en curso no se puede eliminar hasta que termine." }
@@ -483,8 +515,9 @@ export function App() {
 
     function eliminarAplicacionPlanificacion(idAplicacion) {
         if (!estadoPlanes.ok) return { ok: false, error: estadoPlanes.error }
+        const planesActivos = new Set((seguimientoPlanificacion.estado?.registrosActivos ?? []).map(item => item.planId))
         const planActivoId = seguimientoPlanificacion.estado?.secuencia[seguimientoPlanificacion.estado.indiceActual]?.planId
-        if (estadoPlanes.planes.some(plan => plan.id === planActivoId && plan.idAplicacionPlantilla === idAplicacion)) {
+        if (estadoPlanes.planes.some(plan => (planesActivos.has(plan.id) || plan.id === planActivoId) && plan.idAplicacionPlantilla === idAplicacion)) {
             return { ok: false, error: "No se puede eliminar la aplicación mientras uno de sus eventos está en curso." }
         }
         const resultado = eliminarAplicacionPlan(estadoPlanes.planes, idAplicacion)
