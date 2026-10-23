@@ -52,8 +52,8 @@ function convertirPlantillaAEditor(plantilla) {
     }))]
 }
 
-export function EditorPlantillaCalendario({ plantilla = null, eventos, onGuardar, onCancelar }) {
-    const [modoEdicion, cambiarModoEdicion] = useState(plantilla?.modo === "cronometro" ? "cronometro" : "secuencias")
+export function EditorPlantillaCalendario({ plantilla = null, eventos, onGuardar, onCancelar, modoInicial = "secuencias" }) {
+    const [modoEdicion] = useState(plantilla?.modo === "cronometro" ? "cronometro" : modoInicial)
     const [nombre, cambiarNombre] = useState(plantilla?.nombre ?? "")
     const [actividades, cambiarActividades] = useState(() => convertirPlantillaAEditor(plantilla))
     const [seleccionada, cambiarSeleccionada] = useState(() => actividades[0]?.id ?? null)
@@ -166,12 +166,11 @@ export function EditorPlantillaCalendario({ plantilla = null, eventos, onGuardar
         onCancelar()
     }
 
-    if (modoEdicion === "cronometro") return <EditorPlantillaCronometro plantilla={plantilla} eventos={eventos} onGuardar={onGuardar} onCancelar={onCancelar} onCambiarModo={() => cambiarModoEdicion("secuencias")} />
+    if (modoEdicion === "cronometro") return <EditorPlantillaCronometro plantilla={plantilla} eventos={eventos} onGuardar={onGuardar} onCancelar={onCancelar} />
 
     return <section className="editor-plantilla-calendario" aria-labelledby="titulo-editor-plantilla">
         <header><div><p className="editor-plantilla-etiqueta">Diseñador de secuencias</p><h3 id="titulo-editor-plantilla">{plantilla?.id ? `Editar: ${plantilla.nombre}` : "Crear plantilla"}</h3><p>Las actividades de una secuencia empiezan cuando termina la anterior. Para solapar, seleccioná una actividad y agregá una secuencia paralela.</p></div><button type="button" onClick={onCancelar}>Cancelar</button></header>
         <label className="editor-plantilla-nombre">Nombre de la plantilla<input aria-label="Nombre de la plantilla" maxLength={80} value={nombre} onChange={e => cambiarNombre(e.target.value)} /></label>
-        <button type="button" onClick={() => cambiarModoEdicion("cronometro")}>Crear planificación sin duraciones</button>
         <div className="editor-secuencias-acciones"><button type="button" onClick={agregarAlFinal} disabled={!seleccion}>Agregar al final de la secuencia seleccionada</button><button type="button" onClick={agregarEnParalelo} disabled={!seleccion}>Agregar en paralelo a la actividad seleccionada</button></div>
         <div className="editor-secuencias" aria-label="Secuencias de la plantilla">
             {secuencias.map((secuenciaId, indiceSecuencia) => {
@@ -238,7 +237,7 @@ export function EditorPlantillaCalendario({ plantilla = null, eventos, onGuardar
     </section>
 }
 
-function EditorPlantillaCronometro({ plantilla, eventos, onGuardar, onCancelar, onCambiarModo }) {
+function EditorPlantillaCronometro({ plantilla, eventos, onGuardar, onCancelar }) {
     const crearGrupo = (actividades = []) => Math.max(-1, ...actividades.map(item => item.grupoCronometro ?? -1)) + 1
     const [nombre, cambiarNombre] = useState(plantilla?.nombre ?? "")
     const [actividades, cambiarActividades] = useState(() => {
@@ -304,17 +303,18 @@ function EditorPlantillaCronometro({ plantilla, eventos, onGuardar, onCancelar, 
     return <section className="editor-plantilla-calendario editor-plantilla-cronometro" aria-labelledby="titulo-editor-plantilla">
         <header><div><p className="editor-plantilla-etiqueta">Planificación con cronómetro</p><h3 id="titulo-editor-plantilla">{plantilla?.id ? `Editar: ${plantilla.nombre}` : "Crear plantilla"}</h3><p>Definí el orden. Cada evento empezará cuando lo inicies y continuará hasta que lo finalices.</p></div><button type="button" onClick={onCancelar}>Cancelar</button></header>
         <label className="editor-plantilla-nombre">Nombre de la plantilla<input aria-label="Nombre de la plantilla" maxLength={80} value={nombre} onChange={e => cambiarNombre(e.target.value)} /></label>
-        <button type="button" onClick={onCambiarModo}>Volver a la planificación con duraciones</button>
         <div className="editor-secuencias-acciones"><p>Agregá eventos a la misma etapa para iniciarlos juntos o por separado; la etapa siguiente se puede iniciar aunque estos sigan activos.</p></div>
         <div className="editor-secuencias" aria-label="Eventos secuenciales">
             {grupos.map((grupo, indiceGrupo) => <section className="editor-secuencia" key={grupo} aria-label={`Etapa ${indiceGrupo + 1}`}>
                 <h4>Etapa {indiceGrupo + 1}{actividades.filter(item => item.grupoCronometro === grupo).length > 1 ? " · eventos paralelos" : ""}</h4>
+                <div className="editor-cronometro-eventos">
                 {actividades.filter(item => item.grupoCronometro === grupo).map((actividad, indice) => <fieldset className="editor-plantilla-actividad" key={actividad.id}>
                     <legend>Evento {indice + 1}</legend>
                     <label>Evento (opcional)<select value={actividad.eventoId ?? ""} onChange={e => { const evento = eventos.find(item => item.id === e.target.value); actualizar(actividad.id, { eventoId: evento?.id ?? null, ...(evento ? { nombre: evento.nombre } : {}) }) }}><option value="">Sin evento</option>{eventos.map(item => <option key={item.id} value={item.id}>{item.nombre}</option>)}</select></label>
                     <label>Nombre<input aria-label="Nombre" value={eventos.find(item => item.id === actividad.eventoId)?.nombre ?? actividad.nombre} disabled={Boolean(actividad.eventoId)} maxLength={80} onChange={e => actualizar(actividad.id, { nombre: e.target.value })} /></label>
                     <div className="editor-secuencia-reordenar"><button type="button" onClick={() => mover(actividad.id, -1)} disabled={actividades[0]?.id === actividad.id}>Subir</button><button type="button" onClick={() => mover(actividad.id, 1)} disabled={actividades.at(-1)?.id === actividad.id}>Bajar</button><button type="button" onClick={() => agregarSiguiente(actividad.id)}>Agregar etapa siguiente</button><button type="button" onClick={() => agregarParalelo(grupo)}>Agregar en paralelo</button><button type="button" disabled={actividades.length <= 2} onClick={() => quitar(actividad.id)}>Quitar evento</button></div>
                 </fieldset>)}
+                </div>
             </section>)}
         </div>
         {error && <p role="alert">{error}</p>}
