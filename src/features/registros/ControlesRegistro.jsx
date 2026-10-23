@@ -40,7 +40,7 @@ export function ControlesRegistro({
                     onChange={evento => cambiarTareaId(evento.target.value)}
                 >
                     <option value="">Sin tarea</option>
-                    {tareas.map(tarea => <option value={tarea.id} key={tarea.id}>{tarea.nombre} · {tarea.estado}</option>)}
+                    {tareas.map(tarea => <option value={tarea.id} key={tarea.id}>{tarea.rutaNombre ?? tarea.nombre} · {tarea.estado}</option>)}
                 </select>
             </label>
 

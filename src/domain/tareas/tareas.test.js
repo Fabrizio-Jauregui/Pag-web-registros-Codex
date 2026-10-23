@@ -1,12 +1,12 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { actualizarTarea, cambiarDestinoTarea, crearTarea, eliminarTarea, ESTADOS_TAREA, moverTareaEnCola, posponerTareaEnCola, sincronizarEstadoTareasFocus, validarTarea } from "./tareas.js"
+import { actualizarTarea, cambiarDestinoTarea, cambiarEstadoRama, crearObjetivo, crearTarea, descendientesDe, eliminarTarea, ESTADOS_TAREA, moverTareaEnArbol, moverTareaEnCola, obtenerRutaTarea, posponerTareaEnCola, sincronizarEstadoTareasFocus, validarTarea } from "./tareas.js"
 
 const fecha = () => new Date("2026-10-18T12:00:00.000Z")
 
 test("crea una tarea normalizada con estado e identidad", () => {
     const resultado = crearTarea(" Leer ", "Pendiente", () => "tarea-1", fecha)
-    assert.deepEqual(resultado, { ok: true, tarea: { id: "tarea-1", nombre: "Leer", estado: "Pendiente", destino: "backlog", ordenFocus: null, creadaEn: "2026-10-18T12:00:00.000Z", actualizadaEn: "2026-10-18T12:00:00.000Z" } })
+    assert.deepEqual(resultado, { ok: true, tarea: { id: "tarea-1", tipo: "tarea", nombre: "Leer", estado: "Pendiente", destino: "backlog", ordenFocus: null, objetivoId: null, padreId: null, ordenArbol: 1, creadaEn: "2026-10-18T12:00:00.000Z", actualizadaEn: "2026-10-18T12:00:00.000Z" } })
 })
 
 test("valida nombre y estados permitidos", () => {
@@ -63,4 +63,40 @@ test("posponer mueve la activa después de la siguiente o al final", () => {
     assert.deepEqual(despues.tareas.sort((a, b) => a.ordenFocus - b.ordenFocus).map(tarea => tarea.id), ["b", "a", "c", "d"])
     const final = posponerTareaEnCola(tareas, "a", "final")
     assert.deepEqual(final.tareas.sort((a, b) => a.ordenFocus - b.ordenFocus).map(tarea => tarea.id), ["b", "c", "d", "a"])
+})
+
+test("crea una jerarquía de profundidad abierta, obtiene la ruta y no permite ciclos", () => {
+    const objetivo = crearObjetivo("Proyecto", () => "o", fecha).objetivo
+    const primera = crearTarea("Etapa", "Pendiente", () => "a", fecha, "backlog", null, { objetivoId: objetivo.id, padreId: objetivo.id }).tarea
+    const segunda = crearTarea("Parte", "Pendiente", () => "b", fecha, "backlog", null, { objetivoId: objetivo.id, padreId: primera.id }).tarea
+    const tercera = crearTarea("Acción", "Pendiente", () => "c", fecha, "backlog", null, { objetivoId: objetivo.id, padreId: segunda.id }).tarea
+    const conjunto = [objetivo, primera, segunda, tercera]
+    assert.deepEqual(descendientesDe(conjunto, objetivo.id).map(item => item.id), [primera.id, segunda.id, tercera.id])
+    assert.equal(obtenerRutaTarea(conjunto.filter(item => item.tipo !== "objetivo"), [objetivo], tercera.id), "Proyecto › Etapa › Parte › Acción")
+    assert.equal(actualizarTarea(conjunto, primera.id, { padreId: tercera.id }).ok, false)
+})
+
+test("completar o cancelar una rama requiere alcance explícito y protege la tarea activa", () => {
+    const objetivo = crearObjetivo("Proyecto", () => "o", fecha).objetivo
+    const padre = crearTarea("Padre", "Pendiente", () => "p", fecha, "backlog", null, { objetivoId: "o", padreId: "o" }).tarea
+    const hija = crearTarea("Hija", "Pendiente", () => "h", fecha, "focus", 1, { objetivoId: "o", padreId: "p" }).tarea
+    const nieta = crearTarea("Nieta", "Cancelada", () => "n", fecha, "backlog", null, { objetivoId: "o", padreId: "h" }).tarea
+    const tareas = [objetivo, padre, hija, nieta]
+    const solo = cambiarEstadoRama(tareas, "p", "Completada", "solo", null, fecha)
+    assert.deepEqual(solo.tareas.map(item => item.estado), ["Activo", "Completada", "Pendiente", "Cancelada"])
+    const rama = cambiarEstadoRama(tareas, "p", "Completada", "rama", null, fecha)
+    assert.deepEqual(rama.tareas.map(item => item.estado), ["Activo", "Completada", "Completada", "Cancelada"])
+    assert.equal(rama.tareas[2].ordenFocus, null)
+    assert.equal(cambiarEstadoRama(tareas, "p", "Cancelada", "rama", "h", fecha).ok, false)
+    assert.equal(cambiarEstadoRama(tareas, "p", "Cancelada", "rama", null, fecha).tareas[1].estado, "Cancelada")
+})
+
+test("reordena tareas entre hermanas sin cambiar la cola Focus", () => {
+    const objetivo = crearObjetivo("Proyecto", () => "o", fecha).objetivo
+    const primera = crearTarea("A", "Pendiente", () => "a", fecha, "focus", 1, { objetivoId: "o", padreId: "o", ordenArbol: 1 }).tarea
+    const segunda = crearTarea("B", "Pendiente", () => "b", fecha, "focus", 2, { objetivoId: "o", padreId: "o", ordenArbol: 2 }).tarea
+    const tareas = [objetivo, primera, segunda]
+    const resultado = moverTareaEnArbol(tareas, "b", -1)
+    assert.deepEqual(resultado.tareas.filter(item => item.tipo !== "objetivo").sort((a, b) => a.ordenArbol - b.ordenArbol).map(item => item.id), ["b", "a"])
+    assert.deepEqual(resultado.tareas.filter(item => item.tipo !== "objetivo").sort((a, b) => a.ordenFocus - b.ordenFocus).map(item => item.id), ["a", "b"])
 })

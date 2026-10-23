@@ -45,7 +45,7 @@ function FilaHistorialContenido({ registro, ahora, tareas = [], onEditar, onElim
                         <div><dt>Tiempo pausado</dt><dd>{formatearDuracion(resumen.pausado)}</dd></div>
                         <div><dt>Tiempo transcurrido</dt><dd>{formatearDuracion(resumen.transcurrido)}</dd></div>
                     </dl>
-                    {registro.tareaId && <p className="historial-tarea">Tarea: <strong>{tarea?.nombre ?? registro.tareaNombre ?? "Tarea no disponible"}</strong></p>}
+                    {registro.tareaId && <p className="historial-tarea">Tarea: <strong>{tarea?.rutaNombre ?? tarea?.nombre ?? registro.tareaNombre ?? "Tarea no disponible"}</strong></p>}
                     <h4>Segmentos</h4>
                     <ol className="lista-segmentos">
                         {registro.segmentos.map((segmento, indice) => (

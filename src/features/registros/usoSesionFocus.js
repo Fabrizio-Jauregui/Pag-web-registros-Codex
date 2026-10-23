@@ -426,7 +426,7 @@ export function useSesionFocus(estadoRegistro, tareas = [], accionesTareas = {})
             cambiarError(registroRef.current.error || "No se pudo cerrar el tiempo de la tarea actual.")
             return false
         }
-        const resultado = accionesTareasRef.current.onActualizarTarea?.(tareaId, { estado: "Completada" })
+        const resultado = accionesTareasRef.current.onActualizarTarea?.(tareaId, { estado: "Completada" }, "focus")
         if (!resultado?.ok) {
             const reabierta = abrirTrabajoCola({ ...actual, registroId: null }, ahoraMs, tareaId)
             if (reabierta) guardarSesion(reabierta)

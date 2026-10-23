@@ -19,7 +19,7 @@ function DetalleRegistroContenido({ registro, ahora, tareas = [], onEditar, onEl
                     <p>
                         {formatearInstante(registro.segmentos[0].inicio, { dateStyle: "full" })}
                         {registro.eventoId && " · Vinculado a una plantilla de evento"}
-                        {registro.tareaId && ` · Tarea: ${tarea?.nombre ?? registro.tareaNombre ?? "Tarea no disponible"}`}
+                        {registro.tareaId && ` · Tarea: ${tarea?.rutaNombre ?? tarea?.nombre ?? registro.tareaNombre ?? "Tarea no disponible"}`}
                     </p>
                 </div>
                 <button type="button" onClick={onCerrar} aria-label="Cerrar detalle">Cerrar</button>

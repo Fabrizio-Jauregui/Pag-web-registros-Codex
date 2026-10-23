@@ -10,28 +10,40 @@
 .biblioteca-tareas button:focus-visible,.biblioteca-tareas input:focus-visible,.biblioteca-tareas select:focus-visible{outline:3px solid #2563eb;outline-offset:2px}
 .biblioteca-tareas .tarea-boton-principal{border-color:#4338ca;background:#4f46e5;color:#fff}
 .biblioteca-tareas .tarea-boton-principal:hover{background:#4338ca}
-.formulario-tarea{display:grid;grid-template-columns:minmax(0,2fr) minmax(180px,1fr);align-items:end;gap:16px;margin-bottom:24px;padding:18px;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc}
+.tareas-acciones-cabecera,.tarea-acciones-formulario,.tarea-acciones{display:flex;flex-wrap:wrap;gap:8px}
+.formulario-tarea{display:grid;grid-template-columns:minmax(0,2fr) repeat(3,minmax(150px,1fr));align-items:end;gap:16px;margin-bottom:24px;padding:18px;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc}
 .formulario-tarea h3,.formulario-tarea .tarea-mensaje-error,.tarea-acciones-formulario{grid-column:1/-1}
 .formulario-tarea label{display:grid;gap:7px;color:#334155;font-size:.9rem}
 .formulario-tarea input,.formulario-tarea select,.tarea-estado-control select{width:100%}
-.tarea-acciones-formulario,.tarea-acciones{display:flex;flex-wrap:wrap;gap:8px}
-.tareas-por-estado{display:grid;gap:18px}
-.tareas-grupo{min-width:0;padding:16px;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc}
-.tareas-grupo>h3{display:flex;align-items:center;gap:9px;margin-bottom:12px;font-size:1rem}
-.tareas-grupo>h3 span{display:inline-grid;min-width:25px;height:25px;place-items:center;border-radius:999px;background:#e2e8f0;color:#334155;font-size:.8rem}
-.tareas-grupo-vacio{font-size:.9rem}
-.lista-tareas{display:grid;gap:8px;margin:0;padding:0;list-style:none}
-.tarea-fila{display:grid;grid-template-columns:minmax(0,1fr) minmax(160px,210px) auto;align-items:center;gap:14px;min-width:0;padding:12px;border:1px solid #e2e8f0;border-radius:10px;background:#fff}
-.tarea-datos{display:grid;gap:5px;min-width:0;overflow-wrap:anywhere;color:#172033;font-weight:600}
-.tarea-datos small{color:#64748b;font-size:.8rem;font-weight:400}
-.tarea-estado-control{display:grid;gap:4px;color:#64748b;font-size:.78rem}
 .tarea-mensaje-error{margin:0;color:#b91c1c;font-size:.9rem}
 .tareas-vacio{padding:18px 0}
+.arbol-objetivos{display:grid;gap:16px}
+.objetivo-grupo{min-width:0;padding:16px;border:1px solid #c7d2fe;border-radius:14px;background:#f8faff}
+.objetivo-grupo>header{display:flex;justify-content:space-between;gap:12px;margin-bottom:12px}
+.objetivo-grupo>header h3,.objetivo-sin-asignar>h3{font-size:1.05rem}
+.objetivo-grupo>header small{display:block;margin-top:4px;color:#64748b}
+.objetivo-sin-asignar{border-color:#e2e8f0;background:#f8fafc}
+.lista-tareas,.tareas-hijas{display:grid;gap:8px;margin:0;padding:0;list-style:none}
+.tareas-hijas{margin:8px 0 0 22px;padding-left:12px;border-left:2px solid #cbd5e1}
+.tarea-nodo{min-width:0}
+.tarea-fila{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(140px,190px) auto;align-items:center;gap:12px;min-width:0;padding:12px;border:1px solid #e2e8f0;border-radius:10px;background:#fff;margin-left:calc(min(var(--profundidad-tarea,0), 4) * 4px)}
+.tarea-nodo-activa>.tarea-fila{border-color:#4f46e5;box-shadow:0 0 0 2px rgb(79 70 229 / 12%)}
+.tarea-datos{display:grid;gap:5px;min-width:0;overflow-wrap:anywhere;color:#172033}
+.tarea-datos small{color:#64748b;font-size:.8rem;font-weight:400}
+.tarea-estado-control{display:grid;gap:4px;color:#64748b;font-size:.78rem}
+.tarea-acciones{justify-content:flex-end}.tarea-boton-pliegue{white-space:nowrap}
+.dialogo-rama-fondo{position:fixed;z-index:1000;inset:0;display:grid;place-items:center;padding:20px;background:rgb(15 23 42 / 55%)}
+.dialogo-rama{width:min(100%,520px);padding:22px;border:1px solid #cbd5e1;border-radius:16px;background:#fff;box-shadow:0 24px 80px rgb(15 23 42 / 25%)}
+.dialogo-rama h3{margin:0 0 10px}.dialogo-rama p{color:#475569;line-height:1.5}.dialogo-rama .tarea-acciones-formulario{margin-top:18px}
 html[data-tema="oscuro"] .biblioteca-tareas{border-color:#344158;background:#151d2e}
 html[data-tema="oscuro"] .biblioteca-tareas h2,html[data-tema="oscuro"] .biblioteca-tareas h3,html[data-tema="oscuro"] .tarea-datos{color:#edf2fb}
-html[data-tema="oscuro"] .biblioteca-tareas-header p,html[data-tema="oscuro"] .tareas-vacio,html[data-tema="oscuro"] .tareas-grupo-vacio,html[data-tema="oscuro"] .tarea-datos small,html[data-tema="oscuro"] .tarea-estado-control{color:#b6c2d4}
+html[data-tema="oscuro"] .biblioteca-tareas-header p,html[data-tema="oscuro"] .tareas-vacio,html[data-tema="oscuro"] .tareas-grupo-vacio,html[data-tema="oscuro"] .tarea-datos small,html[data-tema="oscuro"] .tarea-estado-control,html[data-tema="oscuro"] .objetivo-grupo>header small{color:#b6c2d4}
 html[data-tema="oscuro"] .biblioteca-tareas button:not(.tarea-boton-principal),html[data-tema="oscuro"] .biblioteca-tareas select,html[data-tema="oscuro"] .biblioteca-tareas input{border-color:#46536c;background:#202b40;color:#edf2fb}
-html[data-tema="oscuro"] .formulario-tarea,html[data-tema="oscuro"] .tareas-grupo{border-color:#344158;background:#1b263a}
+html[data-tema="oscuro"] .formulario-tarea,html[data-tema="oscuro"] .objetivo-grupo{border-color:#344158;background:#1b263a}
+html[data-tema="oscuro"] .objetivo-sin-asignar{border-color:#344158;background:#1b263a}
 html[data-tema="oscuro"] .tarea-fila{border-color:#46536c;background:#202d43}
-html[data-tema="oscuro"] .tareas-grupo>h3 span{background:#303d54;color:#edf2fb}
-@media(max-width:700px){.biblioteca-tareas{padding:18px 14px}.biblioteca-tareas-header{align-items:stretch;flex-direction:column}.formulario-tarea{grid-template-columns:1fr;padding:14px}.tarea-fila{grid-template-columns:minmax(0,1fr);gap:10px}.tarea-acciones{justify-content:flex-start}.tarea-estado-control{max-width:none}}
+html[data-tema="oscuro"] .tareas-hijas{border-color:#46536c}
+html[data-tema="oscuro"] .dialogo-rama{border-color:#46536c;background:#1b263a}
+html[data-tema="oscuro"] .dialogo-rama p{color:#cbd5e1}
+@media(max-width:900px){.tarea-fila{grid-template-columns:minmax(0,1fr) minmax(120px,160px)}.tarea-acciones{grid-column:1/-1;justify-content:flex-start}}
+@media(max-width:700px){.biblioteca-tareas{padding:18px 14px}.biblioteca-tareas-header{align-items:stretch;flex-direction:column}.tareas-acciones-cabecera{display:grid;grid-template-columns:1fr 1fr}.formulario-tarea{grid-template-columns:1fr;padding:14px}.tarea-fila{grid-template-columns:minmax(0,1fr);gap:10px}.tarea-acciones{grid-column:auto;justify-content:flex-start}.tarea-estado-control{max-width:none}.tareas-hijas{margin-left:10px;padding-left:8px}.dialogo-rama .tarea-acciones-formulario{display:grid}.dialogo-rama .tarea-acciones-formulario button{width:100%}}

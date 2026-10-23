@@ -42,7 +42,7 @@ import { BibliotecaPlantillasPlanificacion } from "../features/planificacion/Bib
 import { useSeguimientoPlanificacion } from "../features/planificacion/usoSeguimientoPlanificacion.js"
 import { PanelSeguimientoPlanificacion } from "../features/planificacion/SeguimientoPlanificacion.jsx"
 import { BibliotecaTareas } from "../features/tareas/BibliotecaTareas.jsx"
-import { crearTarea, actualizarTarea, cambiarDestinoTarea, eliminarTarea, moverTareaEnCola, posponerTareaEnCola, sincronizarEstadoTareasFocus } from "../domain/tareas/tareas.js"
+import { crearTarea, crearObjetivo, actualizarObjetivo, cambiarEstadoRama, descendientesDe, obtenerRutaTarea, actualizarTarea, cambiarDestinoTarea, eliminarTarea, moverTareaEnArbol, moverTareaEnCola, posponerTareaEnCola, sincronizarEstadoTareasFocus } from "../domain/tareas/tareas.js"
 import { cargarTareas, guardarTareas } from "../domain/tareas/persistenciaTareas.js"
 import { cargarPlantillasFocus } from "../domain/focus/persistenciaFocus.js"
 
@@ -73,6 +73,14 @@ export function App() {
     const inicioFocusPlanificadoRef = useRef(null)
     const estadoRegistro = useRegistro()
     const seguimientoPlanificacion = useSeguimientoPlanificacion(estadoRegistro)
+    const objetivos = estadoTareas.ok ? estadoTareas.tareas.filter(tarea => tarea.tipo === "objetivo") : []
+    const tareasBase = estadoTareas.ok ? estadoTareas.tareas.filter(tarea => tarea.tipo !== "objetivo") : []
+    const tareasDeTrabajo = estadoTareas.ok
+        ? tareasBase.map(tarea => ({
+            ...tarea,
+            rutaNombre: obtenerRutaTarea(tareasBase, objetivos, tarea.id)
+        }))
+        : []
     const plantillas = estadoPlantillas.ok ? estadoPlantillas.plantillas : []
     const idAplicacionSeguimiento = seguimientoPlanificacion.estado?.idAplicacionPlantilla
     const fechaSeguimiento = seguimientoPlanificacion.estado
@@ -391,22 +399,48 @@ export function App() {
         if (resultado.ok && resultado.tareas !== cargadas.tareas) confirmarTareas(resultado.tareas)
     }
 
-    function crearTareaNueva(nombre, estado, destino = "backlog") {
+    function crearTareaNueva(nombre, estado, destino = "backlog", ubicacion = {}) {
         if (!estadoTareas.ok) return { ok: false, error: estadoTareas.error }
         const ordenFocus = destino === "focus"
             ? estadoTareas.tareas.filter(tarea => tarea.destino === "focus" && !["Completada", "Cancelada", "Boceto"].includes(tarea.estado))
                 .reduce((maximo, tarea) => Math.max(maximo, tarea.ordenFocus ?? 0), 0) + 1
             : null
-        const resultado = crearTarea(nombre, estado, undefined, undefined, destino, ordenFocus)
+        const padreId = ubicacion.padreId ?? ubicacion.objetivoId ?? null
+        const ordenArbol = estadoTareas.tareas.filter(tarea => tarea.tipo !== "objetivo" && (tarea.padreId ?? tarea.objetivoId ?? null) === padreId)
+            .reduce((maximo, tarea) => Math.max(maximo, tarea.ordenArbol ?? 0), 0) + 1
+        const resultado = crearTarea(nombre, estado, undefined, undefined, destino, ordenFocus, { ...ubicacion, padreId, ordenArbol })
         if (!resultado.ok) return resultado
         const tareas = [...estadoTareas.tareas, resultado.tarea]
         const guardado = confirmarTareas(tareas)
         return guardado.ok ? { ok: true, tarea: resultado.tarea, tareas } : guardado
     }
 
-    function actualizarTareaExistente(id, cambios) {
+    function actualizarTareaExistente(id, cambios, alcance = "solo") {
         if (!estadoTareas.ok) return { ok: false, error: estadoTareas.error }
-        const resultado = actualizarTarea(estadoTareas.tareas, id, cambios)
+        const desdeFocus = alcance === "focus"
+        const alcanceRama = desdeFocus ? "solo" : alcance
+        if (cambios?.padreId !== undefined && descendientesDe(estadoTareas.tareas, id).some(tarea => tarea.id === estadoFocusTareas.tareaActivaId)) {
+            return { ok: false, error: "No se puede cambiar la ubicación de una rama que contiene la tarea activa de Focus." }
+        }
+        const resultado = ["Completada", "Cancelada"].includes(cambios?.estado)
+            ? cambiarEstadoRama(estadoTareas.tareas, id, cambios.estado, alcanceRama, estadoFocusTareas.tareaActivaId, undefined, desdeFocus)
+            : actualizarTarea(estadoTareas.tareas, id, cambios)
+        if (!resultado.ok) return resultado
+        const guardado = confirmarTareas(resultado.tareas)
+        return guardado.ok ? { ok: true, tareas: resultado.tareas } : guardado
+    }
+
+    function crearObjetivoNuevo(nombre) {
+        if (!estadoTareas.ok) return { ok: false, error: estadoTareas.error }
+        const resultado = crearObjetivo(nombre)
+        if (!resultado.ok) return resultado
+        const guardado = confirmarTareas([...estadoTareas.tareas, resultado.objetivo])
+        return guardado.ok ? { ok: true, objetivo: resultado.objetivo } : guardado
+    }
+
+    function actualizarObjetivoExistente(id, cambios) {
+        if (!estadoTareas.ok) return { ok: false, error: estadoTareas.error }
+        const resultado = actualizarObjetivo(estadoTareas.tareas, id, cambios)
         if (!resultado.ok) return resultado
         const guardado = confirmarTareas(resultado.tareas)
         return guardado.ok ? { ok: true, tareas: resultado.tareas } : guardado
@@ -428,6 +462,14 @@ export function App() {
         return guardado.ok ? { ok: true, tareas: resultado.tareas } : guardado
     }
 
+    function reordenarTareaArbol(id, direccion) {
+        if (!estadoTareas.ok) return { ok: false, error: estadoTareas.error }
+        const resultado = moverTareaEnArbol(estadoTareas.tareas, id, direccion)
+        if (!resultado.ok) return resultado
+        const guardado = confirmarTareas(resultado.tareas)
+        return guardado.ok ? { ok: true, tareas: resultado.tareas } : guardado
+    }
+
     function posponerTareaFocus(id, modo) {
         if (!estadoTareas.ok) return { ok: false, error: estadoTareas.error }
         const resultado = posponerTareaEnCola(estadoTareas.tareas, id, modo)
@@ -442,6 +484,10 @@ export function App() {
         if (estadoRegistro.registros.some(registro => registro.tareaId === id)) {
             return { ok: false, error: "No se puede eliminar esta tarea porque está vinculada a uno o más registros." }
         }
+        if (descendientesDe(estadoTareas.tareas, id).length) {
+            return { ok: false, error: "No se puede eliminar una tarea que contiene subtareas. Reorganizá o eliminá primero sus descendientes." }
+        }
+        if (estadoFocusTareas.tareaActivaId === id) return { ok: false, error: "La tarea activa no se puede eliminar durante una sesión Focus." }
         const resultado = eliminarTarea(estadoTareas.tareas, id)
         if (!resultado.ok) return resultado
         return confirmarTareas(resultado.tareas)
@@ -776,7 +822,7 @@ export function App() {
                     key={fechaCalendarioSolicitada.version}
                     registros={estadoRegistro.registros}
                     eventos={plantillas}
-                    tareas={estadoTareas.ok ? estadoTareas.tareas : []}
+                    tareas={tareasDeTrabajo}
                     planes={estadoPlanes.ok ? estadoPlanes.planes : []}
                     recurrencias={estadoRecurrencias.ok ? estadoRecurrencias.reglas : []}
                     fechaInicial={fechaCalendarioSolicitada.fecha}
@@ -888,7 +934,7 @@ export function App() {
                                         <EstadosRegistros
                                             estadoRegistro={estadoRegistro}
                                             eventos={plantillas}
-                                            tareas={estadoTareas.ok ? estadoTareas.tareas : []}
+                                            tareas={tareasDeTrabajo}
                                         />
                                     )}
                                 </section>
@@ -899,7 +945,7 @@ export function App() {
                                 estadoRegistro={estadoRegistro}
                                 vistaActiva={esVistaFocus}
                                 eventos={plantillas}
-                                tareas={estadoTareas.ok ? estadoTareas.tareas : []}
+                                tareas={tareasDeTrabajo}
                                 onCrearTarea={crearTareaNueva}
                                 onActualizarTarea={actualizarTareaExistente}
                                 onCambiarDestinoTarea={cambiarDestinoTareaExistente}
@@ -956,7 +1002,7 @@ export function App() {
                             <HistorialRegistros
                                 registros={estadoRegistro.registros}
                                 ahora={estadoRegistro.ahora}
-                                tareas={estadoTareas.ok ? estadoTareas.tareas : []}
+                                tareas={tareasDeTrabajo}
                                 eventos={plantillas}
                                 datosDisponibles={estadoRegistro.datos.ok}
                                 errorCarga={estadoRegistro.datos.error}
@@ -966,15 +1012,21 @@ export function App() {
                         </div>
                         <div hidden={vistaPrincipal !== "tareas"}>
                             <BibliotecaTareas
-                                tareas={estadoTareas.ok ? estadoTareas.tareas : []}
+                                tareas={tareasDeTrabajo}
+                                objetivos={objetivos}
+                                registros={estadoRegistro.registros}
+                                ahora={estadoRegistro.ahora}
                                 errorCarga={estadoTareas.ok ? "" : estadoTareas.error}
                                 tareaActivaId={estadoFocusTareas.tareaActivaId}
                                 sesionFocusActiva={estadoFocusTareas.activa}
                                 onCrear={crearTareaNueva}
+                                onCrearObjetivo={crearObjetivoNuevo}
+                                onActualizarObjetivo={actualizarObjetivoExistente}
                                 onActualizar={actualizarTareaExistente}
                                 onEliminar={eliminarTareaExistente}
                                 onCambiarDestino={cambiarDestinoTareaExistente}
                                 onReordenar={(id, direccion, tareaActivaId) => reordenarTareaFocus(id, direccion, tareaActivaId)}
+                                onReordenarArbol={reordenarTareaArbol}
                             />
                         </div>
                     </div>

@@ -205,9 +205,9 @@ export function VistaFocus({ estadoRegistro, eventos = [], tareas = [], onCrearT
                         <div>
                             <p className="focus-etiqueta">SESIÓN EN CURSO</p>
                             <h3 id="titulo-sesion-activa">{configuracion.nombre}</h3>
-                            <p>Registro de concentración: <strong>{tareaFocusActiva?.nombre ?? "Concentración"}</strong></p>
+                            <p>Registro de concentración: <strong>{tareaFocusActiva?.rutaNombre ?? tareaFocusActiva?.nombre ?? "Concentración"}</strong></p>
                             {configuracion.usarColaFocus
-                                && <p>{tareaFocusActiva ? <>Tarea activa: <strong>{tareaFocusActiva.nombre}</strong></> : "Sin tarea activa · se registra como Concentración"}</p>}
+                                && <p>{tareaFocusActiva ? <>Tarea activa: <strong>{tareaFocusActiva.rutaNombre ?? tareaFocusActiva.nombre}</strong></> : "Sin tarea activa · se registra como Concentración"}</p>}
                         </div>
                         <span className={"focus-estado focus-estado-" + sesion.estado}>{etiquetaEstado(sesion.estado)}</span>
                     </div>
@@ -255,7 +255,7 @@ export function VistaFocus({ estadoRegistro, eventos = [], tareas = [], onCrearT
                                     const primerMovible = sesion.tareaActivaId ? Math.max(1, colaFocus.findIndex(item => item.id === sesion.tareaActivaId) + 1) : 0
                                     return <li key={tarea.id} className={activa ? "activa" : ""}>
                                         <span className="focus-cola-numero">{indice + 1}</span>
-                                        <span className="focus-cola-nombre">{tarea.nombre}<small>{activa ? "Activa" : tarea.estado}</small></span>
+                                        <span className="focus-cola-nombre">{tarea.rutaNombre ?? tarea.nombre}<small>{activa ? "Activa" : tarea.estado}</small></span>
                                         {!activa && <>
                                             <button type="button" aria-label={`Subir ${tarea.nombre}`} disabled={indice <= primerMovible} onClick={() => onReordenarTarea?.(tarea.id, -1, sesion.tareaActivaId)}>↑</button>
                                             <button type="button" aria-label={`Bajar ${tarea.nombre}`} disabled={indice < primerMovible || indice === colaFocus.length - 1} onClick={() => onReordenarTarea?.(tarea.id, 1, sesion.tareaActivaId)}>↓</button>
