@@ -35,7 +35,6 @@ export function VistaFocus({ estadoRegistro, eventos = [], tareas = [], onCrearT
     const [pares, cambiarPares] = useState(4)
     const [minutosConcentracion, cambiarMinutosConcentracion] = useState(25)
     const [minutosDescanso, cambiarMinutosDescanso] = useState(5)
-    const [confirmarAutomaticamente, cambiarConfirmacionAutomatica] = useState(false)
     const [colores, cambiarColores] = useState({
         concentracion: "#6366f1",
         descanso: "#10b981",
@@ -107,7 +106,6 @@ export function VistaFocus({ estadoRegistro, eventos = [], tareas = [], onCrearT
         cambiarPares(Math.max(1, Math.ceil(config.bloques.length / 2)))
         cambiarMinutosConcentracion(config.bloques.find(bloque => bloque.tipo === "concentracion")?.minutos ?? 25)
         cambiarMinutosDescanso(config.bloques.find(bloque => bloque.tipo === "descanso")?.minutos ?? 5)
-        cambiarConfirmacionAutomatica(Boolean(config.confirmarAutomaticamente))
         if (config.colores) cambiarColores(actuales => ({ ...actuales, ...config.colores }))
         cambiarBloquesConfirmados(false)
         focus.limpiarError()
@@ -119,7 +117,6 @@ export function VistaFocus({ estadoRegistro, eventos = [], tareas = [], onCrearT
             tarea: null,
             usarColaFocus,
             bloques,
-            confirmarAutomaticamente,
             colores
         })
     }
@@ -129,7 +126,6 @@ export function VistaFocus({ estadoRegistro, eventos = [], tareas = [], onCrearT
             nombre: nombreSesion.trim() || "Sesión Focus",
             usarColaFocus,
             bloques: bloques.map(bloque => ({ ...bloque })),
-            confirmarAutomaticamente,
             colores
         }
         if (focus.guardarPlantilla(nombrePlantilla, config)) cambiarNombrePlantilla("")
@@ -208,8 +204,18 @@ export function VistaFocus({ estadoRegistro, eventos = [], tareas = [], onCrearT
                     <div className="focus-temporizador" aria-live="off">
                         <span>{sesion.estado === "tiempo-muerto" ? "Tiempo desde el fin del descanso" : "Tiempo restante del bloque"}</span>
                         <strong>{duracionVisible(sesion.estado === "tiempo-muerto" ? focus.tiempoMuertoMs : focus.restanteMs)}</strong>
-                        <span>{sesion.estado === "tiempo-muerto" ? "Confirmá cuando quieras comenzar el siguiente bloque." : focus.bloqueActual?.nombre}</span>
+                        <span>{sesion.estado === "tiempo-muerto" ? "El descanso terminó; el excedente no suma a la tarea." : focus.bloqueActual?.nombre}</span>
                     </div>
+                    {sesion.estado === "descanso" && (
+                        <label className="focus-check-auto">
+                            <input
+                                type="checkbox"
+                                checked={Boolean(sesion.avanzarAutomaticamente)}
+                                onChange={evento => focus.cambiarAvanceAutomatico(evento.target.checked)}
+                            />
+                            Avanzar automáticamente al terminar los descansos de esta sesión
+                        </label>
+                    )}
                     <div className="focus-progreso" role="progressbar" aria-label="Progreso de bloques" aria-valuemin="0" aria-valuemax="100" aria-valuenow={Math.round(progreso)}>
                         <span style={{ width: progreso + "%" }} />
                     </div>
@@ -264,8 +270,8 @@ export function VistaFocus({ estadoRegistro, eventos = [], tareas = [], onCrearT
                         {sesion.estado === "pausada"
                             ? <button type="button" onClick={focus.reanudarSesion}>Reanudar sesión</button>
                             : <button type="button" onClick={focus.pausarSesion}>Pausar sesión</button>}
-                        {sesion.estado === "tiempo-muerto" && (
-                            <button type="button" className="focus-accion-principal" onClick={focus.confirmarSiguiente}>Confirmar inicio del bloque siguiente</button>
+                        {!sesion.avanzarAutomaticamente && ["descanso", "tiempo-muerto"].includes(sesion.estado) && (
+                            <button type="button" className="focus-accion-principal" onClick={focus.confirmarSiguiente}>Continuar con concentración</button>
                         )}
                         <button type="button" className="focus-accion-finalizar" onClick={focus.finalizarSesion}>Finalizar sesión</button>
                     </div>
@@ -297,10 +303,6 @@ export function VistaFocus({ estadoRegistro, eventos = [], tareas = [], onCrearT
                             <input type="number" min="1" max="60" value={minutosDescanso} onChange={evento => cambiarMinutosDescanso(evento.target.value)} />
                         </label>
                     </div>
-                    <label className="focus-check-auto">
-                        <input type="checkbox" checked={confirmarAutomaticamente} onChange={evento => cambiarConfirmacionAutomatica(evento.target.checked)} />
-                        Avanzar automáticamente después de cada descanso
-                    </label>
                     <fieldset className="focus-colores">
                         <legend>Colores de los estados</legend>
                         {[

@@ -206,8 +206,8 @@ test("Flujo de usuario: completar en descanso no suma tiempo y una tarea nueva e
     expect(duracionTareaMs).toBeLessThanOrEqual(120_000)
 
     await page.clock.runFor(61_000)
-    await expect(sesion.getByRole("button", { name: "Confirmar inicio del bloque siguiente" })).toBeVisible()
-    await sesion.getByRole("button", { name: "Confirmar inicio del bloque siguiente" }).click()
+    await expect(sesion.getByRole("button", { name: "Continuar con concentración" })).toBeVisible()
+    await sesion.getByRole("button", { name: "Continuar con concentración" }).click()
     await page.clock.runFor(2_100)
     registros = await page.evaluate(clave => JSON.parse(localStorage.getItem(clave)), claveRegistros)
     expect(registros).toHaveLength(2)

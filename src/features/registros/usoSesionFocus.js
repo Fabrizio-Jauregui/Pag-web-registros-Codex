@@ -46,7 +46,7 @@ function cerrarExtraAbierto(extras, tipo, instante) {
     return extras.map((extra, actual) => actual === indice ? { ...extra, fin: fechaIso(instante) } : extra)
 }
 
-function crearConfiguracion(nombre, bloques, confirmarAutomaticamente, colores, usarColaFocus = false) {
+function crearConfiguracion(nombre, bloques, colores, usarColaFocus = false) {
     return {
         nombre: nombre.trim(),
         nombreActividad: "Concentración",
@@ -54,7 +54,6 @@ function crearConfiguracion(nombre, bloques, confirmarAutomaticamente, colores, 
         tarea: null,
         usarColaFocus: Boolean(usarColaFocus),
         bloques: bloques.map(bloque => ({ ...bloque })),
-        confirmarAutomaticamente,
         colores: { concentracion: "#6366f1", descanso: "#10b981", pausa: "#f59e0b", tiempoMuerto: "#ef4444", ...colores }
     }
 }
@@ -293,7 +292,7 @@ export function useSesionFocus(estadoRegistro, tareas = [], accionesTareas = {})
                     terminarSesion(actual, finProgramado)
                     return
                 }
-                if (!actual.configuracion.confirmarAutomaticamente) {
+                if (!actual.avanzarAutomaticamente) {
                     actual = {
                         ...actual,
                         estado: "tiempo-muerto",
@@ -432,7 +431,7 @@ export function useSesionFocus(estadoRegistro, tareas = [], accionesTareas = {})
         return resultado
     }
 
-    function iniciar({ nombre, usarColaFocus = false, bloques, confirmarAutomaticamente = false, colores }) {
+    function iniciar({ nombre, usarColaFocus = false, bloques, colores }) {
         if (sesionRef.current) {
             cambiarError("Ya hay una sesión Focus activa.")
             return false
@@ -458,7 +457,7 @@ export function useSesionFocus(estadoRegistro, tareas = [], accionesTareas = {})
             cambiarError("No se pudo crear una identidad para la sesión Focus.")
             return false
         }
-        const configuracion = crearConfiguracion(nombre, bloques, confirmarAutomaticamente, colores, usarColaFocus)
+        const configuracion = crearConfiguracion(nombre, bloques, colores, usarColaFocus)
         const ahoraMs = Date.now()
         const ahoraIso = fechaIso(ahoraMs)
         const primera = configuracion.bloques[0]
@@ -472,6 +471,7 @@ export function useSesionFocus(estadoRegistro, tareas = [], accionesTareas = {})
             inicio: ahoraIso,
             indiceBloque: 0,
             estado: primera.tipo,
+            avanzarAutomaticamente: false,
             finBloque: fechaIso(ahoraMs + duracionMs(primera)),
             inicioTiempoMuerto: null,
             tiempoMuertoAcumuladoMs: 0,
@@ -546,9 +546,15 @@ export function useSesionFocus(estadoRegistro, tareas = [], accionesTareas = {})
         return guardarSesion(actualizado)
     }
 
+    function cambiarAvanceAutomatico(valor) {
+        const actual = sesionRef.current
+        if (!actual || actual.estado !== "descanso" || typeof valor !== "boolean") return false
+        return guardarSesion({ ...actual, avanzarAutomaticamente: valor })
+    }
+
     function confirmarSiguiente() {
         const actual = sesionRef.current
-        if (!actual || actual.estado !== "tiempo-muerto") return false
+        if (!actual || actual.avanzarAutomaticamente || !["descanso", "tiempo-muerto"].includes(actual.estado)) return false
         return avanzarAlSiguiente(actual, Date.now())
     }
 
@@ -596,6 +602,7 @@ export function useSesionFocus(estadoRegistro, tareas = [], accionesTareas = {})
         crearTareaDuranteSesion,
         pausarSesion,
         reanudarSesion,
+        cambiarAvanceAutomatico,
         confirmarSiguiente,
         finalizarSesion,
         guardarPlantilla,

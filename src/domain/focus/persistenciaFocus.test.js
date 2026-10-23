@@ -101,3 +101,32 @@ test("rechaza datos inválidos y no sobrescribe el contenido original", () => {
     assert.equal(guardarSesionActivaFocus({ estado: "fantasma" }, almacenamiento).ok, false)
     assert.equal(almacenamiento.getItem(CLAVE_SESION_ACTIVA_FOCUS), JSON.stringify({ estado: "fantasma" }))
 })
+
+test("mantiene compatible una sesión antigua y valida la preferencia de avance guardada en la sesión", () => {
+    const almacenamiento = almacenamientoInicial()
+    const sesionAntigua = {
+        id: "sesion-antigua",
+        configuracion: { ...configuracion, confirmarAutomaticamente: true },
+        registroId: null,
+        inicio: marca,
+        indiceBloque: 1,
+        estado: "descanso",
+        finBloque: "2026-10-18T12:05:00.000Z",
+        inicioTiempoMuerto: null,
+        reanudarEstado: null,
+        restanteMs: 0,
+        bloques: configuracion.bloques.map((bloque, indice) => ({
+            ...bloque,
+            inicio: indice === 0 ? marca : null,
+            fin: indice === 0 ? "2026-10-18T12:25:00.000Z" : null
+        }))
+    }
+
+    assert.equal(guardarSesionActivaFocus(sesionAntigua, almacenamiento).ok, true)
+    assert.deepEqual(cargarSesionActivaFocus(almacenamiento).sesion, sesionAntigua)
+
+    const sesionAutomatica = { ...sesionAntigua, avanzarAutomaticamente: true }
+    assert.equal(guardarSesionActivaFocus(sesionAutomatica, almacenamiento).ok, true)
+    assert.deepEqual(cargarSesionActivaFocus(almacenamiento).sesion, sesionAutomatica)
+    assert.equal(guardarSesionActivaFocus({ ...sesionAutomatica, avanzarAutomaticamente: "sí" }, almacenamiento).ok, false)
+})

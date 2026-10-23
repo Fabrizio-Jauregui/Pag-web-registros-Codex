@@ -119,6 +119,7 @@ function esSesionActivaValida(valor) {
         && (valor.registroIds === undefined || (Array.isArray(valor.registroIds) && valor.registroIds.every(id => typeof id === "string" && id !== "")))
         && (valor.tareaActivaId === undefined || valor.tareaActivaId === null || (typeof valor.tareaActivaId === "string" && valor.tareaActivaId !== ""))
         && (valor.trabajoPendienteInicio === undefined || valor.trabajoPendienteInicio === null || esIso(valor.trabajoPendienteInicio))
+        && (valor.avanzarAutomaticamente === undefined || typeof valor.avanzarAutomaticamente === "boolean")
         && (valor.reanudarEstado === null || ["concentracion", "descanso", "tiempo-muerto"].includes(valor.reanudarEstado))
         && Number.isFinite(valor.restanteMs) && valor.restanteMs >= 0
         && (valor.tiempoMuertoAcumuladoMs === undefined || (Number.isFinite(valor.tiempoMuertoAcumuladoMs) && valor.tiempoMuertoAcumuladoMs >= 0))
