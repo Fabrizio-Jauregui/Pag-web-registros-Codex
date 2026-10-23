@@ -45,12 +45,13 @@ export function BloquePlan({
     const segundosDesdeInicio = fragmento.plan.inicio.getHours() * 3600 + fragmento.plan.inicio.getMinutes() * 60 + fragmento.plan.inicio.getSeconds()
     const duracionSegundos = Math.round((fragmento.plan.fin.getTime() - fragmento.plan.inicio.getTime()) / 1000)
     const etiqueta = tiempoRelativo
-        ? `${etiquetaOrden}Planificado: ${nombre}, inicio +${duracionRelativa(segundosDesdeInicio)}, duración ${duracionRelativa(duracionSegundos)}`
-        : `${etiquetaOrden}Planificado: ${nombre}, ${contextoDia}${formatearInstante(fragmento.inicio, opcionesHora)} a ${formatearInstante(fragmento.fin, opcionesHora)}`
+        ? `${etiquetaOrden}${plan.tipoPlanificacion === "focus" ? "Sesión Focus planificada" : "Planificado"}: ${nombre}, inicio +${duracionRelativa(segundosDesdeInicio)}, duración ${duracionRelativa(duracionSegundos)}`
+        : `${etiquetaOrden}${plan.tipoPlanificacion === "focus" ? "Sesión Focus planificada" : "Planificado"}: ${nombre}, ${contextoDia}${formatearInstante(fragmento.inicio, opcionesHora)} a ${formatearInstante(fragmento.fin, opcionesHora)}`
     const top = (minutosInicio / 1440) * 100
     const height = ((minutosFin - minutosInicio) / 1440) * 100
     const esExtremoInicio = fragmento.inicio.getTime() === plan.inicio.getTime()
     const esExtremoFin = fragmento.fin.getTime() === plan.fin.getTime()
+    const esFocus = plan.tipoPlanificacion === "focus"
     const atajosTeclado = "ArrowUp ArrowDown Shift+ArrowUp Shift+ArrowDown Alt+ArrowUp Alt+ArrowDown"
         + (permiteCambiarDia ? " Alt+ArrowLeft Alt+ArrowRight" : "")
 
@@ -61,6 +62,7 @@ export function BloquePlan({
         const caja = eventoPuntero.currentTarget.getBoundingClientRect()
         const control = eventoPuntero.target instanceof Element ? eventoPuntero.target.closest("[data-extremo]") : null
         let modo = control?.dataset.extremo ?? "mover"
+        if (esFocus && modo !== "mover") return
         if (modo !== "mover" && caja.height < 24) modo = "mover"
         gestoRef.current = {
             idPuntero: eventoPuntero.pointerId,
@@ -137,6 +139,7 @@ export function BloquePlan({
         eventoTeclado.preventDefault()
         eventoTeclado.stopPropagation()
         const modo = eventoTeclado.altKey ? "inicio" : eventoTeclado.shiftKey ? "fin" : "mover"
+        if (esFocus && modo !== "mover") return
         guardarAjuste(modo, 0, eventoTeclado.key === "ArrowUp" ? -1 : 1)
     }
 
@@ -146,6 +149,20 @@ export function BloquePlan({
         left: `calc(${(carril * 100) / cantidadCarriles}% + 2px)`,
         width: `calc(${100 / cantidadCarriles}% - 4px)`,
         "--color-plan": color
+    }
+    if (esFocus) {
+        const total = plan.configuracionFocus.bloques.reduce((suma, bloque) => suma + bloque.minutos, 0)
+        let acumulado = 0
+        const paradas = plan.configuracionFocus.bloques.flatMap(bloque => {
+            const desde = acumulado / total * 100
+            acumulado += bloque.minutos
+            const hasta = acumulado / total * 100
+            const colorBloque = plan.configuracionFocus.colores?.[bloque.tipo]
+                ?? (bloque.tipo === "concentracion" ? "#6366f1" : "#10b981")
+            const tono = `color-mix(in srgb, ${colorBloque}, white 68%)`
+            return [`${tono} ${desde}%`, `${tono} ${hasta}%`]
+        })
+        style.background = `linear-gradient(to bottom, ${paradas.join(", ")})`
     }
     if (vistaGesto?.modo === "mover") style.transform = `translate(${vistaGesto.x}px, ${vistaGesto.y}px)`
     else if (vistaGesto?.modo === "inicio") {
@@ -180,15 +197,16 @@ export function BloquePlan({
                 onSeleccionar(plan, fragmento)
             }}
         >
-            {edicionDirectaHabilitada && esExtremoInicio && <span className="control-bloque-registro control-bloque-plan control-bloque-inicio" data-extremo="inicio" aria-hidden="true" />}
-            <span aria-hidden="true">Plan: {nombre}</span>
+            {edicionDirectaHabilitada && !esFocus && esExtremoInicio && <span className="control-bloque-registro control-bloque-plan control-bloque-inicio" data-extremo="inicio" aria-hidden="true" />}
+            <span aria-hidden="true">{esFocus ? `Sesión Focus: ${nombre}` : `Plan: ${nombre}`}</span>
+            {esFocus && height > 2 && <small aria-hidden="true">{plan.configuracionFocus.bloques.map(bloque => bloque.tipo === "concentracion" ? "Concentración" : "Descanso").join(" · ")}</small>}
             {Number.isInteger(plan.ordenSeguimiento) && <small className="bloque-plan-orden" aria-hidden="true">Orden {plan.ordenSeguimiento + 1}</small>}
             {height > 1.5 && <small aria-hidden="true">
                 {tiempoRelativo
                     ? `+${duracionRelativa(segundosDesdeInicio)} · ${duracionRelativa(duracionSegundos)} de duración`
                     : `${formatearInstante(fragmento.inicio, opcionesHora)} – ${formatearInstante(fragmento.fin, opcionesHora)}`}
             </small>}
-            {edicionDirectaHabilitada && esExtremoFin && <span className="control-bloque-registro control-bloque-plan control-bloque-fin" data-extremo="fin" aria-hidden="true" />}
+            {edicionDirectaHabilitada && !esFocus && esExtremoFin && <span className="control-bloque-registro control-bloque-plan control-bloque-fin" data-extremo="fin" aria-hidden="true" />}
         </button>
     )
 }

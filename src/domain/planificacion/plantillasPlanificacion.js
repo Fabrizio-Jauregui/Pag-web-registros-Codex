@@ -10,11 +10,37 @@ function identidad(generarId, mensaje) {
     }
 }
 
+export function duracionConfiguracionFocus(configuracion) {
+    if (!Array.isArray(configuracion?.bloques) || configuracion.bloques.length === 0) return 0
+    return configuracion.bloques.reduce((total, bloque) => total + (Number(bloque.minutos) || 0) * 60, 0)
+}
+
+function validarConfiguracionFocus(configuracion) {
+    if (!configuracion || typeof configuracion !== "object" || typeof configuracion.nombre !== "string"
+        || !configuracion.nombre.trim() || !Array.isArray(configuracion.bloques) || configuracion.bloques.length === 0
+        || configuracion.bloques.some(bloque => !bloque || typeof bloque.nombre !== "string" || !bloque.nombre.trim()
+            || !["concentracion", "descanso"].includes(bloque.tipo)
+            || !Number.isInteger(bloque.minutos) || bloque.minutos < 1
+            || bloque.minutos > (bloque.tipo === "concentracion" ? 180 : 60))) {
+        return "Elegí una plantilla Focus válida con bloques de concentración y descanso."
+    }
+    if (duracionConfiguracionFocus(configuracion) > 24 * 60 * 60) return "La duración total de la sesión Focus no puede superar 24 horas."
+    return null
+}
+
 export function validarActividadPlantilla(actividad) {
     if (!actividad || typeof actividad !== "object" || Array.isArray(actividad)) return "Una actividad de la plantilla no tiene un formato válido."
     if (typeof actividad.nombre !== "string" || !actividad.nombre.trim()) return "Escribí el nombre de cada actividad."
     if (actividad.nombre.trim().length > 80) return "El nombre de una actividad no puede superar los 80 caracteres."
     if (actividad.eventoId !== null && (typeof actividad.eventoId !== "string" || !actividad.eventoId.trim())) return "La plantilla de evento vinculada no es válida."
+    if (actividad.tipoActividad === "focus") {
+        const errorFocus = validarConfiguracionFocus(actividad.configuracionFocus)
+        if (errorFocus) return errorFocus
+        if (!Number.isInteger(actividad.inicioSegundos) || actividad.inicioSegundos < 0 || actividad.inicioSegundos >= 86400) return "Elegí una hora de inicio válida para la sesión Focus."
+        const fin = (actividad.finDia ?? 0) * 86400 + actividad.finSegundos
+        return fin - actividad.inicioSegundos === duracionConfiguracionFocus(actividad.configuracionFocus)
+            ? null : "El horario de la sesión Focus debe coincidir con la duración de sus bloques."
+    }
     if (typeof actividad.inicioSegundos !== "number" || !Number.isInteger(actividad.inicioSegundos) || actividad.inicioSegundos < 0 || actividad.inicioSegundos >= 86400) return "Elegí una hora de inicio válida."
     if (typeof actividad.finSegundos !== "number" || !Number.isInteger(actividad.finSegundos) || actividad.finSegundos < 0 || actividad.finSegundos >= 86400) return "Elegí una hora de fin válida."
     if (actividad.finDia !== 0 && actividad.finDia !== 1) return "Indicá si la actividad termina ese día o al día siguiente."
@@ -27,6 +53,11 @@ function validarActividadPorDuracion(actividad) {
     if (typeof actividad.nombre !== "string" || !actividad.nombre.trim()) return "Escribí el nombre de cada actividad."
     if (actividad.nombre.trim().length > 80) return "El nombre de una actividad no puede superar los 80 caracteres."
     if (actividad.eventoId !== null && (typeof actividad.eventoId !== "string" || !actividad.eventoId.trim())) return "La plantilla de evento vinculada no es válida."
+    if (actividad.tipoActividad === "focus") {
+        const errorFocus = validarConfiguracionFocus(actividad.configuracionFocus)
+        if (errorFocus) return errorFocus
+        if (actividad.duracionSegundos !== duracionConfiguracionFocus(actividad.configuracionFocus)) return "La duración de la sesión Focus debe coincidir con sus bloques."
+    }
     if (!Number.isInteger(actividad.duracionSegundos) || actividad.duracionSegundos <= 0 || actividad.duracionSegundos > 86400) return "La duración de cada actividad debe ser mayor que cero y no superar 24 horas."
     return null
 }
@@ -89,6 +120,7 @@ function validarActividadSinDuracion(actividad) {
     if (!actividad || typeof actividad !== "object" || Array.isArray(actividad)) return "Un evento de la plantilla no tiene un formato válido."
     if (typeof actividad.nombre !== "string" || !actividad.nombre.trim()) return "Escribí el nombre de cada evento."
     if (actividad.nombre.trim().length > 80) return "El nombre de un evento no puede superar los 80 caracteres."
+    if (actividad.tipoActividad === "focus") return validarConfiguracionFocus(actividad.configuracionFocus)
     if (actividad.eventoId !== null && (typeof actividad.eventoId !== "string" || !actividad.eventoId.trim())) return "La plantilla de evento vinculada no es válida."
     return null
 }
@@ -236,19 +268,34 @@ function prepararActividadesPlantilla(plantilla, fecha, eventos, opciones = {}) 
         : materializarActividades(plantilla)
     for (let indice = 0; indice < actividadesMaterializadas.length; indice += 1) {
         const actividad = actividadesMaterializadas[indice]
-        const evento = actividad.eventoId ? eventos.find(item => item.id === actividad.eventoId) : null
+        const evento = actividad.tipoActividad === "focus" ? null : actividad.eventoId ? eventos.find(item => item.id === actividad.eventoId) : null
         if (actividad.eventoId && !evento) return { ok: false, error: `No se pudo aplicar "${plantilla.nombre}": el evento "${actividad.nombre}" ya no está disponible. Editá la plantilla y elegí otro evento.` }
+        const duracionSegundos = actividad.tipoActividad === "focus" ? duracionConfiguracionFocus(actividad.configuracionFocus) : actividad.duracionSegundos
         const inicioSegundos = modo === "duraciones" ? cursor : modo === "relativo" || modo === "secuencias" ? horaInicio + actividad.inicioDesplazamientoSegundos : modo === "cronometro" ? horaInicio : actividad.inicioSegundos
-        const finAbsoluto = modo === "duraciones" ? cursor + actividad.duracionSegundos : modo === "relativo" || modo === "secuencias" ? inicioSegundos + actividad.duracionSegundos : null
+        const finAbsoluto = modo === "duraciones" ? cursor + duracionSegundos : modo === "relativo" || modo === "secuencias" ? inicioSegundos + duracionSegundos : modo === "cronometro" && actividad.tipoActividad === "focus" ? inicioSegundos + duracionSegundos : null
         const inicio = fechaConSegundos(dia, inicioSegundos)
-        const fin = modo === "duraciones" || modo === "relativo" || modo === "secuencias"
+        const fin = modo === "duraciones" || modo === "relativo" || modo === "secuencias" || (modo === "cronometro" && actividad.tipoActividad === "focus")
             ? fechaConSegundos(dia, finAbsoluto)
             : modo === "cronometro" ? null
             : fechaConSegundos(dia, actividad.finSegundos, actividad.finDia)
         if (!inicio || (modo !== "cronometro" && (!fin || fin <= inicio))) return { ok: false, error: `No se pudo crear el horario de "${actividad.nombre}" en esa fecha.` }
-        if (modo !== "cronometro" && inicio <= ahora) return { ok: false, error: `No se puede aplicar la actividad "${actividad.nombre}" a las ${inicio.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" })}: ese horario ya pasó o ya está transcurriendo. Ajustá el horario o elegí una fecha futura.` }
+        if ((modo !== "cronometro" || actividad.tipoActividad === "focus") && inicio <= ahora) return { ok: false, error: `No se puede aplicar la actividad "${actividad.nombre}" a las ${inicio.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" })}: ese horario ya pasó o ya está transcurriendo. Ajustá el horario o elegí una fecha futura.` }
         actividades.push({ actividad: { ...actividad, ordenSeguimientoCronometro: indice }, evento, inicio, fin })
         if (modo === "duraciones") cursor = finAbsoluto
+    }
+    for (const sesionFocus of actividades.filter(item => item.actividad.tipoActividad === "focus")) {
+        let desplazamiento = 0
+        for (const bloque of sesionFocus.actividad.configuracionFocus.bloques) {
+            const duracionBloque = Number(bloque.minutos) * 60 * 1000
+            if (bloque.tipo === "concentracion") {
+                const inicioConcentracion = sesionFocus.inicio.getTime() + desplazamiento
+                const finConcentracion = inicioConcentracion + duracionBloque
+                const incompatible = actividades.find(otra => otra !== sesionFocus && otra.fin
+                    && otra.inicio.getTime() < finConcentracion && otra.fin.getTime() > inicioConcentracion)
+                if (incompatible) return { ok: false, error: `"${incompatible.actividad.nombre}" coincide con un período de concentración de la sesión Focus. Reubicá la actividad; los descansos sí pueden solaparse.` }
+            }
+            desplazamiento += duracionBloque
+        }
     }
     return { ok: true, dia, actividades }
 }
@@ -263,7 +310,11 @@ export function previsualizarPlantillaPlanificacion(plantilla, fecha, eventos, o
             eventoNombre: evento?.nombre ?? null,
             inicio,
             fin,
-            sinDuracion: plantilla.modo === "cronometro"
+            sinDuracion: plantilla.modo === "cronometro" && actividad.tipoActividad !== "focus",
+            esFocus: actividad.tipoActividad === "focus",
+            sinHorario: plantilla.modo === "cronometro" && actividad.tipoActividad === "focus",
+            etapa: actividad.grupoCronometro,
+            duracionFocusSegundos: actividad.tipoActividad === "focus" ? duracionConfiguracionFocus(actividad.configuracionFocus) : null
         }))
     }
 }
@@ -275,10 +326,10 @@ export function aplicarPlantillaPlanificacion(plantilla, fecha, eventos, opcione
     if (typeof idAplicacion !== "string") return { ok: false, error: idAplicacion.error }
     const planes = []
     for (const { actividad, evento, inicio, fin } of preparado.actividades) {
-        const resultado = crearPlan({ nombre: actividad.nombre, evento, inicio, fin: fin ?? new Date(inicio.getTime() + 1000) }, generarId)
+        const resultado = crearPlan({ nombre: actividad.tipoActividad === "focus" ? actividad.configuracionFocus.nombre : actividad.nombre, evento, inicio, fin: fin ?? new Date(inicio.getTime() + 1000) }, generarId)
         if (!resultado.ok) return resultado
-        planes.push({ ...resultado.plan, ...(plantilla.modo === "cronometro" ? { fin: null } : {}), plantillaOrigenId: plantilla.id, plantillaOrigenNombre: plantilla.nombre, fechaAplicacion: formatearFechaISO(preparado.dia), idAplicacionPlantilla: idAplicacion,
-            ...(plantilla.modo === "cronometro" ? {
+        planes.push({ ...resultado.plan, ...(plantilla.modo === "cronometro" && actividad.tipoActividad !== "focus" ? { fin: null } : {}), ...(actividad.tipoActividad === "focus" ? { tipoPlanificacion: "focus", configuracionFocus: structuredClone(actividad.configuracionFocus), ...(plantilla.modo === "cronometro" ? { modoAplicacionPlanificacion: "cronometro", grupoCronometro: actividad.grupoCronometro, ordenSeguimiento: actividad.ordenSeguimientoCronometro } : {}) } : {}), plantillaOrigenId: plantilla.id, plantillaOrigenNombre: plantilla.nombre, fechaAplicacion: formatearFechaISO(preparado.dia), idAplicacionPlantilla: idAplicacion,
+            ...(plantilla.modo === "cronometro" && actividad.tipoActividad !== "focus" ? {
                 modoSeguimientoPlanificacion: "cronometro",
                 ordenSeguimiento: actividad.ordenSeguimientoCronometro,
                 grupoCronometro: actividad.grupoCronometro

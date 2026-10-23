@@ -23,9 +23,18 @@ export function crearSecuenciaSeguimiento(planes, idPlanSeleccionado, eventos = 
         && seleccionado.idAplicacionPlantilla.trim() !== ""
     const esCronometro = seleccionado.modoSeguimientoPlanificacion === "cronometro"
     const planesDia = planes.filter(plan => mismoDiaLocal(plan.inicio, dia))
-    const planesAlcance = esAplicacion
+    const alcanceCompleto = esAplicacion
         ? planes.filter(plan => plan.idAplicacionPlantilla === seleccionado.idAplicacionPlantilla)
         : planesDia
+    if (seleccionado.tipoPlanificacion === "focus") {
+        return { ok: false, error: "Iniciá esta sesión Focus desde su bloque planificado; el seguimiento normal no puede registrar sus descansos y concentración." }
+    }
+    if (!esCronometro && alcanceCompleto.some(plan => plan.tipoPlanificacion === "focus")) {
+        return { ok: false, error: "Esta planificación incluye una sesión Focus. Iníciala desde su bloque en el calendario para conservar sus períodos de concentración y descanso." }
+    }
+    const planesAlcance = esCronometro
+        ? alcanceCompleto.filter(plan => plan.tipoPlanificacion !== "focus")
+        : alcanceCompleto
     const ordenados = [...planesAlcance].sort(esCronometro
         ? (a, b) => (a.ordenSeguimiento ?? 0) - (b.ordenSeguimiento ?? 0) || a.id.localeCompare(b.id)
         : esAplicacion

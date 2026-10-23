@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 
 import { formatearDuracion } from "../../domain/tiempo/CalculosDuracion.js"
 import { crearBloquesFocus, useSesionFocus } from "./usoSesionFocus.js"
@@ -22,11 +22,12 @@ function etiquetaEstado(estado) {
         concentracion: "Concentración",
         descanso: "Descanso",
         "tiempo-muerto": "Tiempo muerto",
+        "esperando-concentracion": "Esperando para concentrarse",
         pausada: "Sesión pausada"
     })[estado] ?? estado
 }
 
-export function VistaFocus({ estadoRegistro, eventos = [], tareas = [], onCrearTarea, onActualizarTarea, onReordenarTarea, onPosponerTarea, onEstadoSesionChange, vistaActiva = true }) {
+export function VistaFocus({ estadoRegistro, eventos = [], tareas = [], onCrearTarea, onActualizarTarea, onReordenarTarea, onPosponerTarea, onEstadoSesionChange, onRegistrarInicioPlanificado, onPlantillasChange, vistaActiva = true }) {
     const [nombreSesion, cambiarNombreSesion] = useState("Sesión Focus")
     const [usarColaFocus, cambiarUsarColaFocus] = useState(false)
     const [nombreActividadIndependiente, cambiarNombreActividadIndependiente] = useState("")
@@ -54,6 +55,13 @@ export function VistaFocus({ estadoRegistro, eventos = [], tareas = [], onCrearT
         onPosponerTarea,
         onEstadoSesionChange,
     })
+    useEffect(() => { onPlantillasChange?.(focus.plantillas) }, [focus.plantillas, onPlantillasChange])
+    onRegistrarInicioPlanificado?.(configuracion => focus.iniciar({
+        nombre: configuracion.nombre,
+        usarColaFocus: Boolean(configuracion.usarColaFocus),
+        bloques: configuracion.bloques,
+        colores: configuracion.colores
+    }))
     const { datos, registrosActivos } = estadoRegistro
     const idsRegistrosGuardados = new Set(estadoRegistro.registros.map(registro => registro.id))
     const sesionesFocusVisibles = focus.historial.filter(item => {
@@ -61,6 +69,7 @@ export function VistaFocus({ estadoRegistro, eventos = [], tareas = [], onCrearT
         return ids.length === 0 || ids.some(id => idsRegistrosGuardados.has(id))
     })
     const sesion = focus.sesion
+    const hayConcentracionActiva = sesion?.estado === "concentracion" || estadoRegistro.registros.some(registro => registro.origenFocus === true && registro.estado === "En curso")
     const configuracion = sesion?.configuracion
     const independientes = registrosActivos.filter(registro => registro.id !== sesion?.registroId)
     const totalMinutos = bloques.reduce((total, bloque) => total + (Number(bloque.minutos) || 0), 0)
@@ -151,7 +160,7 @@ export function VistaFocus({ estadoRegistro, eventos = [], tareas = [], onCrearT
             {vistaActiva && <header className="focus-cabecera">
                 <p className="focus-etiqueta">SESIÓN DE ENFOQUE</p>
                 <h2 id="titulo-focus">Focus</h2>
-                <p>Solo se registra el tiempo de concentración; los descansos no suman tiempo. Las actividades independientes pueden seguir en paralelo.</p>
+                <p>Solo se registra el tiempo de concentración. Otras actividades pueden correr durante los descansos y el tiempo muerto, pero no durante la concentración.</p>
             </header>}
 
             {vistaActiva && (datos.advertencia || !datos.ok) && (
@@ -185,8 +194,9 @@ export function VistaFocus({ estadoRegistro, eventos = [], tareas = [], onCrearT
                     manejarPause={() => {}}
                     manejarStop={() => {}}
                     puedeDetener={false}
-                    bloqueado={!datos.ok}
+                    bloqueado={!datos.ok || hayConcentracionActiva}
                 />
+                {hayConcentracionActiva && <p role="status">Durante la concentración no se pueden iniciar otras actividades. Podrás hacerlo durante un descanso o el tiempo muerto.</p>}
             </section>}
 
             {vistaActiva && sesion ? (
@@ -201,11 +211,17 @@ export function VistaFocus({ estadoRegistro, eventos = [], tareas = [], onCrearT
                         </div>
                         <span className={"focus-estado focus-estado-" + sesion.estado}>{etiquetaEstado(sesion.estado)}</span>
                     </div>
-                    <div className="focus-temporizador" aria-live="off">
+                    {sesion.estado === "esperando-concentracion" ? (
+                        <div className="focus-temporizador" role="status" aria-live="polite">
+                            <span>Concentración en espera</span>
+                            <strong>—</strong>
+                            <span>Finalizá o pausá las actividades que siguen en curso para iniciar este bloque.</span>
+                        </div>
+                    ) : <div className="focus-temporizador" aria-live="off">
                         <span>{sesion.estado === "tiempo-muerto" ? "Tiempo desde el fin del descanso" : "Tiempo restante del bloque"}</span>
                         <strong>{duracionVisible(sesion.estado === "tiempo-muerto" ? focus.tiempoMuertoMs : focus.restanteMs)}</strong>
                         <span>{sesion.estado === "tiempo-muerto" ? "El descanso terminó; el excedente no suma a la tarea." : focus.bloqueActual?.nombre}</span>
-                    </div>
+                    </div>}
                     {sesion.estado === "descanso" && (
                         <label className="focus-check-auto">
                             <input
@@ -267,7 +283,7 @@ export function VistaFocus({ estadoRegistro, eventos = [], tareas = [], onCrearT
                         </section>
                     )}
                     <div className="focus-acciones-sesion">
-                        {sesion.estado === "pausada"
+                        {sesion.estado === "esperando-concentracion" ? null : sesion.estado === "pausada"
                             ? <button type="button" onClick={focus.reanudarSesion}>Reanudar sesión</button>
                             : <button type="button" onClick={focus.pausarSesion}>Pausar sesión</button>}
                         {!sesion.avanzarAutomaticamente && ["descanso", "tiempo-muerto"].includes(sesion.estado) && (

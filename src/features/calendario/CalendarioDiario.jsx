@@ -111,6 +111,7 @@ export const CalendarioDiario = forwardRef(function CalendarioDiario({
     onEliminarRecurrencia = () => ({ ok: false, error: "La planificación recurrente no está disponible." }),
     onEliminarAplicacionPlan = () => ({ ok: false, error: "La planificación no está disponible." }),
     onMoverAplicacionPlan = () => ({ ok: false, error: "No se pudo mover la aplicación." }),
+    onIniciarSesionFocus = () => ({ ok: false, error: "No se pudo iniciar la sesión Focus." }),
     seguimientoPlanificacion = null
 }, referencia) {
     const [vista, cambiarVista] = useState("dia")
@@ -201,13 +202,14 @@ export const CalendarioDiario = forwardRef(function CalendarioDiario({
         ? seguimientoPlanificacion.estado.secuencia[seguimientoPlanificacion.estado.indiceActual]?.planId
         : null
     const aplicacionesCronometroDia = vista === "dia" ? [...new Map(planesVisibles
-        .filter(plan => plan.modoSeguimientoPlanificacion === "cronometro"
+        .filter(plan => (plan.modoSeguimientoPlanificacion === "cronometro" || plan.modoAplicacionPlanificacion === "cronometro")
             && plan.inicio.getFullYear() === fechaSeleccionada.getFullYear()
             && plan.inicio.getMonth() === fechaSeleccionada.getMonth()
             && plan.inicio.getDate() === fechaSeleccionada.getDate())
         .map(plan => [plan.idAplicacionPlantilla, plan])).values()]
-        .map(ancla => ({ ancla, actividades: planesVisibles.filter(plan => plan.idAplicacionPlantilla === ancla.idAplicacionPlantilla && plan.modoSeguimientoPlanificacion === "cronometro")
-            .sort((a, b) => a.ordenSeguimiento - b.ordenSeguimiento || a.id.localeCompare(b.id)) })) : []
+        .map(ancla => ({ ancla, actividades: planesVisibles.filter(plan => plan.idAplicacionPlantilla === ancla.idAplicacionPlantilla
+            && (plan.modoSeguimientoPlanificacion === "cronometro" || (plan.tipoPlanificacion === "focus" && plan.modoAplicacionPlanificacion === "cronometro")))
+            .sort((a, b) => (a.ordenSeguimiento ?? a.ordenSeguimientoCronometro ?? 0) - (b.ordenSeguimiento ?? b.ordenSeguimientoCronometro ?? 0) || a.id.localeCompare(b.id)) })) : []
     const fragmentosCombinadosDia = distribuirCarriles([
         ...obtenerFragmentosCalendario(registros, fechaSeleccionada, ahora)
             .map(fragmento => ({ ...fragmento, tipoVisual: "registro" })),
@@ -682,7 +684,7 @@ export const CalendarioDiario = forwardRef(function CalendarioDiario({
                     fragmentosPlanes={fragmentosPlanesDia}
                     tarjetasSecuenciales={aplicacionesCronometroDia.map(({ ancla, actividades }) => {
                         const sesion = seguimientoPlanificacion?.estado?.idAplicacionPlantilla === ancla.idAplicacionPlantilla ? seguimientoPlanificacion.estado : null
-                        const primero = actividades[0]
+                        const primero = actividades.find(plan => plan.modoSeguimientoPlanificacion === "cronometro") ?? actividades[0]
                         const horaAncla = formatearInstante(ancla.inicio, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
                         const iniciar = (planId, modo) => {
                             const resultado = seguimientoPlanificacion?.empezar(planId, modo, planesVisibles, eventos)
@@ -691,6 +693,14 @@ export const CalendarioDiario = forwardRef(function CalendarioDiario({
                         return <section className="tarjeta-secuencia-cronometro" key={ancla.idAplicacionPlantilla} style={{ top: `${((ancla.inicio.getHours() * 3600 + ancla.inicio.getMinutes() * 60 + ancla.inicio.getSeconds()) / 86400) * 100}%` }} aria-label={`Planificación ${ancla.plantillaOrigenNombre}`}>
                             <header><div><h3>{ancla.plantillaOrigenNombre}</h3><p>Secuencia sin duraciones · inicio previsto {horaAncla}</p></div><span>{sesion ? "En seguimiento" : "Pendiente"}</span></header>
                             <ol>{actividades.map(plan => {
+                                if (plan.tipoPlanificacion === "focus") return <li key={plan.id} className="secuencia-cronometro-focus">
+                                    <span>Sesión Focus: {plan.nombre} · etapa {(plan.grupoCronometro ?? 0) + 1}</span>
+                                    <span>Duración prevista: {Math.round((plan.fin.getTime() - plan.inicio.getTime()) / 60000)} min · se inicia manualmente</span>
+                                    <button type="button" onClick={() => {
+                                        const resultado = onIniciarSesionFocus(plan)
+                                        cambiarEstadoAjuste(resultado?.ok ? { mensaje: "Se inició la sesión Focus planificada." } : { error: resultado?.error ?? "No se pudo iniciar la sesión Focus." })
+                                    }}>Iniciar Focus</button>
+                                </li>
                                 const elemento = sesion?.secuencia.find(item => item.planId === plan.id)
                                 const activo = sesion?.registrosActivos?.find(item => item.planId === plan.id)
                                 const completado = sesion?.finalizados?.includes(plan.id)
@@ -701,7 +711,8 @@ export const CalendarioDiario = forwardRef(function CalendarioDiario({
                                     {!sesion && <button type="button" onClick={() => iniciar(plan.id, "actual")}>Iniciar este evento</button>}
                                 </li>
                             })}</ol>
-                            {!sesion && actividades.filter(plan => (plan.grupoCronometro ?? 0) === (primero.grupoCronometro ?? 0)).length > 1
+                            {!sesion && actividades.filter(plan => plan.modoSeguimientoPlanificacion === "cronometro"
+                                && (plan.grupoCronometro ?? 0) === (primero.grupoCronometro ?? 0)).length > 1
                                 && <button type="button" className="secuencia-cronometro-iniciar-grupo" onClick={() => iniciar(primero.id, "grupo")}>Iniciar juntos los eventos de la primera etapa</button>}
                             {sesion && <p>Los cronómetros de los eventos activos continúan por separado. Podés iniciar la siguiente etapa desde el panel de seguimiento.</p>}
                         </section>
@@ -813,6 +824,7 @@ export const CalendarioDiario = forwardRef(function CalendarioDiario({
                         cambiarEdicionDirectaHabilitada(true)
                         cambiarPlanSeleccionado(null)
                     }}
+                    onIniciarSesionFocus={() => onIniciarSesionFocus(planSeleccionado)}
                 />
             )}
         </section>

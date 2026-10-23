@@ -3,14 +3,20 @@ import { formatearInstante } from "../../domain/tiempo/historial.js"
 
 const opciones = { dateStyle: "full", timeStyle: "short" }
 
-export function DetallePlan({ plan, evento, onEditar, onEliminar, onEliminarAplicacion, onEliminarRecurrencia, onCerrar, onMoverAplicacion, onSeguirPlan, seguimientoActivo = false, planActivoSeguimiento = false }) {
+export function DetallePlan({ plan, evento, onEditar, onEliminar, onEliminarAplicacion, onEliminarRecurrencia, onCerrar, onMoverAplicacion, onSeguirPlan, onIniciarSesionFocus, seguimientoActivo = false, planActivoSeguimiento = false }) {
     const [mostrarOpcionesSeguimiento, cambiarMostrarOpcionesSeguimiento] = useState(false)
     const [errorSeguimiento, cambiarErrorSeguimiento] = useState("")
+    const [errorFocus, cambiarErrorFocus] = useState("")
     const [alcanceEliminar, cambiarAlcanceEliminar] = useState("solo")
     function empezarSeguimiento(modo) {
         const resultado = onSeguirPlan(plan.id, modo)
         if (!resultado?.ok) cambiarErrorSeguimiento(resultado?.error ?? "No se pudo iniciar el seguimiento.")
         else cambiarErrorSeguimiento("")
+    }
+    function iniciarSesionFocus() {
+        const resultado = onIniciarSesionFocus?.()
+        if (!resultado?.ok) cambiarErrorFocus(resultado?.error ?? "No se pudo iniciar la sesión Focus.")
+        else { cambiarErrorFocus(""); onCerrar() }
     }
     const nombre = evento?.nombre ?? plan.nombre
     return (
@@ -18,7 +24,7 @@ export function DetallePlan({ plan, evento, onEditar, onEliminar, onEliminarApli
             <header>
                 <div>
                     <h3 id="titulo-detalle-plan">Plan: {nombre}</h3>
-                    <p>Actividad planificada{evento ? ` · Plantilla: ${evento.nombre}` : ""}</p>
+                    <p>{plan.tipoPlanificacion === "focus" ? "Sesión Focus planificada" : `Actividad planificada${evento ? ` · Plantilla: ${evento.nombre}` : ""}`}</p>
                 </div>
                 <button type="button" aria-label="Cerrar detalle del plan" onClick={onCerrar}>Cerrar</button>
             </header>
@@ -27,7 +33,13 @@ export function DetallePlan({ plan, evento, onEditar, onEliminar, onEliminarApli
                 <div><dt>Inicio</dt><dd><time dateTime={plan.inicio.toISOString()}>{formatearInstante(plan.inicio, opciones)}</time></dd></div>
                 <div><dt>Fin</dt><dd><time dateTime={plan.fin.toISOString()}>{formatearInstante(plan.fin, opciones)}</time></dd></div>
             </dl>
-            {!seguimientoActivo && (
+            {plan.tipoPlanificacion === "focus" && <div className="acciones-seguir-plan">
+                <p>Duración prevista: {Math.round((plan.fin.getTime() - plan.inicio.getTime()) / 60000)} min · {plan.configuracionFocus?.bloques?.length ?? 0} bloques.</p>
+                <p>La sesión empieza cuando la inicies. Durante la concentración no se permiten otros registros activos.</p>
+                <button type="button" onClick={iniciarSesionFocus} disabled={Boolean(seguimientoActivo)}>Iniciar sesión Focus</button>
+                {errorFocus && <p role="alert">{errorFocus}</p>}
+            </div>}
+            {!seguimientoActivo && plan.tipoPlanificacion !== "focus" && (
                 <div className="acciones-seguir-plan">
                     {!mostrarOpcionesSeguimiento
                         ? <button type="button" onClick={() => cambiarMostrarOpcionesSeguimiento(true)}>Seguir planificación</button>

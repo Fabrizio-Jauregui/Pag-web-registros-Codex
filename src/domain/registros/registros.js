@@ -40,6 +40,7 @@ function validarRegistro(registro, ahora, permitirLimiteExcedido) {
             && (typeof registro.tareaNombre !== "string" || registro.tareaNombre.trim() === ""))
         || (registro.planId !== undefined && registro.planId !== null
             && (typeof registro.planId !== "string" || registro.planId.trim() === ""))
+        || (registro.origenFocus !== undefined && typeof registro.origenFocus !== "boolean")
         || (typeof registro.tareaId === "string"
             && (typeof registro.tareaNombre !== "string" || registro.tareaNombre.trim() === ""))
         || ((registro.tareaId === undefined || registro.tareaId === null)
@@ -226,7 +227,8 @@ export function iniciarRegistro(
     generarId = () => globalThis.crypto.randomUUID(),
     evento = null,
     tarea = null,
-    planId = null
+    planId = null,
+    opciones = {}
 ) {
     if (!validarColeccionRegistros(registros, instante)) {
         return { ok: false, error: "Los registros actuales tienen intervalos inválidos." }
@@ -240,6 +242,10 @@ export function iniciarRegistro(
 
     if (planId !== null && (typeof planId !== "string" || planId.trim() === "")) {
         return { ok: false, error: "El plan de origen no es válido." }
+    }
+
+    if (opciones.origenFocus !== undefined && typeof opciones.origenFocus !== "boolean") {
+        return { ok: false, error: "El origen Focus del registro no es válido." }
     }
 
     if (typeof nombre !== "string" || (evento === null && nombre.trim() === "")) {
@@ -262,6 +268,7 @@ export function iniciarRegistro(
         ...datosDeEvento(evento),
         ...datosDeTarea(tarea),
         ...(planId ? { planId } : {}),
+        ...(opciones.origenFocus ? { origenFocus: true } : {}),
         estado: ESTADO_REGISTRO_EN_CURSO,
         motivoCancelacion: null,
         segmentos: [{ tipo: ESTADO_REGISTRO_EN_CURSO, inicio: instante, fin: null }]
@@ -273,6 +280,47 @@ export function iniciarRegistro(
     }
 
     return { ok: true, registros: nuevosRegistros, registro }
+}
+
+function segmentoEnCursoEnInstante(registro, instante) {
+    return registro.segmentos.some(segmento => segmento.tipo === ESTADO_REGISTRO_EN_CURSO
+        && segmento.inicio.getTime() <= instante.getTime()
+        && (segmento.fin === null || instante.getTime() < segmento.fin.getTime()))
+}
+
+export function obtenerConflictoConcentracion(registros, instante, registroIdExcluir = null) {
+    const focus = registros.find(registro => registro.id !== registroIdExcluir
+        && registro.origenFocus === true
+        && segmentoEnCursoEnInstante(registro, instante))
+    if (focus) return { tipo: "focus", registro: focus }
+
+    const actividad = registros.find(registro => registro.id !== registroIdExcluir
+        && registro.origenFocus !== true
+        && segmentoEnCursoEnInstante(registro, instante))
+    return actividad ? { tipo: "actividad", registro: actividad } : null
+}
+
+export function validarExclusividadConcentracion(registros, opciones = {}) {
+    const candidato = opciones.candidato
+    if (!candidato) return { ok: true }
+    const existente = registros.filter(registro => registro.id !== candidato.id)
+    for (const segmento of candidato.segmentos) {
+        if (segmento?.tipo !== ESTADO_REGISTRO_EN_CURSO || !esFechaValida(segmento.inicio)
+            || (segmento.fin !== null && !esFechaValida(segmento.fin))) continue
+        const inicio = segmento.inicio.getTime()
+        const fin = segmento.fin?.getTime() ?? Number.POSITIVE_INFINITY
+        const conflicto = existente.find(registro => (registro.origenFocus === true || candidato.origenFocus === true)
+            && registro.segmentos.some(otro => otro.tipo === ESTADO_REGISTRO_EN_CURSO
+                && inicio < (otro.fin?.getTime() ?? Number.POSITIVE_INFINITY)
+                && otro.inicio.getTime() < fin))
+        if (conflicto) {
+            return {
+                ok: false,
+                error: `El registro se superpone con la concentración Focus “${conflicto.nombre}”.`
+            }
+        }
+    }
+    return { ok: true }
 }
 
 export function crearRegistroManual(
@@ -376,6 +424,9 @@ export function crearRegistroManual(
     }
     const nuevosRegistros = [...registros, registro]
 
+    const exclusividad = validarExclusividadConcentracion(registros, { candidato: registro })
+    if (!exclusividad.ok) return exclusividad
+
     if (!validarColeccionRegistros(nuevosRegistros, ahora)) {
         return {
             ok: false,
@@ -425,6 +476,9 @@ export function editarRegistroFinalizado(registros, id, cambios, ahora = new Dat
         delete actualizado.tareaId
         delete actualizado.tareaNombre
     }
+
+    const exclusividad = validarExclusividadConcentracion(registros, { candidato: actualizado })
+    if (!exclusividad.ok) return exclusividad
 
     const errorTemporal = explicarIntervalosFinalizados(actualizado, ahora)
 

@@ -112,7 +112,7 @@ function esSesionActivaValida(valor) {
         && esConfiguracionValida(valor.configuracion)
         && Number.isInteger(valor.indiceBloque)
         && valor.indiceBloque >= 0 && valor.indiceBloque < valor.configuracion.bloques.length
-        && ["lista", "concentracion", "descanso", "tiempo-muerto", "pausada"].includes(valor.estado)
+        && ["lista", "concentracion", "descanso", "tiempo-muerto", "esperando-concentracion", "pausada"].includes(valor.estado)
         && (valor.finBloque === null || esIso(valor.finBloque))
         && (valor.inicioTiempoMuerto === null || esIso(valor.inicioTiempoMuerto))
         && (valor.registroId === null || typeof valor.registroId === "string")
@@ -120,7 +120,7 @@ function esSesionActivaValida(valor) {
         && (valor.tareaActivaId === undefined || valor.tareaActivaId === null || (typeof valor.tareaActivaId === "string" && valor.tareaActivaId !== ""))
         && (valor.trabajoPendienteInicio === undefined || valor.trabajoPendienteInicio === null || esIso(valor.trabajoPendienteInicio))
         && (valor.avanzarAutomaticamente === undefined || typeof valor.avanzarAutomaticamente === "boolean")
-        && (valor.reanudarEstado === null || ["concentracion", "descanso", "tiempo-muerto"].includes(valor.reanudarEstado))
+        && (valor.reanudarEstado === null || ["concentracion", "descanso", "tiempo-muerto", "esperando-concentracion"].includes(valor.reanudarEstado))
         && Number.isFinite(valor.restanteMs) && valor.restanteMs >= 0
         && (valor.tiempoMuertoAcumuladoMs === undefined || (Number.isFinite(valor.tiempoMuertoAcumuladoMs) && valor.tiempoMuertoAcumuladoMs >= 0))
         && (valor.extras === undefined || (Array.isArray(valor.extras) && valor.extras.every(esExtraValido)))

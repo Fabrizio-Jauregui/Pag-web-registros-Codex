@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from "react"
+import { useCallback, useLayoutEffect, useRef, useState } from "react"
 import { ProveedorReloj } from "./ProveedorReloj.jsx"
 
 import "./App.css"
@@ -23,7 +23,7 @@ import {
 } from "../domain/eventos/persistenciaEventos.js"
 import { crearCategoria, actualizarCategoria, eliminarCategoria } from "../domain/categorias/categorias.js"
 import { cargarCategorias, guardarCategorias } from "../domain/categorias/persistenciaCategorias.js"
-import { crearPlan, actualizarPlan, eliminarAplicacionPlan, eliminarPlan, compararPlanesPorSeguimiento } from "../domain/planificacion/planes.js"
+import { crearPlan, actualizarPlan, eliminarAplicacionPlan, eliminarPlan, compararPlanesPorSeguimiento, validarCompatibilidadPlanesFocus } from "../domain/planificacion/planes.js"
 import { cargarPlanes, guardarPlanes } from "../domain/planificacion/persistenciaPlanes.js"
 import { formatearFechaISO } from "../domain/tiempo/FechaCalendario.js"
 import { cargarRecurrencias, guardarRecurrencias, crearReglaRecurrencia, cambiarRecurrencia, eliminarRecurrencia, generarAparicionesRecurrencia } from "../domain/planificacion/recurrencias.js"
@@ -44,6 +44,7 @@ import { PanelSeguimientoPlanificacion } from "../features/planificacion/Seguimi
 import { BibliotecaTareas } from "../features/tareas/BibliotecaTareas.jsx"
 import { crearTarea, actualizarTarea, cambiarDestinoTarea, eliminarTarea, moverTareaEnCola, posponerTareaEnCola, sincronizarEstadoTareasFocus } from "../domain/tareas/tareas.js"
 import { cargarTareas, guardarTareas } from "../domain/tareas/persistenciaTareas.js"
+import { cargarPlantillasFocus } from "../domain/focus/persistenciaFocus.js"
 
 export function App() {
     const [vistaPrincipal, cambiarVistaPrincipal] = useState("calendario")
@@ -60,9 +61,16 @@ export function App() {
     const [estadoRecurrencias, cambiarEstadoRecurrencias] = useState(cargarRecurrencias)
     const [estadoPlantillasPlan, cambiarEstadoPlantillasPlan] = useState(cargarPlantillasPlanificacion)
     const [estadoTareas, cambiarEstadoTareas] = useState(cargarTareas)
+    const [estadoPlantillasFocus, cambiarEstadoPlantillasFocus] = useState(cargarPlantillasFocus)
+    const publicarPlantillasFocus = useCallback(plantillasFocus => {
+        cambiarEstadoPlantillasFocus(actual => actual.plantillas === plantillasFocus
+            ? actual
+            : { ok: true, plantillas: plantillasFocus })
+    }, [])
     const [estadoFocusTareas, cambiarEstadoFocusTareas] = useState({ activa: false, tareaActivaId: null })
     const [fechaCalendarioSolicitada, cambiarFechaCalendarioSolicitada] = useState({ fecha: null, version: 0 })
     const calendarioRef = useRef(null)
+    const inicioFocusPlanificadoRef = useRef(null)
     const estadoRegistro = useRegistro()
     const seguimientoPlanificacion = useSeguimientoPlanificacion(estadoRegistro)
     const plantillas = estadoPlantillas.ok ? estadoPlantillas.plantillas : []
@@ -100,6 +108,15 @@ export function App() {
         if (tipo === "plan") calendarioRef.current?.abrirNuevaPlanificacion(evento.currentTarget)
     }
 
+    function iniciarFocusPlanificado(plan) {
+        if (plan?.tipoPlanificacion !== "focus" || !plan.configuracionFocus) return { ok: false, error: "Este plan no contiene una sesión Focus válida." }
+        if (typeof inicioFocusPlanificadoRef.current !== "function") return { ok: false, error: "Focus todavía no está disponible para iniciar la sesión." }
+        const iniciada = inicioFocusPlanificadoRef.current(plan.configuracionFocus)
+        if (!iniciada) return { ok: false, error: "No se pudo iniciar la sesión Focus. Revisá si ya hay otra sesión activa." }
+        cambiarVistaPrincipal("focus")
+        return { ok: true }
+    }
+
     function confirmarCambio(nuevasPlantillas) {
         const guardado = guardarPlantillasEventos(nuevasPlantillas)
 
@@ -126,11 +143,22 @@ export function App() {
     }
 
     function confirmarPlanes(nuevosPlanes) {
+        const anteriores = estadoPlanes.ok ? estadoPlanes.planes : []
+        const porIdAnterior = new Map(anteriores.map(plan => [plan.id, plan]))
+        const idsModificados = new Set(nuevosPlanes.filter(plan => {
+            const anterior = porIdAnterior.get(plan.id)
+            return !anterior || anterior.inicio.getTime() !== plan.inicio.getTime()
+                || anterior.fin?.getTime() !== plan.fin?.getTime()
+                || anterior.tipoPlanificacion !== plan.tipoPlanificacion
+                || JSON.stringify(anterior.configuracionFocus) !== JSON.stringify(plan.configuracionFocus)
+        }).map(plan => plan.id))
+        const incompatibilidad = validarCompatibilidadPlanesFocus(nuevosPlanes, idsModificados)
+        if (incompatibilidad) return { ok: false, error: incompatibilidad }
         const guardado = guardarPlanes(nuevosPlanes)
         if (!guardado.ok) return guardado
         const sincronizacion = sincronizarSeguimiento(nuevosPlanes)
         if (!sincronizacion.ok) {
-            guardarPlanes(estadoPlanes.ok ? estadoPlanes.planes : [])
+            guardarPlanes(anteriores)
             return sincronizacion
         }
         cambiarEstadoPlanes({ ok: true, planes: nuevosPlanes })
@@ -765,6 +793,7 @@ export function App() {
                     onEliminarAplicacionPlan={eliminarAplicacionPlanificacion}
                     onMoverAplicacionPlan={moverAplicacionPlanificacion}
                     seguimientoPlanificacion={seguimientoPlanificacion}
+                    onIniciarSesionFocus={iniciarFocusPlanificado}
                 />
 
                 <aside className="panel-herramientas" aria-label="Panel de herramientas">
@@ -877,6 +906,8 @@ export function App() {
                                 onReordenarTarea={reordenarTareaFocus}
                                 onPosponerTarea={posponerTareaFocus}
                                 onEstadoSesionChange={actualizarEstadoSesionFocus}
+                                onRegistrarInicioPlanificado={iniciar => { inicioFocusPlanificadoRef.current = iniciar }}
+                                onPlantillasChange={publicarPlantillasFocus}
                             />
                         </div>
                         <div hidden={vistaPrincipal !== "eventos"}>
@@ -900,6 +931,7 @@ export function App() {
                         <div hidden={vistaPrincipal !== "plantillas-plan"}>
                             <BibliotecaPlantillasPlanificacion
                                 plantillas={estadoPlantillasPlan.ok ? estadoPlantillasPlan.plantillas : []}
+                        plantillasFocus={estadoPlantillasFocus.ok ? estadoPlantillasFocus.plantillas : []}
                                 eventos={plantillas}
                                 errorCarga={estadoPlantillasPlan.ok ? "" : estadoPlantillasPlan.error}
                                 onCrear={crearPlantillaPlan}

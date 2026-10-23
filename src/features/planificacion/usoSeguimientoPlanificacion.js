@@ -92,7 +92,7 @@ export function useSeguimientoPlanificacion(estadoRegistro) {
             const registroId = iniciarRegistroDePlan(sesion.secuencia, indice, instante)
             if (!registroId) {
                 for (const activo of activos.filter(item => !sesion.registrosActivos?.some(anterior => anterior.registroId === item.registroId))) cerrarRegistroActual({ registroId: activo.registroId }, instante)
-                return { ok: false, error: registroRef.current.error || "No se pudo iniciar el evento planificado." }
+                return { ok: false, error: registroRef.current.obtenerError?.() || registroRef.current.error || "No se pudo iniciar el evento planificado." }
             }
             const item = sesion.secuencia[indice]
             activos.push({ planId, registroId, inicioReal: new Date(instante).toISOString(), elapsedMs: 0, finBloque: null, grupo: item.grupo ?? 0 })
@@ -123,7 +123,7 @@ export function useSeguimientoPlanificacion(estadoRegistro) {
             if (cuando > instante) continue
             const inicioReal = Math.max(cuando, instante)
             const registroId = iniciarRegistroDePlan(sesion.secuencia, indice, inicioReal)
-            if (!registroId) return { ok: false, error: registroRef.current.error || "No se pudo iniciar un evento de la planificación." }
+            if (!registroId) return { ok: false, error: registroRef.current.obtenerError?.() || registroRef.current.error || "No se pudo iniciar un evento de la planificación." }
             activos.push({ planId: item.planId, registroId, finBloque: new Date(inicioReal + item.duracionMs).toISOString(), grupo })
             iniciados.add(item.planId)
         }
@@ -255,7 +255,7 @@ export function useSeguimientoPlanificacion(estadoRegistro) {
             if (!registroId) {
                 guardar(null)
                 publicar(null)
-                cambiarError(registroRef.current.error || "No se pudo iniciar el siguiente evento planificado.")
+                cambiarError(registroRef.current.obtenerError?.() || registroRef.current.error || "No se pudo iniciar el siguiente evento planificado.")
                 return
             }
 
@@ -358,7 +358,7 @@ export function useSeguimientoPlanificacion(estadoRegistro) {
         }
         const registroId = iniciarRegistroDePlan(resultado.secuencia, 0, instante)
         if (!registroId) {
-            return { ok: false, error: registroRef.current.error || "No se pudo iniciar el registro del plan." }
+            return { ok: false, error: registroRef.current.obtenerError?.() || registroRef.current.error || "No se pudo iniciar el registro del plan." }
         }
 
         const sesion = {
@@ -439,7 +439,7 @@ export function useSeguimientoPlanificacion(estadoRegistro) {
             if (!sesion || sesion.estado !== "En curso") return false
         }
         if (!registroRef.current.pausar(sesion.registroId, new Date(instante))) {
-            cambiarError(registroRef.current.error || "No se pudo pausar el registro actual.")
+            cambiarError(registroRef.current.obtenerError?.() || registroRef.current.error || "No se pudo pausar el registro actual.")
             return false
         }
         const pausada = {
@@ -510,7 +510,7 @@ export function useSeguimientoPlanificacion(estadoRegistro) {
             return true
         }
         if (!registroRef.current.continuar(sesion.registroId, new Date(instante))) {
-            cambiarError(registroRef.current.error || "No se pudo reanudar el registro actual.")
+            cambiarError(registroRef.current.obtenerError?.() || registroRef.current.error || "No se pudo reanudar el registro actual.")
             return false
         }
         const reanudada = {
@@ -531,6 +531,13 @@ export function useSeguimientoPlanificacion(estadoRegistro) {
     function avanzarHasta(indiceDestino, instante, eventosOmitidos = []) {
         const sesion = estadoRef.current
         if (!sesion) return false
+        if (indiceDestino < sesion.secuencia.length) {
+            const habilitacion = registroRef.current.puedeIniciarActividad?.(new Date(instante))
+            if (habilitacion && !habilitacion.ok) {
+                cambiarError(habilitacion.error)
+                return false
+            }
+        }
         const cierre = cerrarRegistroActual(sesion, instante)
         if (!cierre.ok) {
             cambiarError(cierre.error)
@@ -549,7 +556,7 @@ export function useSeguimientoPlanificacion(estadoRegistro) {
         if (!registroId) {
             guardar(null)
             publicar(null)
-            cambiarError(registroRef.current.error || "No se pudo iniciar el siguiente evento planificado.")
+            cambiarError(registroRef.current.obtenerError?.() || registroRef.current.error || "No se pudo iniciar el siguiente evento planificado.")
             return false
         }
         const siguiente = {
@@ -682,7 +689,11 @@ export function useSeguimientoPlanificacion(estadoRegistro) {
     function registrarNuevosEventos(sesion, ids) {
         const instante = Date.now()
         const resultado = iniciarEventosCronometro(sesion, ids, instante)
-        if (!resultado.ok || resultado.activos.length === (sesion.registrosActivos ?? []).length) return false
+        if (!resultado.ok) {
+            cambiarError(resultado.error)
+            return false
+        }
+        if (resultado.activos.length === (sesion.registrosActivos ?? []).length) return false
         const actualizada = {
             ...sesion, estado: "En curso", registrosActivos: resultado.activos,
             iniciados: resultado.iniciados,

@@ -64,6 +64,7 @@ function deserializarRegistros(datos) {
             ...(registro.tareaId === undefined ? {} : { tareaId: registro.tareaId }),
             ...(registro.tareaNombre === undefined ? {} : { tareaNombre: registro.tareaNombre }),
             ...(registro.planId === undefined ? {} : { planId: registro.planId }),
+            ...(registro.origenFocus === undefined ? {} : { origenFocus: registro.origenFocus }),
             estado: registro.estado,
             motivoCancelacion: registro.motivoCancelacion,
             segmentos

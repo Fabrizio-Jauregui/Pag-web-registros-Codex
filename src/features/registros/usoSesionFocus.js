@@ -83,9 +83,10 @@ export function useSesionFocus(estadoRegistro, tareas = [], accionesTareas = {})
         }
         sesionRef.current = nuevaSesion
         cambiarSesion(nuevaSesion)
+        const concentracionEnCurso = nuevaSesion?.estado === "concentracion" && Boolean(nuevaSesion.registroId)
         accionesTareasRef.current.onEstadoSesionChange?.({
-            activa: Boolean(nuevaSesion),
-            tareaActivaId: nuevaSesion?.configuracion.usarColaFocus ? nuevaSesion.tareaActivaId ?? null : null
+            activa: concentracionEnCurso,
+            tareaActivaId: concentracionEnCurso && nuevaSesion.configuracion.usarColaFocus ? nuevaSesion.tareaActivaId ?? null : null
         })
         cambiarError("")
         return true
@@ -119,6 +120,12 @@ export function useSesionFocus(estadoRegistro, tareas = [], accionesTareas = {})
             .sort((a, b) => (a.ordenFocus ?? Number.MAX_SAFE_INTEGER) - (b.ordenFocus ?? Number.MAX_SAFE_INTEGER))
     }
 
+    function hayOtraActividadEnCurso() {
+        return (registroRef.current.registros ?? []).some(registro =>
+            registro.estado === "En curso" && registro.origenFocus !== true
+        )
+    }
+
     function cerrarTrabajoCola(actual, instante) {
         if (!actual.registroId) return true
         const registro = registroRef.current.buscar(actual.registroId)
@@ -146,9 +153,25 @@ export function useSesionFocus(estadoRegistro, tareas = [], accionesTareas = {})
             tarea?.nombre ?? "Concentración",
             null,
             new Date(actual.trabajoPendienteInicio),
-            tarea
+            tarea,
+            { origenFocus: true }
         )
         if (!registroId) {
+            const errorInicio = registroRef.current.obtenerError?.() || registroRef.current.error || ""
+            if (errorInicio.startsWith("Focus esperará a que finalices o pauses")) {
+                const inicioBloque = actual.bloques.map((bloque, indice) => indice === actual.indiceBloque
+                    ? { ...bloque, inicio: null, fin: null }
+                    : bloque)
+                return {
+                    ...actual,
+                    estado: "esperando-concentracion",
+                    bloques: inicioBloque,
+                    registroId: null,
+                    trabajoPendienteInicio: null,
+                    finBloque: null,
+                    esperaDesde: fechaIso(Date.now())
+                }
+            }
             cambiarError(registroRef.current.error || "No se pudo iniciar el registro del tramo de concentración.")
             return null
         }
@@ -181,7 +204,9 @@ export function useSesionFocus(estadoRegistro, tareas = [], accionesTareas = {})
         }
 
         const fin = fechaIso(instante)
-        const bloques = actual.bloques.map((bloque, indice) => indice === actual.indiceBloque && bloque.fin === null
+        const bloquePendienteSinIniciar = actual.estado === "esperando-concentracion"
+            && actual.bloques[actual.indiceBloque]?.inicio === null
+        const bloques = actual.bloques.map((bloque, indice) => indice === actual.indiceBloque && bloque.fin === null && !bloquePendienteSinIniciar
             ? { ...bloque, fin }
             : bloque)
         const registroHistorial = {
@@ -215,7 +240,8 @@ export function useSesionFocus(estadoRegistro, tareas = [], accionesTareas = {})
         const bloques = actual.bloques.map((bloque, indice) => indice === actual.indiceBloque
             ? { ...bloque, fin: fechaIso(instante) }
             : bloque)
-        bloques[siguienteIndice] = { ...siguiente, inicio: fechaIso(instante), fin: null }
+        const esperar = nuevoEstado === "concentracion" && hayOtraActividadEnCurso()
+        bloques[siguienteIndice] = { ...siguiente, inicio: esperar ? null : fechaIso(instante), fin: null }
         const extras = actual.estado === "tiempo-muerto"
             ? cerrarExtraAbierto(actual.extras ?? [], "tiempo-muerto", instante)
             : actual.extras ?? []
@@ -226,14 +252,15 @@ export function useSesionFocus(estadoRegistro, tareas = [], accionesTareas = {})
             bloques,
             extras,
             indiceBloque: siguienteIndice,
-            estado: nuevoEstado,
-            finBloque: fechaIso(instante + duracionMs(siguiente)),
+            estado: esperar ? "esperando-concentracion" : nuevoEstado,
+            finBloque: esperar ? null : fechaIso(instante + duracionMs(siguiente)),
             inicioTiempoMuerto: null,
             tiempoMuertoAcumuladoMs: 0,
             reanudarEstado: null,
-            restanteMs: 0
+            restanteMs: 0,
+            esperaDesde: esperar ? fechaIso(instante) : null
         }
-        if (nuevoEstado === "concentracion") {
+        if (nuevoEstado === "concentracion" && !esperar) {
             actualizado = abrirTrabajoCola(actualizado, instante)
             if (!actualizado) return false
         }
@@ -242,6 +269,25 @@ export function useSesionFocus(estadoRegistro, tareas = [], accionesTareas = {})
 
     function reconciliar(instanteActual) {
         let actual = sesionRef.current
+        if (actual?.estado === "esperando-concentracion") {
+            if (hayOtraActividadEnCurso()) return
+            const bloque = actual.configuracion.bloques[actual.indiceBloque]
+            const inicio = fechaIso(instanteActual)
+            const bloques = actual.bloques.map((item, indice) => indice === actual.indiceBloque
+                ? { ...item, inicio, fin: null }
+                : item)
+            actual = {
+                ...actual,
+                estado: "concentracion",
+                bloques,
+                finBloque: fechaIso(instanteActual + (actual.restanteMs > 0 ? actual.restanteMs : duracionMs(bloque))),
+                restanteMs: 0,
+                esperaDesde: null
+            }
+            actual = abrirTrabajoCola(actual, instanteActual)
+            if (!actual || !guardarSesion(actual)) return
+            return
+        }
         if (actual?.estado === "concentracion"
             && actual.trabajoPendienteInicio
             && instanteActual - Date.parse(actual.trabajoPendienteInicio) >= 1000) {
@@ -324,6 +370,12 @@ export function useSesionFocus(estadoRegistro, tareas = [], accionesTareas = {})
 
     useEffect(() => {
         if (!estadoRegistro.datos.ok) return
+        const idsFocus = new Set((historialRef.current ?? []).flatMap(item => item.registroIds
+            ?? (item.registroId ? [item.registroId] : [])))
+        const sesionActiva = sesionRef.current
+        for (const id of sesionActiva?.registroIds ?? []) idsFocus.add(id)
+        if (sesionActiva?.registroId) idsFocus.add(sesionActiva.registroId)
+        if (idsFocus.size > 0) estadoRegistro.marcarComoFocus?.([...idsFocus])
         const idsRegistros = new Set(estadoRegistro.registros.map(registro => registro.id))
         const sesionesConRegistros = historialRef.current.filter(item => {
             const ids = item.registroIds ?? (item.registroId ? [item.registroId] : [])
@@ -337,16 +389,17 @@ export function useSesionFocus(estadoRegistro, tareas = [], accionesTareas = {})
         }
         historialRef.current = sesionesConRegistros
         cambiarHistorial(sesionesConRegistros)
-    }, [estadoRegistro.datos.ok, estadoRegistro.registros])
+    }, [estadoRegistro.datos.ok, estadoRegistro.registros, estadoRegistro.marcarComoFocus])
 
     useEffect(() => {
         reconciliarRef.current = reconciliar
     })
 
     useEffect(() => {
+        const concentracionEnCurso = sesion?.estado === "concentracion" && Boolean(sesion.registroId)
         accionesTareasRef.current.onEstadoSesionChange?.({
-            activa: Boolean(sesion),
-            tareaActivaId: sesion?.configuracion.usarColaFocus ? sesion.tareaActivaId ?? null : null
+            activa: concentracionEnCurso,
+            tareaActivaId: concentracionEnCurso && sesion.configuracion.usarColaFocus ? sesion.tareaActivaId ?? null : null
         })
     }, [sesion])
 
@@ -461,6 +514,7 @@ export function useSesionFocus(estadoRegistro, tareas = [], accionesTareas = {})
         const ahoraMs = Date.now()
         const ahoraIso = fechaIso(ahoraMs)
         const primera = configuracion.bloques[0]
+        const esperar = primera.tipo === "concentracion" && hayOtraActividadEnCurso()
         const actual = {
             id,
             configuracion,
@@ -470,9 +524,9 @@ export function useSesionFocus(estadoRegistro, tareas = [], accionesTareas = {})
             trabajoPendienteInicio: null,
             inicio: ahoraIso,
             indiceBloque: 0,
-            estado: primera.tipo,
+            estado: esperar ? "esperando-concentracion" : primera.tipo,
             avanzarAutomaticamente: false,
-            finBloque: fechaIso(ahoraMs + duracionMs(primera)),
+            finBloque: esperar ? null : fechaIso(ahoraMs + duracionMs(primera)),
             inicioTiempoMuerto: null,
             tiempoMuertoAcumuladoMs: 0,
             reanudarEstado: null,
@@ -480,11 +534,11 @@ export function useSesionFocus(estadoRegistro, tareas = [], accionesTareas = {})
             extras: [],
             bloques: configuracion.bloques.map((bloque, indice) => ({
                 ...bloque,
-                inicio: indice === 0 ? ahoraIso : null,
+                inicio: indice === 0 && !esperar ? ahoraIso : null,
                 fin: null
             }))
         }
-        const conTrabajo = abrirTrabajoCola(actual, ahoraMs)
+        let conTrabajo = esperar ? actual : abrirTrabajoCola(actual, ahoraMs)
         if (!conTrabajo) return false
         return guardarSesion(conTrabajo)
     }
@@ -530,16 +584,18 @@ export function useSesionFocus(estadoRegistro, tareas = [], accionesTareas = {})
         if (estado === "tiempo-muerto") {
             extras = [...extras, { tipo: "tiempo-muerto", inicio: fechaIso(ahoraMs), fin: null }]
         }
+        const esperar = estado === "concentracion" && hayOtraActividadEnCurso()
         let actualizado = {
             ...actual,
             extras,
-            estado,
-            finBloque: estado === "tiempo-muerto" ? null : fechaIso(ahoraMs + actual.restanteMs),
+            estado: esperar ? "esperando-concentracion" : estado,
+            finBloque: estado === "tiempo-muerto" || esperar ? null : fechaIso(ahoraMs + actual.restanteMs),
             inicioTiempoMuerto: estado === "tiempo-muerto" ? fechaIso(ahoraMs) : null,
-            restanteMs: 0,
+            restanteMs: esperar ? actual.restanteMs : 0,
             reanudarEstado: null
         }
-        if (estado === "concentracion") {
+        if (esperar) actualizado.esperaDesde = fechaIso(ahoraMs)
+        if (estado === "concentracion" && !esperar) {
             actualizado = abrirTrabajoCola(actualizado, ahoraMs)
             if (!actualizado) return false
         }

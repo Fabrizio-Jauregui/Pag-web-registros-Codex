@@ -209,6 +209,22 @@ test("rechaza registros manuales menores a un segundo y mayores a 24 horas, y pe
     assert.equal(futuro.error, "El fin no puede ser posterior a la hora actual.")
 })
 
+test("solo impide registros que se solapan con una concentración Focus", () => {
+    const concentracion = iniciarRegistro(
+        [], "Concentración", fecha(0), () => "concentracion-focus", null, null, null, { origenFocus: true }
+    )
+    const concentracionFinalizada = finalizarRegistro(concentracion.registros, "concentracion-focus", fecha(5000))
+    const posterior = crearRegistroManual(concentracionFinalizada.registros, {
+        nombre: "Almuerzo", inicio: fecha(5000), fin: fecha(10000)
+    }, () => "almuerzo-posterior", fecha(10000))
+    const solapado = crearRegistroManual(concentracionFinalizada.registros, {
+        nombre: "Actividad simultánea", inicio: fecha(4000), fin: fecha(6000)
+    }, () => "actividad-solapada", fecha(10000))
+
+    assert.equal(posterior.ok, true)
+    assert.match(solapado.error, /se superpone con la concentración Focus/)
+})
+
 test("da un error específico cuando el inicio manual no tiene una fecha válida", () => {
     const resultado = crearRegistroManual([], {
         nombre: "Lectura",

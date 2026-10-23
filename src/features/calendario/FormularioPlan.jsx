@@ -21,6 +21,7 @@ function crearValoresIniciales(plan, fechaSeleccionada, valoresIniciales = null)
 }
 
 export function FormularioPlan({ plan = null, fechaSeleccionada, eventos, onGuardar, onCrearRecurrencia, onCancelar, valoresIniciales = null }) {
+    const esSesionFocus = plan?.tipoPlanificacion === "focus"
     const [repetirSemanalmente, cambiarRepetirSemanalmente] = useState(false)
     const [diasSemana, cambiarDiasSemana] = useState(() => [fechaSeleccionada.getDay()])
     const [fechaFinSerie, cambiarFechaFinSerie] = useState("")
@@ -90,11 +91,11 @@ export function FormularioPlan({ plan = null, fechaSeleccionada, eventos, onGuar
     return (
         <section className="formulario-plan" aria-labelledby="titulo-formulario-plan">
             <h3 id="titulo-formulario-plan">{plan ? "Editar actividad planificada" : "Planificar actividad"}</h3>
-            <p>Este bloque representa lo que pensás hacer; los registros miden el tiempo real.</p>
+            <p>{esSesionFocus ? "Sesión Focus planificada: el fin se calcula desde sus bloques." : "Este bloque representa lo que pensás hacer; los registros miden el tiempo real."}</p>
             <form aria-labelledby="titulo-formulario-plan" onSubmit={guardar} onKeyDown={evento => {
                 if (evento.key === "Escape") { evento.preventDefault(); onCancelar() }
             }}>
-                <label>
+                {!esSesionFocus && <label>
                     <span>Plantilla de evento (opcional)</span>
                     <select
                         ref={eventoRef}
@@ -113,7 +114,7 @@ export function FormularioPlan({ plan = null, fechaSeleccionada, eventos, onGuar
                         <option value="">Sin plantilla</option>
                         {eventos.map(evento => <option key={evento.id} value={evento.id}>{evento.nombre}</option>)}
                     </select>
-                </label>
+                </label>}
                 <label>
                     <span>Nombre de la actividad</span>
                     <input
@@ -129,16 +130,23 @@ export function FormularioPlan({ plan = null, fechaSeleccionada, eventos, onGuar
                     <label>
                         <span>Inicio</span>
                         <input ref={inicioRef} type="datetime-local" step="1" value={valores.inicio}
-                            onChange={evento => cambiar("inicio", evento.target.value)} required />
+                            onChange={evento => {
+                                if (!esSesionFocus) { cambiar("inicio", evento.target.value); return }
+                                const inicio = leerValorFechaHoraLocal(evento.target.value)
+                                const duracionMs = plan.configuracionFocus.bloques.reduce((total, bloque) => total + bloque.minutos * 60000, 0)
+                                if (inicio) cambiarValores(actuales => ({ ...actuales, inicio: evento.target.value, fin: valorFechaHora(new Date(inicio.getTime() + duracionMs)) }))
+                            }} required />
                     </label>
-                    <label>
+                    {!esSesionFocus && <label>
                         <span>Fin</span>
                         <input ref={finRef} type="datetime-local" step="1" value={valores.fin}
                             onChange={evento => cambiar("fin", evento.target.value)} required />
-                    </label>
+                    </label>}
                 </div>
-                <p className="ayuda-horario-plan">Si termina otro día, elegí explícitamente la fecha de ese día.</p>
-                {!plan && <fieldset className="recurrencia-plan-campos">
+                {esSesionFocus
+                    ? <p className="ayuda-horario-plan">Duración: {plan.configuracionFocus.bloques.reduce((total, bloque) => total + bloque.minutos, 0)} minutos. El horario de fin se ajustará automáticamente.</p>
+                    : <p className="ayuda-horario-plan">Si termina otro día, elegí explícitamente la fecha de ese día.</p>}
+                {!esSesionFocus && !plan && <fieldset className="recurrencia-plan-campos">
                     <legend>Repetición</legend>
                     <label><input type="checkbox" checked={repetirSemanalmente} onChange={evento => cambiarRepetirSemanalmente(evento.target.checked)} /> Repetir semanalmente</label>
                     {repetirSemanalmente && <>

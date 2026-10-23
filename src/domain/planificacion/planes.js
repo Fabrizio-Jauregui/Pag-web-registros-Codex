@@ -23,6 +23,23 @@ export function validarPlan(plan) {
     if (!(plan.inicio instanceof Date) || !Number.isFinite(plan.inicio.getTime())) {
         return "Elegí una fecha y hora de inicio válidas."
     }
+    if (plan.tipoPlanificacion === "focus") {
+        const bloques = plan.configuracionFocus?.bloques
+        if (typeof plan.configuracionFocus?.nombre !== "string" || !plan.configuracionFocus.nombre.trim()
+            || !Array.isArray(bloques) || bloques.length === 0 || bloques.some(bloque => (
+                typeof bloque?.nombre !== "string" || !bloque.nombre.trim()
+                || !["concentracion", "descanso"].includes(bloque.tipo)
+                || !Number.isInteger(bloque.minutos) || bloque.minutos < 1
+                || bloque.minutos > (bloque.tipo === "concentracion" ? 180 : 60)
+            ))) {
+            return "La sesión Focus planificada no tiene bloques válidos."
+        }
+        const duracion = bloques.reduce((total, bloque) => total + bloque.minutos * 60 * 1000, 0)
+        if (duracion <= 0 || duracion > 24 * 60 * 60 * 1000 || !(plan.fin instanceof Date)
+            || plan.fin.getTime() - plan.inicio.getTime() !== duracion) {
+            return "El horario de la sesión Focus debe coincidir con la duración de sus bloques."
+        }
+    }
     if (plan.modoSeguimientoPlanificacion === "cronometro") {
         if (plan.fin !== null) return "Los eventos de cronómetro no tienen una hora de fin planificada."
         return null
@@ -47,6 +64,28 @@ export function validarColeccionPlanes(planes) {
         ids.add(plan.id)
         return true
     })
+}
+
+export function validarCompatibilidadPlanesFocus(planes, idsModificados) {
+    const ids = idsModificados instanceof Set ? idsModificados : new Set(idsModificados ?? [])
+    for (const focus of planes.filter(plan => plan.tipoPlanificacion === "focus")) {
+        let desplazamiento = 0
+        for (const bloque of focus.configuracionFocus?.bloques ?? []) {
+            const duracion = bloque.minutos * 60000
+            if (bloque.tipo === "concentracion") {
+                const inicio = focus.inicio.getTime() + desplazamiento
+                const fin = inicio + duracion
+                for (const otro of planes) {
+                    if (otro.id === focus.id || (!ids.has(focus.id) && !ids.has(otro.id)) || !otro.fin) continue
+                    if (otro.inicio.getTime() < fin && otro.fin.getTime() > inicio) {
+                        return `"${otro.nombre}" coincide con un período de concentración de "${focus.nombre}". Reubicá el plan; los descansos de Focus sí admiten actividades.`
+                    }
+                }
+            }
+            desplazamiento += duracion
+        }
+    }
+    return null
 }
 
 export function crearPlan({ nombre, evento = null, inicio, fin, ordenSeguimiento }, generarId = () => globalThis.crypto.randomUUID()) {
@@ -89,13 +128,18 @@ export function compararPlanesPorSeguimiento(a, b) {
 export function actualizarPlan(planes, id, cambios) {
     const actual = planes.find(plan => plan.id === id)
     if (!actual) return { ok: false, error: "No se encontró el plan que querés editar." }
+    const inicio = cambios.inicio
+    const duracionFocus = actual.tipoPlanificacion === "focus"
+        ? actual.configuracionFocus.bloques.reduce((total, bloque) => total + bloque.minutos * 60 * 1000, 0)
+        : null
     const plan = {
         ...actual,
-        nombre: cambios.evento?.nombre ?? cambios.nombre,
-        eventoId: cambios.evento?.id ?? null,
-        colorEvento: cambios.evento?.color ?? COLOR_PLAN_PREDETERMINADO,
-        inicio: cambios.inicio,
-        fin: cambios.fin
+        nombre: actual.tipoPlanificacion === "focus" ? cambios.nombre : cambios.evento?.nombre ?? cambios.nombre,
+        eventoId: actual.tipoPlanificacion === "focus" ? null : cambios.evento?.id ?? null,
+        colorEvento: actual.tipoPlanificacion === "focus" ? actual.colorEvento : cambios.evento?.color ?? COLOR_PLAN_PREDETERMINADO,
+        inicio,
+        fin: duracionFocus === null ? cambios.fin : new Date(inicio.getTime() + duracionFocus),
+        ...(actual.tipoPlanificacion === "focus" ? { configuracionFocus: { ...actual.configuracionFocus, nombre: cambios.nombre?.trim() } } : {})
     }
     const error = validarPlan(plan)
     if (error) return { ok: false, error }

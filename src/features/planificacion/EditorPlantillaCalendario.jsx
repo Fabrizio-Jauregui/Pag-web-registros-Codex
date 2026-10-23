@@ -52,7 +52,7 @@ function convertirPlantillaAEditor(plantilla) {
     }))]
 }
 
-export function EditorPlantillaCalendario({ plantilla = null, eventos, onGuardar, onCancelar, modoInicial = "secuencias" }) {
+export function EditorPlantillaCalendario({ plantilla = null, eventos, plantillasFocus = [], onGuardar, onCancelar, modoInicial = "secuencias" }) {
     const [modoEdicion] = useState(plantilla?.modo === "cronometro" ? "cronometro" : modoInicial)
     const [nombre, cambiarNombre] = useState(plantilla?.nombre ?? "")
     const [actividades, cambiarActividades] = useState(() => convertirPlantillaAEditor(plantilla))
@@ -87,6 +87,16 @@ export function EditorPlantillaCalendario({ plantilla = null, eventos, onGuardar
     function actualizar(id, cambios) {
         cambiarActividades(actuales => actuales.map(actividad => actividad.id === id ? { ...actividad, ...cambios } : actividad))
         cambiarError("")
+    }
+    function seleccionarFocus(id, plantillaFocusId) {
+        const seleccionFocus = plantillasFocus.find(item => item.id === plantillaFocusId)
+        if (!seleccionFocus) {
+            actualizar(id, { tipoActividad: undefined, plantillaFocusId: undefined, configuracionFocus: undefined, duracionSegundos: 1800, eventoId: null })
+            return
+        }
+        const configuracionFocus = structuredClone(seleccionFocus.configuracion)
+        const duracionSegundos = configuracionFocus.bloques.reduce((total, bloque) => total + Number(bloque.minutos) * 60, 0)
+        actualizar(id, { tipoActividad: "focus", plantillaFocusId: seleccionFocus.id, configuracionFocus, eventoId: null, nombre: configuracionFocus.nombre, duracionSegundos, duracionTexto: undefined })
     }
     function agregarAlFinal() {
         if (!seleccion) return
@@ -141,7 +151,7 @@ export function EditorPlantillaCalendario({ plantilla = null, eventos, onGuardar
         if (!nombre.trim()) { cambiarError("Escribí el nombre de la plantilla."); return }
         if (actividades.length < 2) { cambiarError("Agregá al menos dos actividades a la plantilla."); return }
         for (const actividad of actividades) {
-            if (!actividad.nombre.trim() && !actividad.eventoId) { cambiarError("Escribí un nombre o elegí un evento para cada actividad."); return }
+            if (actividad.tipoActividad !== "focus" && !actividad.nombre.trim() && !actividad.eventoId) { cambiarError("Escribí un nombre o elegí un evento para cada actividad."); return }
             const duracionEnCampo = actividad.duracionTexto === undefined ? actividad.duracionSegundos : leerHora(actividad.duracionTexto)
             if (!Number.isInteger(duracionEnCampo) || duracionEnCampo <= 0 || duracionEnCampo > 86400) { cambiarError("Cada duración debe ser mayor que cero y usar HH:MM:SS."); return }
             if (!Number.isInteger(actividad.duracionSegundos) || actividad.duracionSegundos <= 0 || actividad.duracionSegundos > 86400) { cambiarError("Cada duración debe ser mayor que cero y no superar 24 horas."); return }
@@ -156,6 +166,7 @@ export function EditorPlantillaCalendario({ plantilla = null, eventos, onGuardar
             actividades: total.map(actividad => ({
                 id: actividad.id, nombre: (eventos.find(evento => evento.id === actividad.eventoId)?.nombre ?? actividad.nombre).trim(),
                 eventoId: actividad.eventoId ?? null, duracionSegundos: actividad.duracionSegundos,
+                ...(actividad.tipoActividad === "focus" ? { tipoActividad: "focus", plantillaFocusId: actividad.plantillaFocusId, configuracionFocus: structuredClone(actividad.configuracionFocus) } : {}),
                 secuenciaId: actividad.secuenciaId, ordenSecuencia: actividad.ordenSecuencia,
                 anclaActividadId: actividad.anclaActividadId ?? null,
                 desplazamientoAnclaSegundos: actividad.desplazamientoAnclaSegundos ?? 0,
@@ -166,7 +177,7 @@ export function EditorPlantillaCalendario({ plantilla = null, eventos, onGuardar
         onCancelar()
     }
 
-    if (modoEdicion === "cronometro") return <EditorPlantillaCronometro plantilla={plantilla} eventos={eventos} onGuardar={onGuardar} onCancelar={onCancelar} />
+    if (modoEdicion === "cronometro") return <EditorPlantillaCronometro plantilla={plantilla} eventos={eventos} plantillasFocus={plantillasFocus} onGuardar={onGuardar} onCancelar={onCancelar} />
 
     return <section className="editor-plantilla-calendario" aria-labelledby="titulo-editor-plantilla">
         <header><div><p className="editor-plantilla-etiqueta">Diseñador de secuencias</p><h3 id="titulo-editor-plantilla">{plantilla?.id ? `Editar: ${plantilla.nombre}` : "Crear plantilla"}</h3><p>Las actividades de una secuencia empiezan cuando termina la anterior. Para solapar, seleccioná una actividad y agregá una secuencia paralela.</p></div><button type="button" onClick={onCancelar}>Cancelar</button></header>
@@ -212,8 +223,10 @@ export function EditorPlantillaCalendario({ plantilla = null, eventos, onGuardar
                         const calculada = actividadesCalculadas.find(item => item.id === actividad.id)
                         return <fieldset key={actividad.id} className={seleccionada === actividad.id ? "editor-plantilla-actividad seleccionada" : "editor-plantilla-actividad"} draggable onDragStart={evento => evento.dataTransfer.setData("text/plain", actividad.id)} onDragOver={evento => evento.preventDefault()} onDrop={evento => { evento.preventDefault(); moverDentroDeSecuencia(evento.dataTransfer.getData("text/plain"), actividad.id) }} onClick={() => cambiarSeleccionada(actividad.id)}>
                             <legend>Actividad {indice + 1}</legend>
+                            <label>Tipo<select aria-label={`Tipo de actividad ${indice + 1}`} value={actividad.tipoActividad === "focus" ? "focus" : "normal"} onChange={e => e.target.value === "focus" ? seleccionarFocus(actividad.id, plantillasFocus[0]?.id ?? "") : seleccionarFocus(actividad.id, "")}><option value="normal">Actividad</option><option value="focus" disabled={!plantillasFocus.length}>Sesión Focus</option></select></label>
+                            {actividad.tipoActividad === "focus" && <label>Plantilla Focus<select aria-label={`Plantilla Focus ${indice + 1}`} value={actividad.plantillaFocusId ?? ""} onChange={e => seleccionarFocus(actividad.id, e.target.value)}><option value="">Elegí una plantilla</option>{plantillasFocus.map(item => <option key={item.id} value={item.id}>{item.nombrePlantilla} · {item.configuracion.nombre}</option>)}</select></label>}
                             <small className="editor-secuencia-tiempo">Empieza en +{hora(calculada?.inicioDesplazamientoSegundos ?? 0)} · dura {hora(actividad.duracionSegundos)}</small>
-                            <label>Evento (opcional)<select value={actividad.eventoId ?? ""} onChange={e => {
+                            {actividad.tipoActividad !== "focus" && <><label>Evento (opcional)<select value={actividad.eventoId ?? ""} onChange={e => {
                                 const seleccionado = eventos.find(item => item.id === e.target.value)
                                 actualizar(actividad.id, { eventoId: seleccionado?.id ?? null, ...(seleccionado ? { nombre: seleccionado.nombre } : {}) })
                             }}><option value="">Sin evento</option>{eventos.map(item => <option key={item.id} value={item.id}>{item.nombre}</option>)}</select></label>
@@ -225,7 +238,8 @@ export function EditorPlantillaCalendario({ plantilla = null, eventos, onGuardar
                                 const valor = leerHora(actividad.duracionTexto ?? "")
                                 if (valor === null || valor <= 0) cambiarError("La duración debe ser mayor que cero y usar el formato HH:MM:SS.")
                                 else actualizar(actividad.id, { duracionSegundos: valor, duracionTexto: undefined })
-                            }} /></label>
+                            }} /></label></>}
+                            {actividad.tipoActividad === "focus" && <p>Sesión Focus · {actividad.configuracionFocus.bloques.length} bloques; el calendario reservará su duración completa.</p>}
                             <div className="editor-secuencia-reordenar"><button type="button" disabled={indice === 0} onClick={() => moverDentroDeSecuencia(actividad.id, grupo[indice - 1]?.id)}>Subir</button><button type="button" disabled={indice === grupo.length - 1} onClick={() => moverDentroDeSecuencia(actividad.id, grupo[indice + 1]?.id)}>Bajar</button><button type="button" onClick={() => quitar(actividad.id)}>Quitar actividad</button></div>
                         </fieldset>
                     })}
@@ -237,7 +251,7 @@ export function EditorPlantillaCalendario({ plantilla = null, eventos, onGuardar
     </section>
 }
 
-function EditorPlantillaCronometro({ plantilla, eventos, onGuardar, onCancelar }) {
+function EditorPlantillaCronometro({ plantilla, eventos, plantillasFocus = [], onGuardar, onCancelar }) {
     const crearGrupo = (actividades = []) => Math.max(-1, ...actividades.map(item => item.grupoCronometro ?? -1)) + 1
     const [nombre, cambiarNombre] = useState(plantilla?.nombre ?? "")
     const [actividades, cambiarActividades] = useState(() => {
@@ -255,6 +269,12 @@ function EditorPlantillaCronometro({ plantilla, eventos, onGuardar, onCancelar }
 
     function actualizar(id, cambios) {
         cambiarActividades(actuales => actuales.map(item => item.id === id ? { ...item, ...cambios } : item))
+    }
+    function seleccionarFocus(id, focusId) {
+        const seleccionFocus = plantillasFocus.find(item => item.id === focusId)
+        if (!seleccionFocus) return actualizar(id, { tipoActividad: undefined, plantillaFocusId: undefined, configuracionFocus: undefined, eventoId: null })
+        const configuracionFocus = structuredClone(seleccionFocus.configuracion)
+        actualizar(id, { tipoActividad: "focus", plantillaFocusId: seleccionFocus.id, configuracionFocus, eventoId: null, nombre: configuracionFocus.nombre })
     }
     function agregarSiguiente(id) {
         const seleccionado = actividades.find(item => item.id === id)
@@ -289,12 +309,12 @@ function EditorPlantillaCronometro({ plantilla, eventos, onGuardar, onCancelar }
     function guardar() {
         if (!nombre.trim()) { cambiarError("Escribí el nombre de la plantilla."); return }
         if (actividades.length < 2) { cambiarError("Agregá al menos dos eventos."); return }
-        if (actividades.some(item => !item.nombre.trim() && !item.eventoId)) { cambiarError("Escribí un nombre o elegí un evento para cada actividad."); return }
+        if (actividades.some(item => item.tipoActividad !== "focus" && !item.nombre.trim() && !item.eventoId)) { cambiarError("Escribí un nombre o elegí un evento para cada actividad."); return }
         const indices = new Map()
         const items = actividades.map(item => {
             if (!indices.has(item.grupoCronometro)) indices.set(item.grupoCronometro, indices.size)
             const evento = eventos.find(elemento => elemento.id === item.eventoId)
-            return { id: item.id, nombre: (evento?.nombre ?? item.nombre).trim(), eventoId: item.eventoId ?? null, grupoCronometro: indices.get(item.grupoCronometro), ordenSecuencia: indices.get(item.grupoCronometro) }
+            return { id: item.id, nombre: (evento?.nombre ?? item.nombre).trim(), eventoId: item.eventoId ?? null, ...(item.tipoActividad === "focus" ? { tipoActividad: "focus", plantillaFocusId: item.plantillaFocusId, configuracionFocus: structuredClone(item.configuracionFocus) } : {}), grupoCronometro: indices.get(item.grupoCronometro), ordenSecuencia: indices.get(item.grupoCronometro) }
         })
         const resultado = onGuardar({ id: plantilla?.id, nombre: nombre.trim(), modo: "cronometro", actividades: items })
         if (!resultado.ok) { cambiarError(resultado.error); return }
@@ -310,7 +330,9 @@ function EditorPlantillaCronometro({ plantilla, eventos, onGuardar, onCancelar }
                 <div className="editor-cronometro-eventos">
                 {actividades.filter(item => item.grupoCronometro === grupo).map((actividad, indice) => <fieldset className="editor-plantilla-actividad" key={actividad.id}>
                     <legend>Evento {indice + 1}</legend>
-                    <label>Evento (opcional)<select value={actividad.eventoId ?? ""} onChange={e => { const evento = eventos.find(item => item.id === e.target.value); actualizar(actividad.id, { eventoId: evento?.id ?? null, ...(evento ? { nombre: evento.nombre } : {}) }) }}><option value="">Sin evento</option>{eventos.map(item => <option key={item.id} value={item.id}>{item.nombre}</option>)}</select></label>
+                    <label>Tipo<select aria-label={`Tipo de evento ${indice + 1}`} value={actividad.tipoActividad === "focus" ? "focus" : "normal"} onChange={e => e.target.value === "focus" ? seleccionarFocus(actividad.id, plantillasFocus[0]?.id ?? "") : seleccionarFocus(actividad.id, "")}><option value="normal">Actividad</option><option value="focus" disabled={!plantillasFocus.length}>Sesión Focus</option></select></label>
+                    {actividad.tipoActividad === "focus" && <label>Plantilla Focus<select aria-label={`Plantilla Focus ${indice + 1}`} value={actividad.plantillaFocusId ?? ""} onChange={e => seleccionarFocus(actividad.id, e.target.value)}><option value="">Elegí una plantilla</option>{plantillasFocus.map(item => <option key={item.id} value={item.id}>{item.nombrePlantilla} · {item.configuracion.nombre}</option>)}</select></label>}
+                    {actividad.tipoActividad !== "focus" && <label>Evento (opcional)<select value={actividad.eventoId ?? ""} onChange={e => { const evento = eventos.find(item => item.id === e.target.value); actualizar(actividad.id, { eventoId: evento?.id ?? null, ...(evento ? { nombre: evento.nombre } : {}) }) }}><option value="">Sin evento</option>{eventos.map(item => <option key={item.id} value={item.id}>{item.nombre}</option>)}</select></label>}
                     <label>Nombre<input aria-label="Nombre" value={eventos.find(item => item.id === actividad.eventoId)?.nombre ?? actividad.nombre} disabled={Boolean(actividad.eventoId)} maxLength={80} onChange={e => actualizar(actividad.id, { nombre: e.target.value })} /></label>
                     <div className="editor-secuencia-reordenar"><button type="button" onClick={() => mover(actividad.id, -1)} disabled={actividades[0]?.id === actividad.id}>Subir</button><button type="button" onClick={() => mover(actividad.id, 1)} disabled={actividades.at(-1)?.id === actividad.id}>Bajar</button><button type="button" onClick={() => agregarSiguiente(actividad.id)}>Agregar etapa siguiente</button><button type="button" onClick={() => agregarParalelo(grupo)}>Agregar en paralelo</button><button type="button" disabled={actividades.length <= 2} onClick={() => quitar(actividad.id)}>Quitar evento</button></div>
                 </fieldset>)}
