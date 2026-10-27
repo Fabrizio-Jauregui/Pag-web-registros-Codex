@@ -24,10 +24,10 @@ import {
 } from "../domain/eventos/persistenciaEventos.js"
 import { crearCategoria, actualizarCategoria, eliminarCategoria } from "../domain/categorias/categorias.js"
 import { cargarCategorias, guardarCategorias } from "../domain/categorias/persistenciaCategorias.js"
-import { crearPlan, actualizarPlan, eliminarAplicacionPlan, eliminarPlan, compararPlanesPorSeguimiento, validarCompatibilidadPlanesFocus } from "../domain/planificacion/planes.js"
-import { cargarPlanes, guardarPlanes } from "../domain/planificacion/persistenciaPlanes.js"
+import { crearPlan, actualizarPlan, eliminarAplicacionPlan, eliminarPlan, eliminarPlanesDePlantilla, compararPlanesPorSeguimiento, validarCompatibilidadPlanesFocus } from "../domain/planificacion/planes.js"
+import { cargarPlanes, guardarPlanes, CLAVE_PLANES } from "../domain/planificacion/persistenciaPlanes.js"
 import { formatearFechaISO } from "../domain/tiempo/FechaCalendario.js"
-import { cargarRecurrencias, guardarRecurrencias, crearReglaRecurrencia, cambiarRecurrencia, eliminarRecurrencia, generarAparicionesRecurrencia } from "../domain/planificacion/recurrencias.js"
+import { cargarRecurrencias, guardarRecurrencias, crearReglaRecurrencia, cambiarRecurrencia, eliminarRecurrencia, eliminarRecurrenciasDePlantilla, generarAparicionesRecurrencia, CLAVE_RECURRENCIAS } from "../domain/planificacion/recurrencias.js"
 import {
     aplicarPlantillaPlanificacion,
     actualizarPlantillaPlanificacion,
@@ -37,8 +37,11 @@ import {
 } from "../domain/planificacion/plantillasPlanificacion.js"
 import {
     cargarPlantillasPlanificacion,
-    guardarPlantillasPlanificacion
+    guardarPlantillasPlanificacion,
+    CLAVE_PLANTILLAS_PLANIFICACION
 } from "../domain/planificacion/persistenciaPlantillasPlanificacion.js"
+import { CLAVE_SEGUIMIENTO_PLANIFICACION } from "../domain/planificacion/persistenciaSeguimientoPlanificacion.js"
+import { ejecutarTransaccionAlmacenamiento } from "../domain/planificacion/transaccionAlmacenamiento.js"
 import { BibliotecaPlantillasPlanificacion } from "../features/planificacion/BibliotecaPlantillasPlanificacion.jsx"
 import { useSeguimientoPlanificacion } from "../features/planificacion/usoSeguimientoPlanificacion.js"
 import { PanelSeguimientoPlanificacion } from "../features/planificacion/SeguimientoPlanificacion.jsx"
@@ -349,7 +352,15 @@ export function App() {
         }
         const plan = crearPlan(cambios)
         if (!plan.ok) return plan
-        const creada = crearReglaRecurrencia(plan.plan, cambios.diasSemana, cambios.fechaFin)
+        const planBase = planesSeguimiento.find(item => item.id === seguimientoPlanificacion.estado.secuencia[0]?.planId)
+        const plantillaOrigenId = cambios.plantillaOrigenId ?? planBase?.plantillaOrigenId
+        const plantillaOrigenNombre = cambios.plantillaOrigenNombre ?? planBase?.plantillaOrigenNombre
+        const planConOrigen = {
+            ...plan.plan,
+            ...(plantillaOrigenId ? { plantillaOrigenId } : {}),
+            ...(plantillaOrigenNombre ? { plantillaOrigenNombre } : {})
+        }
+        const creada = crearReglaRecurrencia(planConOrigen, cambios.diasSemana, cambios.fechaFin)
         if (!creada.ok) return creada
         const sesion = seguimientoPlanificacion.estado
         const fecha = new Date(sesion.secuencia[sesion.indiceActual].inicioPrevisto)
@@ -531,11 +542,69 @@ export function App() {
         return confirmarPlantillasPlan(resultado.plantillas)
     }
 
-    function eliminarPlantillaPlan(id) {
+    function eliminarPlantillaPlan(id, opciones = {}) {
         if (!estadoPlantillasPlan.ok) return { ok: false, error: estadoPlantillasPlan.error }
-        const resultado = eliminarPlantillaPlanificacion(estadoPlantillasPlan.plantillas, id)
-        if (!resultado.ok) return resultado
-        return confirmarPlantillasPlan(resultado.plantillas)
+        const plantilla = estadoPlantillasPlan.plantillas.find(item => item.id === id)
+        if (!plantilla) return { ok: false, error: "No se encontró la plantilla de planificación." }
+        if (!opciones.alcance || opciones.alcance === "conservar") {
+            const resultado = eliminarPlantillaPlanificacion(estadoPlantillasPlan.plantillas, id)
+            if (!resultado.ok) return resultado
+            return confirmarPlantillasPlan(resultado.plantillas)
+        }
+        if (!estadoPlanes.ok || !estadoRecurrencias.ok) {
+            return { ok: false, error: "No se pudieron cargar planes y recurrencias; no se modificó ningún dato." }
+        }
+        const ahora = opciones.ahora instanceof Date ? opciones.ahora : new Date()
+        const plantillasNuevas = eliminarPlantillaPlanificacion(estadoPlantillasPlan.plantillas, id)
+        if (!plantillasNuevas.ok) return plantillasNuevas
+        const planesNuevos = eliminarPlanesDePlantilla(estadoPlanes.planes, id, opciones.alcance, ahora)
+        if (!planesNuevos.ok) return planesNuevos
+        const recurrenciasNuevas = eliminarRecurrenciasDePlantilla(
+            estadoRecurrencias.reglas,
+            id,
+            opciones.alcance,
+            { ahora, idsLegado: opciones.idsRecurrenciasLegado ?? [], plantillaOrigenNombre: plantilla.nombre }
+        )
+        if (!recurrenciasNuevas.ok) return recurrenciasNuevas
+
+        const sesion = seguimientoPlanificacion.estado
+        if (sesion) {
+            const idsEnSeguimiento = new Set(sesion.secuencia.map(item => item.planId))
+            const seriesBorradas = new Set(recurrenciasNuevas.seriesAfectadas)
+            const idsRecurrenciasOriginales = new Set(estadoRecurrencias.reglas
+                .filter(regla => regla.plantillaOrigenId === id || (opciones.idsRecurrenciasLegado ?? []).includes(regla.id))
+                .filter(regla => seriesBorradas.has(regla.idSerie ?? regla.id))
+                .map(regla => regla.id))
+            const planesEliminados = planesNuevos.eliminados
+            const aparicionesSeguimientoAfectadas = planesSeguimiento.filter(plan => idsEnSeguimiento.has(plan.id)
+                && ((plan.plantillaOrigenId === id && (opciones.alcance === "todas" || plan.inicio >= ahora))
+                    || (plan.idRecurrencia && idsRecurrenciasOriginales.has(plan.idRecurrencia))))
+            if (planesEliminados.some(plan => idsEnSeguimiento.has(plan.id)) || aparicionesSeguimientoAfectadas.length > 0) {
+                return { ok: false, error: "No se pueden borrar planes que forman parte del seguimiento activo. Podés borrar solo la plantilla y conservar sus planes." }
+            }
+        }
+
+        const guardado = ejecutarTransaccionAlmacenamiento([
+            CLAVE_PLANTILLAS_PLANIFICACION,
+            CLAVE_PLANES,
+            CLAVE_RECURRENCIAS,
+            CLAVE_SEGUIMIENTO_PLANIFICACION
+        ], almacenamiento => {
+            const plantillasGuardadas = guardarPlantillasPlanificacion(plantillasNuevas.plantillas, almacenamiento)
+            if (!plantillasGuardadas.ok) return plantillasGuardadas
+            const planesGuardados = guardarPlanes(planesNuevos.planes, almacenamiento)
+            if (!planesGuardados.ok) return planesGuardados
+            const recurrenciasGuardadas = guardarRecurrencias(recurrenciasNuevas.reglas, almacenamiento)
+            if (!recurrenciasGuardadas.ok) return recurrenciasGuardadas
+            const sincronizacion = sincronizarSeguimiento(planesNuevos.planes, recurrenciasNuevas.reglas)
+            if (!sincronizacion.ok) return sincronizacion
+            return { ok: true }
+        })
+        if (!guardado.ok) return guardado
+        cambiarEstadoPlantillasPlan({ ok: true, plantillas: plantillasNuevas.plantillas })
+        cambiarEstadoPlanes({ ok: true, planes: planesNuevos.planes })
+        cambiarEstadoRecurrencias({ ok: true, reglas: recurrenciasNuevas.reglas })
+        return { ok: true }
     }
 
     function aplicarPlantillaPlan(id, fecha, permitirDuplicado, horaInicioSegundos) {
@@ -568,7 +637,11 @@ export function App() {
         const resultadoPlan = crearPlan(cambios)
         if (!resultadoPlan.ok) return resultadoPlan
         if (cambios.fechaFin && cambios.fechaFin < formatearFechaISO(cambios.inicio)) return { ok: false, error: "La fecha final debe ser igual o posterior al primer día." }
-        const resultado = crearReglaRecurrencia(resultadoPlan.plan, cambios.diasSemana, cambios.fechaFin)
+        const planConOrigen = cambios.plantillaOrigenId
+            ? { ...resultadoPlan.plan, plantillaOrigenId: cambios.plantillaOrigenId,
+                ...(cambios.plantillaOrigenNombre ? { plantillaOrigenNombre: cambios.plantillaOrigenNombre } : {}) }
+            : resultadoPlan.plan
+        const resultado = crearReglaRecurrencia(planConOrigen, cambios.diasSemana, cambios.fechaFin)
         if (!resultado.ok) return resultado
         return confirmarRecurrencias([...estadoRecurrencias.reglas, resultado.regla])
     }
@@ -806,14 +879,7 @@ export function App() {
 
     return (
         <ProveedorReloj activo={estadoRegistro.registrosActivos.length > 0}>
-        <main className={esVistaFocus
-            ? "app-shell app-shell-focus"
-            : vistaPrincipal === "plantillas-plan"
-                ? "app-shell app-shell-planificaciones"
-                : vistaPrincipal === "analitica" ? "app-shell app-shell-analitica"
-                    : vistaPrincipal === "historial" ? "app-shell app-shell-historial"
-                    : vistaPrincipal === "tareas" ? "app-shell app-shell-tareas"
-                        : vistaPrincipal === "eventos" ? "app-shell app-shell-eventos" : "app-shell"}>
+        <main className="app-shell">
             <header className="app-header">
                 <div className="app-brand-group">
                     <h1 className="app-brand">Focus</h1>
@@ -833,6 +899,58 @@ export function App() {
                     </button>
                 </div>
             </header>
+
+            <nav className="app-navigation" aria-label="Secciones de Focus">
+                <button
+                    type="button"
+                    aria-pressed={vistaPrincipal === "calendario"}
+                    onClick={() => cambiarVistaPrincipal("calendario")}
+                >
+                    Calendario
+                </button>
+                <button
+                    type="button"
+                    aria-pressed={vistaPrincipal === "focus"}
+                    onClick={() => cambiarVistaPrincipal("focus")}
+                >
+                    Focus
+                </button>
+                <button
+                    type="button"
+                    aria-pressed={vistaPrincipal === "historial"}
+                    onClick={() => cambiarVistaPrincipal("historial")}
+                >
+                    Historial
+                </button>
+                <button
+                    type="button"
+                    aria-pressed={vistaPrincipal === "eventos"}
+                    onClick={() => cambiarVistaPrincipal("eventos")}
+                >
+                    Eventos
+                </button>
+                <button
+                    type="button"
+                    aria-pressed={vistaPrincipal === "plantillas-plan"}
+                    onClick={() => cambiarVistaPrincipal("plantillas-plan")}
+                >
+                    Planificaciones
+                </button>
+                <button
+                    type="button"
+                    aria-pressed={vistaPrincipal === "analitica"}
+                    onClick={() => cambiarVistaPrincipal("analitica")}
+                >
+                    Analítica
+                </button>
+                <button
+                    type="button"
+                    aria-pressed={vistaPrincipal === "tareas"}
+                    onClick={() => cambiarVistaPrincipal("tareas")}
+                >
+                    Tareas
+                </button>
+            </nav>
 
             <div className={esVistaFocus
                 ? "app-content app-content-focus"
@@ -868,57 +986,6 @@ export function App() {
                 />
 
                 <aside className="panel-herramientas" aria-label="Panel de herramientas">
-                    <nav className="app-navigation" aria-label="Secciones de Focus">
-                        <button
-                            type="button"
-                            aria-pressed={vistaPrincipal === "calendario"}
-                            onClick={() => cambiarVistaPrincipal("calendario")}
-                        >
-                            Calendario
-                        </button>
-                        <button
-                            type="button"
-                            aria-pressed={vistaPrincipal === "focus"}
-                            onClick={() => cambiarVistaPrincipal("focus")}
-                        >
-                            Focus
-                        </button>
-                        <button
-                            type="button"
-                            aria-pressed={vistaPrincipal === "historial"}
-                            onClick={() => cambiarVistaPrincipal("historial")}
-                        >
-                            Historial
-                        </button>
-                        <button
-                            type="button"
-                            aria-pressed={vistaPrincipal === "eventos"}
-                            onClick={() => cambiarVistaPrincipal("eventos")}
-                        >
-                            Eventos
-                        </button>
-                        <button
-                            type="button"
-                            aria-pressed={vistaPrincipal === "plantillas-plan"}
-                            onClick={() => cambiarVistaPrincipal("plantillas-plan")}
-                        >
-                            Planificaciones
-                        </button>
-                        <button
-                            type="button"
-                            aria-pressed={vistaPrincipal === "analitica"}
-                            onClick={() => cambiarVistaPrincipal("analitica")}
-                        >
-                            Analítica
-                        </button>
-                        <button
-                            type="button"
-                            aria-pressed={vistaPrincipal === "tareas"}
-                            onClick={() => cambiarVistaPrincipal("tareas")}
-                        >
-                            Tareas
-                        </button>
-                    </nav>
                     <div className="panel-herramientas-contenido">
                         <PanelSeguimientoPlanificacion
                             seguimiento={seguimientoPlanificacion}
@@ -1009,6 +1076,11 @@ export function App() {
                         plantillasFocus={estadoPlantillasFocus.ok ? estadoPlantillasFocus.plantillas : []}
                                 eventos={plantillas}
                                 errorCarga={estadoPlantillasPlan.ok ? "" : estadoPlantillasPlan.error}
+                                planes={estadoPlanes.ok ? estadoPlanes.planes : []}
+                                recurrencias={estadoRecurrencias.ok ? estadoRecurrencias.reglas : []}
+                                planesEnSeguimiento={planesSeguimiento}
+                                idsPlanesSeguimiento={seguimientoPlanificacion.estado?.secuencia.map(item => item.planId) ?? []}
+                                errorDependencias={[estadoPlanes, estadoRecurrencias].filter(estado => !estado.ok).map(estado => estado.error).join(" ")}
                                 onCrear={crearPlantillaPlan}
                                 onActualizar={actualizarPlantillaPlan}
                                 onEliminar={eliminarPlantillaPlan}

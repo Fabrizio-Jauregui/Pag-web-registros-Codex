@@ -7,9 +7,8 @@ const playwrightPort = process.env.PLAYWRIGHT_PORT ?? "5187"
 
 export default defineConfig({
     testDir: "./tests/e2e",
-    // Keep Focus artifacts separate from other Playwright projects and from
-    // any stale, locked files in the shared TestResults directory.
-    outputDir: "D:/fabri/Playwright/FocusSequenceCronometerResults",
+    // Store per-run screenshots, traces, and reports in the writable project workspace.
+    outputDir: "./.playwright-results",
     fullyParallel: true,
     reporter: "list",
     use: {

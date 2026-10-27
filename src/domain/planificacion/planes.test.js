@@ -5,6 +5,7 @@ import {
     actualizarPlan,
     crearPlan,
     eliminarAplicacionPlan,
+    eliminarPlanesDePlantilla,
     eliminarPlan,
     validarPlan
 } from "./planes.js"
@@ -134,4 +135,24 @@ test("eliminar una aplicación inexistente devuelve un error sin cambiar los pla
     const resultado = eliminarAplicacionPlan(planes, "app-inexistente")
     assert.equal(resultado.ok, false)
     assert.deepEqual(planes, [plan])
+})
+
+test("borra todos los planes originados en una plantilla sin tocar otros ni registros", () => {
+    const primero = { ...crearPlan({ nombre: "Preparar", inicio, fin }, () => "plan-1").plan, plantillaOrigenId: "plantilla" }
+    const segundo = { ...crearPlan({ nombre: "Desayunar", inicio, fin }, () => "plan-2").plan, plantillaOrigenId: "plantilla", tipoPlanificacion: "focus", configuracionFocus: { nombre: "Focus", bloques: [{ nombre: "Concentración", tipo: "concentracion", minutos: 25 }] } }
+    const otro = { ...crearPlan({ nombre: "Otro", inicio, fin }, () => "plan-3").plan, plantillaOrigenId: "otra" }
+    const resultado = eliminarPlanesDePlantilla([primero, segundo, otro], "plantilla", "todas", inicio)
+    assert.equal(resultado.ok, true)
+    assert.equal(resultado.cantidadEliminada, 2)
+    assert.deepEqual(resultado.planes, [otro])
+})
+
+test("el borrado futuro incluye planes que empiezan ahora y conserva los ya iniciados", () => {
+    const antes = { ...crearPlan({ nombre: "Antes", inicio: new Date(inicio.getTime() - 1), fin }, () => "plan-antes").plan, plantillaOrigenId: "plantilla" }
+    const ahora = { ...crearPlan({ nombre: "Ahora", inicio, fin }, () => "plan-ahora").plan, plantillaOrigenId: "plantilla" }
+    const despues = { ...crearPlan({ nombre: "Después", inicio: new Date(inicio.getTime() + 1), fin }, () => "plan-despues").plan, plantillaOrigenId: "plantilla" }
+    const resultado = eliminarPlanesDePlantilla([antes, ahora, despues], "plantilla", "futuras", inicio)
+    assert.equal(resultado.ok, true)
+    assert.deepEqual(resultado.eliminados, [ahora, despues])
+    assert.deepEqual(resultado.planes, [antes])
 })

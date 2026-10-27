@@ -67,6 +67,8 @@ export function FormularioPlan({ plan = null, fechaSeleccionada, eventos, onGuar
         }
         const cambios = {
             id: plan?.id,
+            ...(plan?.plantillaOrigenId ? { plantillaOrigenId: plan.plantillaOrigenId } : {}),
+            ...(plan?.plantillaOrigenNombre ? { plantillaOrigenNombre: plan.plantillaOrigenNombre } : {}),
             nombre: valores.nombre,
             evento: eventoSeleccionado ?? null,
             inicio,

@@ -167,3 +167,26 @@ export function eliminarAplicacionPlan(planes, idAplicacion) {
     }
     return { ok: true, planes: restantes, cantidadEliminada }
 }
+
+export function eliminarPlanesDePlantilla(planes, plantillaId, alcance = "todas", ahora = new Date()) {
+    if (!Array.isArray(planes) || typeof plantillaId !== "string" || !plantillaId.trim()) {
+        return { ok: false, error: "No se pudo identificar la plantilla de planificación." }
+    }
+    if (!(ahora instanceof Date) || !Number.isFinite(ahora.getTime())) {
+        return { ok: false, error: "No se pudo determinar desde qué momento borrar los planes futuros." }
+    }
+    if (!["todas", "futuras"].includes(alcance)) {
+        return { ok: false, error: "Elegí si querés borrar todas las planificaciones o solo las futuras." }
+    }
+    const planesOrigen = planes.filter(plan => plan.plantillaOrigenId === plantillaId)
+    const eliminados = alcance === "todas"
+        ? planesOrigen
+        : planesOrigen.filter(plan => plan.inicio >= ahora)
+    const idsEliminados = new Set(eliminados.map(plan => plan.id))
+    return {
+        ok: true,
+        planes: planes.filter(plan => !idsEliminados.has(plan.id)),
+        eliminados,
+        cantidadEliminada: eliminados.length
+    }
+}

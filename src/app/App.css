@@ -94,9 +94,10 @@
 
 .app-navigation {
   display: grid;
-  flex: 0 0 auto;
   grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 4px;
+  width: 100%;
+  margin-bottom: 18px;
   padding: 5px;
   border: 1px solid #e2e8f0;
   border-radius: 12px;
@@ -105,10 +106,15 @@
 }
 
 .app-navigation button {
+  display: flex;
   min-width: 0;
-  min-height: 42px;
+  height: 48px;
+  min-height: 48px;
+  align-items: center;
+  justify-content: center;
   padding: 5px 7px;
-  line-height: 1.2;
+  line-height: 1.1;
+  text-align: center;
   white-space: normal;
   overflow-wrap: anywhere;
 }
@@ -313,6 +319,10 @@
 }
 
 @media (max-width: 900px) {
+  .app-navigation {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
   .app-content {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -348,32 +358,6 @@
   }
 }
 
-/* La biblioteca de planificación usa una vista de trabajo ancha, separada del calendario. */
-.app-shell-planificaciones {
-  width: calc(100% - 40px);
-  max-width: none;
-}
-
-.app-shell-analitica {
-  width: calc(100% - 40px);
-  max-width: none;
-}
-
-.app-shell-focus {
-  width: calc(100% - 40px);
-  max-width: none;
-}
-
-.app-shell-tareas {
-  width: calc(100% - 40px);
-  max-width: none;
-}
-
-.app-shell-eventos {
-  width: calc(100% - 40px);
-  max-width: 1200px;
-}
-
 .app-content-planificaciones {
   grid-template-columns: minmax(0, 1fr);
 }
@@ -396,10 +380,9 @@
 
 .app-content-eventos {
   grid-template-columns: minmax(0, 1fr);
-}
-
-.app-content-analitica .app-navigation {
-  max-width: 760px;
+  width: 100%;
+  max-width: 1200px;
+  margin-inline: auto;
 }
 
 .app-content-planificaciones > .calendario-panel,
@@ -478,38 +461,11 @@
 }
 
 @media (max-width: 520px) {
-  .app-shell-planificaciones {
-    width: calc(100% - 24px);
-  }
-
-  .app-shell-analitica {
-    width: calc(100% - 24px);
-  }
-
-  .app-shell-historial {
-    width: calc(100% - 24px);
-  }
-
-  .app-shell-focus {
-    width: calc(100% - 24px);
-  }
-
-  .app-shell-tareas {
-    width: calc(100% - 24px);
-  }
-
-  .app-shell-eventos {
-    width: calc(100% - 24px);
-  }
-
   .app-navigation {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-  .app-shell-planificaciones .app-navigation button {
-    padding-inline: 3px;
-    font-size: 0.88rem;
-    white-space: nowrap;
-    overflow-wrap: normal;
+  .app-navigation button:last-child {
+    grid-column: 2;
   }
 }

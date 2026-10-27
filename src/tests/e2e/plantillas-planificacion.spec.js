@@ -25,7 +25,7 @@ async function abrirBiblioteca(page) {
 test("Flujo de usuario: crea y aplica una plantilla; sus planes son independientes del registro", async ({ page }) => {
     const fecha = fechaDePrueba()
     await abrirBiblioteca(page)
-    await page.getByRole("button", { name: "Crear con formulario", exact: true }).click()
+    await page.getByRole("button", { name: /Horarios definidos/ }).click()
     const form = page.getByRole("form", { name: "Nueva plantilla de planificación" })
     await form.getByLabel("Nombre de la plantilla").fill("Rutina de estudio")
     await form.getByLabel("Nombre de actividad 1").fill("Lectura")
@@ -94,8 +94,8 @@ test("Flujo de usuario: crea y aplica una plantilla; sus planes son independient
     expect(planesEditados.find(plan => plan.nombre === "Lectura personalizada")).toBeTruthy()
 
     await page.getByRole("button", { name: "Planificaciones", exact: true }).click()
-    page.once("dialog", dialog => dialog.accept())
     await page.getByRole("button", { name: "Eliminar", exact: true }).click()
+    await page.getByRole("button", { name: "Eliminar plantilla" }).click()
     expect(await page.evaluate(key => JSON.parse(localStorage.getItem(key)).length, clavePlanes)).toBe(3)
 })
 
@@ -165,7 +165,7 @@ test("Flujo de usuario: mantiene abierta la plantilla si una duración es invál
 test("Flujo de usuario: abre una plantilla existente en el diseñador y conserva sus tiempos relativos", async ({ page }) => {
     const fecha = fechaDePrueba()
     await abrirBiblioteca(page)
-    await page.getByRole("button", { name: "Crear con formulario", exact: true }).click()
+    await page.getByRole("button", { name: /Horarios definidos/ }).click()
     const form = page.getByRole("form", { name: "Nueva plantilla de planificación" })
     await form.getByLabel("Nombre de la plantilla").fill("Horario anterior")
     await form.getByLabel("Nombre de actividad 1").fill("Preparar")
@@ -209,14 +209,14 @@ test("Flujo de usuario: el diseñador aprovecha el ancho de escritorio y se adap
     const columnasMovil = await editor.locator(".editor-secuencias").evaluate(elemento => getComputedStyle(elemento).gridTemplateColumns.split(" ").length)
     expect(columnasMovil).toBe(1)
     const botonPlanificaciones = page.getByRole("button", { name: "Planificaciones", exact: true })
-    await expect(botonPlanificaciones).toHaveCSS("white-space", "nowrap")
+    await expect(botonPlanificaciones).toHaveCSS("white-space", "normal")
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true)
 })
 
 test("Flujo de usuario: delimita una aplicación y permite borrar una actividad o la aplicación completa", async ({ page }) => {
     const fecha = fechaDePrueba()
     await abrirBiblioteca(page)
-    await page.getByRole("button", { name: "Crear con formulario", exact: true }).click()
+    await page.getByRole("button", { name: /Horarios definidos/ }).click()
     const form = page.getByRole("form", { name: "Nueva plantilla de planificación" })
     await form.getByLabel("Nombre de la plantilla").fill("Rutina para borrar")
     await form.getByLabel("Nombre de actividad 1").fill("Preparar desayuno")
@@ -302,7 +302,7 @@ test("Flujo de usuario: delimita una aplicación y permite borrar una actividad 
 test("Flujo de usuario: confirma una segunda aplicación y cancelar conserva los planes", async ({ page }) => {
     const fecha = fechaDePrueba()
     await abrirBiblioteca(page)
-    await page.getByRole("button", { name: "Crear con formulario", exact: true }).click()
+    await page.getByRole("button", { name: /Horarios definidos/ }).click()
     const form = page.getByRole("form", { name: "Nueva plantilla de planificación" })
     await form.getByLabel("Nombre de la plantilla").fill("Pausa diaria")
     await form.getByLabel("Nombre de actividad 1").fill("Pausa")
@@ -326,7 +326,7 @@ test("Flujo de usuario: no permite aplicar una plantilla en un día pasado", asy
     fecha.setDate(fecha.getDate() - 1)
     const ayer = `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, "0")}-${String(fecha.getDate()).padStart(2, "0")}`
     await abrirBiblioteca(page)
-    await page.getByRole("button", { name: "Crear con formulario", exact: true }).click()
+    await page.getByRole("button", { name: /Horarios definidos/ }).click()
     const form = page.getByRole("form", { name: "Nueva plantilla de planificación" })
     await form.getByLabel("Nombre de la plantilla").fill("Rutina")
     await form.getByLabel("Nombre de actividad 1").fill("Almorzar")
@@ -347,7 +347,7 @@ test("Flujo de usuario: evento usado por plantilla queda protegido y medianoche 
     await page.getByRole("button", { name: "Guardar evento" }).click()
 
     await page.getByRole("button", { name: "Planificaciones", exact: true }).click()
-    await page.getByRole("button", { name: "Crear con formulario", exact: true }).click()
+    await page.getByRole("button", { name: /Horarios definidos/ }).click()
     const form = page.getByRole("form", { name: "Nueva plantilla de planificación" })
     await form.getByLabel("Nombre de la plantilla").fill("Rutina nocturna")
     await form.getByLabel("Evento (opcional)").first().selectOption({ label: "Evento protegido" })
@@ -385,7 +385,7 @@ test("Flujo de usuario: aplica una secuencia por duración desde una hora elegid
     ahora.setHours(10, 0, 0, 0)
     await page.clock.install({ time: ahora })
     await abrirBiblioteca(page)
-    await page.getByRole("button", { name: "Crear con formulario", exact: true }).click()
+    await page.getByRole("button", { name: /Horarios definidos/ }).click()
     const form = page.getByRole("form", { name: "Nueva plantilla de planificación" })
     await form.getByLabel("Nombre de la plantilla").fill("Rutina de almuerzo")
     await form.getByLabel("Cómo se organizan las actividades").selectOption("duraciones")
@@ -447,7 +447,7 @@ test("Flujo de usuario: edita ambos tipos de plantilla, conserva su evento y los
     await page.getByRole("button", { name: "Guardar evento" }).click()
 
     await page.getByRole("button", { name: "Planificaciones", exact: true }).click()
-    await page.getByRole("button", { name: "Crear con formulario", exact: true }).click()
+    await page.getByRole("button", { name: /Horarios definidos/ }).click()
     let form = page.getByRole("form", { name: "Nueva plantilla de planificación" })
     await form.getByLabel("Nombre de la plantilla").fill("Rutina de mediodía")
     await form.getByLabel("Evento (opcional)").first().selectOption({ label: "Almuerzo" })

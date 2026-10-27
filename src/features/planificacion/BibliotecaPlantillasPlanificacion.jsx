@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { formatearFechaISO, leerFechaISO, obtenerFechaLocalHoy } from "../../domain/tiempo/FechaCalendario.js"
 import { previsualizarPlantillaPlanificacion } from "../../domain/planificacion/plantillasPlanificacion.js"
+import { eliminarRecurrenciasDePlantilla } from "../../domain/planificacion/recurrencias.js"
 import { EditorPlantillaCalendario } from "./EditorPlantillaCalendario.jsx"
 import "./BibliotecaPlantillasPlanificacion.css"
 
@@ -50,7 +51,7 @@ function agruparActividadesPorHorario(actividades) {
     }, [])
 }
 
-export function BibliotecaPlantillasPlanificacion({ plantillas, plantillasFocus = [], eventos, errorCarga = "", onCrear, onActualizar, onEliminar, onAplicar }) {
+export function BibliotecaPlantillasPlanificacion({ plantillas, plantillasFocus = [], eventos, errorCarga = "", planes = [], recurrencias = [], planesEnSeguimiento = [], idsPlanesSeguimiento = [], errorDependencias = "", onCrear, onActualizar, onEliminar, onAplicar }) {
     const [editando, cambiarEditando] = useState(null)
     const [nombre, cambiarNombre] = useState("")
     const [actividades, cambiarActividades] = useState([])
@@ -60,6 +61,9 @@ export function BibliotecaPlantillasPlanificacion({ plantillas, plantillasFocus 
     const [error, cambiarError] = useState("")
     const [editorDiseno, cambiarEditorDiseno] = useState(undefined)
     const [modoEditorInicial, cambiarModoEditorInicial] = useState("secuencias")
+    const [confirmacionBorrado, cambiarConfirmacionBorrado] = useState(null)
+    const [alcanceBorrado, cambiarAlcanceBorrado] = useState("conservar")
+    const [recurrenciasLegadoSeleccionadas, cambiarRecurrenciasLegadoSeleccionadas] = useState([])
 
     function abrirEditor(plantilla = null, modoInicial = "secuencias") {
         cambiarEditando(null)
@@ -132,10 +136,22 @@ export function BibliotecaPlantillasPlanificacion({ plantillas, plantillasFocus 
         if (!resultado.ok && !resultado.duplicado) cambiarError(resultado.error)
         else cambiarError("")
     }
-    function eliminar(plantilla) {
-        if (!window.confirm(`¿Eliminar la plantilla "${plantilla.nombre}"? Los planes ya creados en el calendario se conservarán.`)) return
-        const resultado = onEliminar(plantilla.id)
-        cambiarError(resultado.ok ? "" : resultado.error)
+    function abrirConfirmacionBorrado(plantilla) {
+        cambiarError("")
+        cambiarAlcanceBorrado("conservar")
+        cambiarRecurrenciasLegadoSeleccionadas([])
+        cambiarConfirmacionBorrado(plantilla)
+    }
+    function confirmarBorrado() {
+        if (!confirmacionBorrado) return
+        const resultado = onEliminar(confirmacionBorrado.id, {
+            alcance: alcanceBorrado,
+            idsRecurrenciasLegado: recurrenciasLegadoSeleccionadas,
+            ahora: new Date()
+        })
+        if (!resultado.ok) { cambiarError(resultado.error); return }
+        cambiarConfirmacionBorrado(null)
+        cambiarError("")
     }
 
     return <section className="biblioteca-plantillas-plan" aria-labelledby="titulo-plantillas-plan">
@@ -210,8 +226,60 @@ export function BibliotecaPlantillasPlanificacion({ plantillas, plantillasFocus 
                     ? <ol>{previsualizacion.actividades.map((actividad, indice) => <li key={`${actividad.nombre}-${indice}`}><strong>{actividad.nombre}</strong>{actividad.eventoNombre && <small>Evento: {actividad.eventoNombre}</small>}<span>{actividad.sinHorario ? `Etapa ${(actividad.etapa ?? 0) + 1} · duración ${hora(actividad.duracionFocusSegundos)} · se inicia manualmente` : actividad.sinDuracion ? "Sin horario ni duración · se registra con cronómetro" : rangoFechaHora(actividad.inicio, actividad.fin)}</span></li>)}</ol>
                     : <p>No se puede aplicar: {previsualizacion.error}</p>}
             </div>
-            <div className="plantilla-plan-acciones">{(plantilla.modo === "duraciones" || plantilla.modo === "relativo" || plantilla.modo === "secuencias" || plantilla.modo === "cronometro") && <label>Hora de inicio en el calendario<input type="time" step="1" aria-label={`Hora real de inicio ${plantilla.nombre}`} value={campoHora(inicioElegido)} onChange={e => cambiarHorasInicio(actual => ({ ...actual, [plantilla.id]: e.target.value ? segundos(e.target.value) : 0 }))} /></label>}<button type="button" className="plan-plantilla-primario" onClick={() => aplicar(plantilla, plantilla.modo === "duraciones" || plantilla.modo === "relativo" || plantilla.modo === "secuencias" || plantilla.modo === "cronometro" ? inicioElegido : undefined)} disabled={Boolean(errorCarga) || plantilla.actividades.length < 2 || !previsualizacion.ok}>Aplicar a fecha</button>{plantilla.modo === "horarios" ? <button type="button" onClick={() => editar(plantilla)}>Editar horarios</button> : <button type="button" onClick={() => abrirEditor(plantilla)}>Editar secuencia</button>}<button type="button" onClick={() => eliminar(plantilla)}>Eliminar</button></div>
+            <div className="plantilla-plan-acciones">{(plantilla.modo === "duraciones" || plantilla.modo === "relativo" || plantilla.modo === "secuencias" || plantilla.modo === "cronometro") && <label>Hora de inicio en el calendario<input type="time" step="1" aria-label={`Hora real de inicio ${plantilla.nombre}`} value={campoHora(inicioElegido)} onChange={e => cambiarHorasInicio(actual => ({ ...actual, [plantilla.id]: e.target.value ? segundos(e.target.value) : 0 }))} /></label>}<button type="button" className="plan-plantilla-primario" onClick={() => aplicar(plantilla, plantilla.modo === "duraciones" || plantilla.modo === "relativo" || plantilla.modo === "secuencias" || plantilla.modo === "cronometro" ? inicioElegido : undefined)} disabled={Boolean(errorCarga) || plantilla.actividades.length < 2 || !previsualizacion.ok}>Aplicar a fecha</button>{plantilla.modo === "horarios" ? <button type="button" onClick={() => editar(plantilla)}>Editar horarios</button> : <button type="button" onClick={() => abrirEditor(plantilla)}>Editar secuencia</button>}<button type="button" onClick={() => abrirConfirmacionBorrado(plantilla)}>Eliminar</button></div>
         </li>
         })}</ul>)}
+        {confirmacionBorrado && (() => {
+            const ahora = new Date()
+            const planesOrigen = planes.filter(plan => plan.plantillaOrigenId === confirmacionBorrado.id)
+            const planesFuturos = planesOrigen.filter(plan => plan.inicio >= ahora)
+            const recurrenciasLegado = recurrencias.filter(regla => !regla.plantillaOrigenId)
+            const tieneDatosCompletos = !errorDependencias
+            const alBorrar = recurrencias.filter(regla => regla.plantillaOrigenId === confirmacionBorrado.id
+                || recurrenciasLegadoSeleccionadas.includes(regla.id))
+            const seriesTodas = new Set(alBorrar.map(regla => regla.idSerie ?? regla.id)).size
+            const previewFuturas = eliminarRecurrenciasDePlantilla(recurrencias, confirmacionBorrado.id, "futuras", {
+                ahora,
+                idsLegado: recurrenciasLegadoSeleccionadas
+            })
+            const seriesFuturas = previewFuturas.ok ? previewFuturas.seriesAfectadas.length : 0
+            const idsActivos = new Set(idsPlanesSeguimiento)
+            const idsRecurrenciasElegidas = new Set(alBorrar.map(regla => regla.idSerie ?? regla.id))
+            const planesRecurrentesActivos = planesEnSeguimiento.filter(plan => idsActivos.has(plan.id)
+                && (plan.plantillaOrigenId === confirmacionBorrado.id
+                    || (plan.idSerie && idsRecurrenciasElegidas.has(plan.idSerie))
+                    || (plan.idRecurrencia && recurrencias.some(regla => regla.id === plan.idRecurrencia
+                        && idsRecurrenciasElegidas.has(regla.idSerie ?? regla.id)))))
+            const planesFijosActivos = planesOrigen.filter(plan => idsActivos.has(plan.id)
+                && (alcanceBorrado === "todas" || plan.inicio >= ahora))
+            const seguimientoBloquea = planesRecurrentesActivos.length > 0 || planesFijosActivos.length > 0
+            const bloqueaBorrado = alcanceBorrado !== "conservar" && (!tieneDatosCompletos || seguimientoBloquea)
+            const totalPlanes = alcanceBorrado === "futuras" ? planesFuturos.length : planesOrigen.length
+            return <div className="dialogo-borrado-plantilla-fondo" onMouseDown={evento => { if (evento.target === evento.currentTarget) cambiarConfirmacionBorrado(null) }}>
+                <section className="dialogo-borrado-plantilla" role="dialog" aria-modal="true" aria-labelledby="titulo-borrado-plantilla">
+                    <h3 id="titulo-borrado-plantilla">Eliminar “{confirmacionBorrado.nombre}”</h3>
+                    <p>Los registros reales permanecerán en Historial y Analítica, cualquiera sea la opción.</p>
+                    <fieldset>
+                        <legend>Elegí qué hacer con sus planes del calendario</legend>
+                        <label><input type="radio" name="alcance-borrado-plantilla" value="conservar" checked={alcanceBorrado === "conservar"} onChange={() => cambiarAlcanceBorrado("conservar")} /> Borrar solo la plantilla y conservar sus planes</label>
+                        <label><input type="radio" name="alcance-borrado-plantilla" value="todas" checked={alcanceBorrado === "todas"} onChange={() => cambiarAlcanceBorrado("todas")} disabled={!tieneDatosCompletos || seguimientoBloquea} /> Borrar la plantilla y todos sus planes ({planesOrigen.length})</label>
+                        <label><input type="radio" name="alcance-borrado-plantilla" value="futuras" checked={alcanceBorrado === "futuras"} onChange={() => cambiarAlcanceBorrado("futuras")} disabled={!tieneDatosCompletos || seguimientoBloquea} /> Borrar la plantilla y sus planes que empiezan ahora o más adelante ({planesFuturos.length})</label>
+                    </fieldset>
+                    {alcanceBorrado !== "conservar" && <div className="borrado-plantilla-recurrencias">
+                        <h4>Recurrencias</h4>
+                        <p>{alcanceBorrado === "todas" ? `${seriesTodas} series se eliminarán.` : `${seriesFuturas} series se detendrán desde su próxima aparición.`}</p>
+                        {recurrenciasLegado.length > 0 && <fieldset>
+                            <legend>Reglas antiguas sin vínculo · elegí solo las de esta plantilla</legend>
+                            {recurrenciasLegado.map(regla => <label key={regla.id}><input type="checkbox" checked={recurrenciasLegadoSeleccionadas.includes(regla.id)} onChange={evento => cambiarRecurrenciasLegadoSeleccionadas(actual => evento.target.checked ? [...actual, regla.id] : actual.filter(id => id !== regla.id))} /> {regla.nombre} · {regla.diasSemana.map(dia => ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"][dia]).join(", ")} · {hora(regla.segundosInicio)}</label>)}
+                        </fieldset>}
+                    </div>}
+                    {errorDependencias && <p role="alert" className="plan-plantilla-error">No se pudieron cargar planes o recurrencias: {errorDependencias} Solo podés borrar la plantilla y conservar los planes.</p>}
+                    {seguimientoBloquea && alcanceBorrado !== "conservar" && <p role="alert" className="plan-plantilla-error">No se pueden borrar planes que forman parte del seguimiento activo. Podés conservarlos y borrar solo la plantilla.</p>}
+                    <p className="dialogo-borrado-plantilla-nota">Planes afectados por esta opción: {alcanceBorrado === "conservar" ? 0 : totalPlanes}. Las reglas antiguas seleccionadas se incluirán en el borrado.</p>
+                    {error && <p role="alert" className="plan-plantilla-error">{error}</p>}
+                    <div className="dialogo-borrado-plantilla-acciones"><button type="button" onClick={() => cambiarConfirmacionBorrado(null)}>Cancelar</button><button type="button" className="plan-plantilla-primario" disabled={bloqueaBorrado} onClick={confirmarBorrado}>Eliminar plantilla</button></div>
+                </section>
+            </div>
+        })()}
     </section>
 }
