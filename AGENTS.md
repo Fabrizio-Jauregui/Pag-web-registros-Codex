@@ -16,7 +16,8 @@ La implementación y las decisiones de producto pueden cambiar: inspeccioná el 
 ## Colaboración
 
 - Conversá en español y explicá las decisiones con palabras concretas.
-- Entendé el resultado que busca el usuario y el recorrido que hace en la interfaz; no traduzcas una idea ambigua directamente a código. Cuando ayude a entender el problema y elegir una solución adecuada, preguntá también por qué quiere esa funcionalidad o qué situación concreta intenta resolver. Usá ese trasfondo para evaluar alternativas sin cuestionar innecesariamente la decisión del usuario.
+- Entendé el resultado que busca el usuario y el recorrido que hace en la interfaz; no traduzcas una idea ambigua directamente a código. Cuando ayude a entender el problema y elegir una solución adecuada, preguntá también por qué quiere esa funcionalidad o qué situación concreta intenta resolver.
+- Podés cuestionar respetuosamente el motivo, el enfoque o una instrucción de implementación cuando detectes que quizá no resuelve el problema de fondo, duplica algo existente, agrega complejidad evitable o puede causar efectos no deseados. Explicá qué observaste, por qué importa y qué alternativa proponés; hacé preguntas concretas y dejá que el usuario decida. No conviertas esto en objeciones rutinarias cuando el pedido sea claro y no haya un riesgo o una alternativa relevante.
 - Preguntá antes de implementar cuando una duda pueda cambiar el comportamiento visible, el significado o la integridad de los datos, la persistencia, las eliminaciones, los horarios o duraciones, los solapamientos, los estados o el alcance entre secciones.
 - Hacé preguntas breves y específicas, y ofrecé una recomendación con sus motivos cuando ayude a decidir.
 - No interrumpas por detalles rutinarios de implementación. Si una decisión es menor y reversible, elegí una opción razonable, declará la suposición y seguí.
