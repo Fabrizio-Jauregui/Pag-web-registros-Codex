@@ -9,7 +9,7 @@ import { ControlesRegistro } from "./ControlesRegistro"
 import { ResumenDuracion } from "./ResumenDuracion"
 import { ListaRegistrosActivos } from "./ListaRegistrosActivos.jsx"
 
-export function EstadosRegistros({ estadoRegistro, eventos = [], tareas = [] }) {
+export function EstadosRegistros({ estadoRegistro, eventos = [], tareas = [], ordenEventos, cambiarOrdenEventos }) {
     const [nombre, cambiarNombre] = useState("")
     const [eventoId, cambiarEventoId] = useState("")
     const [tareaId, cambiarTareaId] = useState("")
@@ -64,6 +64,8 @@ export function EstadosRegistros({ estadoRegistro, eventos = [], tareas = [] }) 
                 manejarStop={() => {}}
                 puedeDetener={false}
                 bloqueado={!datos.ok}
+                ordenEventos={ordenEventos}
+                cambiarOrdenEventos={cambiarOrdenEventos}
             />
 
             {registrosActivos.length > 0 && (

@@ -32,7 +32,24 @@ test("calcula tiempo efectivo, pausado y transcurrido desde los segmentos", () =
     assert.deepEqual(obtenerResumenRegistro(registro), {
         efectivo: 20,
         pausado: 5,
-        transcurrido: 25
+        transcurrido: 25,
+        sinClasificar: 0
+    })
+})
+
+test("mide como sin clasificar el hueco entre tramos de actividad separados", () => {
+    const registro = {
+        segmentos: [
+            { tipo: "En curso", inicio: new Date(0), fin: new Date(2000) },
+            { tipo: "En curso", inicio: new Date(5000), fin: new Date(10000) }
+        ]
+    }
+
+    assert.deepEqual(obtenerResumenRegistro(registro), {
+        efectivo: 7,
+        pausado: 0,
+        transcurrido: 10,
+        sinClasificar: 3
     })
 })
 

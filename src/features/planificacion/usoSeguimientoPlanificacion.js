@@ -624,6 +624,48 @@ export function useSeguimientoPlanificacion(estadoRegistro) {
         return true
     }
 
+    function siguienteEventoAlFinalizar(planId) {
+        const sesion = estadoRef.current
+        if (sesion?.tipoSeguimiento !== "cronometro" || sesion.estado !== "En curso"
+            || !(sesion.registrosActivos ?? []).some(item => item.planId === planId)) return null
+        const activos = new Set((sesion.registrosActivos ?? [])
+            .filter(item => item.planId !== planId)
+            .map(item => item.planId))
+        const iniciados = new Set(sesion.iniciados ?? [])
+        const finalizados = new Set([...(sesion.finalizados ?? []), planId])
+        const omitidos = new Set(sesion.eventosOmitidos ?? [])
+        const sesionTrasFinalizar = {
+            ...sesion,
+            registrosActivos: (sesion.registrosActivos ?? []).filter(item => item.planId !== planId),
+            iniciados: [...iniciados],
+            finalizados: [...finalizados]
+        }
+        return sesion.secuencia.find(item => !activos.has(item.planId)
+            && !iniciados.has(item.planId)
+            && !finalizados.has(item.planId)
+            && !omitidos.has(item.planId)
+            && puedeIniciarGrupo(sesionTrasFinalizar, item.grupo ?? 0)) ?? null
+    }
+
+    function finalizarYComenzarSiguiente(planId) {
+        const sesion = estadoRef.current
+        const siguiente = siguienteEventoAlFinalizar(planId)
+        if (!sesion || !siguiente) return false
+        const nombreActual = sesion.secuencia.find(item => item.planId === planId)?.nombre ?? "el evento actual"
+        const habilitacion = registroRef.current.puedeIniciarActividad?.(new Date())
+        if (habilitacion && !habilitacion.ok) {
+            cambiarError(habilitacion.error)
+            return false
+        }
+        if (!finalizarEvento(planId)) return false
+        if (!iniciarEventoSecuencial(siguiente.planId)) {
+            cambiarError(`Se finalizó “${nombreActual}”, pero no se pudo iniciar “${siguiente.nombre}”.`)
+            return false
+        }
+        cambiarMensaje(`Se finalizó “${nombreActual}” y comenzó “${siguiente.nombre}”.`)
+        return true
+    }
+
     function cambiarModoAvance(modo) {
         const sesion = estadoRef.current
         if (!sesion || !["automatico", "manual"].includes(modo)) return false
@@ -840,6 +882,7 @@ export function useSeguimientoPlanificacion(estadoRegistro) {
         estado, error, mensaje, elementoActual, elementoSiguiente, elementoPosterior,
         segundosRestantes, empezar, pausar, reanudar, finalizarYContinuar,
         finalizarYOmitirSiguiente, dejarDeSeguir, sincronizarPlanes, finalizarEvento, cambiarModoAvance, omitirEvento,
+        siguienteEventoAlFinalizar, finalizarYComenzarSiguiente,
         iniciarEvento: iniciarEventoSecuencial,
         iniciarGrupo: iniciarGrupoSecuencial,
         puedeIniciarEvento: puedeIniciarEventoSecuencial,

@@ -50,8 +50,27 @@ export function crearPlantillaEvento(
             id,
             nombre: nombre.trim(),
             color: color.toUpperCase(),
+            creadoEn: new Date().toISOString(),
             ...(categoriaId ? { categoriaId } : {})
         }
+    }
+}
+
+export function marcarPlantillaEventoUsada(plantillas, id, instante = new Date()) {
+    if (!Array.isArray(plantillas) || !plantillas.some(plantilla => plantilla.id === id)) {
+        return { ok: false, error: "No se encontró la plantilla de evento utilizada." }
+    }
+
+    const fecha = instante instanceof Date ? instante : new Date(instante)
+    if (Number.isNaN(fecha.getTime())) {
+        return { ok: false, error: "No se pudo guardar la fecha de uso de la plantilla." }
+    }
+
+    return {
+        ok: true,
+        plantillas: plantillas.map(plantilla => plantilla.id === id
+            ? { ...plantilla, ultimoUso: fecha.toISOString() }
+            : plantilla)
     }
 }
 

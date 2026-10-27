@@ -11,10 +11,14 @@ import {
 test("crea una plantilla con nombre normalizado, color e ID estable", () => {
     const resultado = crearPlantillaEvento("  Guitarra  ", "#aabbcc", () => "evento-1")
 
-    assert.deepEqual(resultado, {
-        ok: true,
-        plantilla: { id: "evento-1", nombre: "Guitarra", color: "#AABBCC" }
+    assert.equal(resultado.ok, true)
+    const { creadoEn, ...plantilla } = resultado.plantilla
+    assert.deepEqual(plantilla, {
+        id: "evento-1",
+        nombre: "Guitarra",
+        color: "#AABBCC"
     })
+    assert.ok(Number.isFinite(Date.parse(creadoEn)))
 })
 
 test("valida nombre obligatorio y color hexadecimal", () => {

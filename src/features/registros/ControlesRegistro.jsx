@@ -1,3 +1,5 @@
+import { ordenarPlantillasEventos, OPCIONES_ORDEN_PLANTILLAS_EVENTOS } from "../../domain/eventos/ordenPlantillasEventos.js"
+
 export function ControlesRegistro({
     nombre,
     cambiarNombre,
@@ -13,11 +15,15 @@ export function ControlesRegistro({
     manejarStop,
     puedeDetener,
     bloqueado = false,
-    idPrefix = ""
+    idPrefix = "",
+    ordenEventos = "ultimo-uso",
+    cambiarOrdenEventos = () => {}
 }) {
     const idNombre = idPrefix ? `${idPrefix}-nombre-registro` : "nombre-registro"
     const idEvento = idPrefix ? `${idPrefix}-evento-registro` : "evento-registro"
     const idTarea = idPrefix ? `${idPrefix}-tarea-registro` : "tarea-registro"
+    const idOrdenEventos = idPrefix ? `${idPrefix}-orden-eventos-registro` : "orden-eventos-registro"
+    const eventosOrdenados = ordenarPlantillasEventos(eventos, ordenEventos)
     return (
         <div className="controles-temporizador">
             <label htmlFor={idNombre}>
@@ -44,6 +50,19 @@ export function ControlesRegistro({
                 </select>
             </label>
 
+            <label htmlFor={idOrdenEventos}>
+                <span>Ordenar plantillas</span>
+                <select
+                    id={idOrdenEventos}
+                    value={ordenEventos}
+                    onChange={evento => cambiarOrdenEventos(evento.target.value)}
+                >
+                    {OPCIONES_ORDEN_PLANTILLAS_EVENTOS.map(opcion => (
+                        <option value={opcion.valor} key={opcion.valor}>{opcion.etiqueta}</option>
+                    ))}
+                </select>
+            </label>
+
             <label htmlFor={idEvento}>
                 <span>Plantilla de evento</span>
                 <select
@@ -53,7 +72,7 @@ export function ControlesRegistro({
                     onChange={evento => cambiarEventoId(evento.target.value)}
                 >
                     <option value="">Sin plantilla</option>
-                    {eventos.map(plantilla => (
+                    {eventosOrdenados.map(plantilla => (
                         <option value={plantilla.id} key={plantilla.id}>{plantilla.nombre}</option>
                     ))}
                 </select>

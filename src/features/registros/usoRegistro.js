@@ -17,7 +17,7 @@ import {
 import { cargarRegistros, guardarRegistros } from "../../domain/registros/persistenciaRegistros.js"
 import { cargarSesionActivaFocus } from "../../domain/focus/persistenciaFocus.js"
 
-export function useRegistro() {
+export function useRegistro({ onInicioConEvento } = {}) {
     const [datos, cambiarDatos] = useState(() => {
         const carga = cargarRegistros()
         return { ...carga, mensaje: carga.mensaje ?? "", advertencia: carga.advertencia ?? "" }
@@ -28,6 +28,11 @@ export function useRegistro() {
     const datosRef = useRef(datos)
     const limiteFallidoRef = useRef(null)
     const ultimoErrorRef = useRef("")
+    const alIniciarConEventoRef = useRef(onInicioConEvento)
+
+    useEffect(() => {
+        alIniciarConEventoRef.current = onInicioConEvento
+    }, [onInicioConEvento])
 
     function sesionFocusEnConcentracion() {
         const resultado = cargarSesionActivaFocus()
@@ -135,7 +140,14 @@ export function useRegistro() {
             opciones.planId ?? null,
             opciones
         )
-        return guardarTransicion(resultado).ok ? resultado.registro.id : null
+        const guardado = guardarTransicion(resultado)
+        if (!guardado.ok) return null
+
+        if (evento?.id) {
+            alIniciarConEventoRef.current?.(evento.id, instante)
+        }
+
+        return resultado.registro.id
     }
 
     function iniciar(nombre, evento = null, tarea = null, opciones = {}) {

@@ -315,8 +315,48 @@ test("rechaza editar registros no finalizados y segmentos discontinuos, y permit
 
     assert.equal(noFinalizado.ok, false)
     assert.equal(discontinuo.ok, false)
-    assert.equal(discontinuo.error, "Los segmentos deben ser continuos, sin huecos ni solapamientos.")
+    assert.equal(discontinuo.error, "Los segmentos deben ser continuos, salvo cuando se conservan tramos de actividad separados.")
     assert.equal(solapado.ok, true)
+})
+
+test("permite quitar una pausa sin contarla y conserva el hueco entre los tramos activos", () => {
+    const creado = crearRegistroManual([], {
+        nombre: "Video",
+        inicio: fecha(0),
+        fin: fecha(10000)
+    }, () => "video", fecha(11000))
+    const editado = editarRegistroFinalizado(creado.registros, "video", {
+        nombre: "Video",
+        segmentos: [
+            { tipo: "En curso", inicio: fecha(0), fin: fecha(2000) },
+            { tipo: "En curso", inicio: fecha(5000), fin: fecha(10000) }
+        ]
+    }, fecha(11000))
+
+    assert.equal(editado.ok, true)
+    assert.equal(validarColeccionRegistros(editado.registros, fecha(11000)), true)
+    assert.deepEqual(editado.registro.segmentos.map(segmento => segmento.tipo), ["En curso", "En curso"])
+})
+
+test("al editar una pausa terminal permite contarla como actividad o descartarla", () => {
+    const inicio = iniciar("Desayuno")
+    const pausado = pausarRegistro(inicio.registros, "registro-1", fecha(2000))
+    const final = finalizarRegistro(pausado.registros, "registro-1", fecha(5000))
+    const contar = editarRegistroFinalizado(final.registros, "registro-1", {
+        nombre: "Desayuno",
+        segmentos: [{ tipo: "En curso", inicio: fecha(0), fin: fecha(5000) }]
+    }, fecha(6000))
+    const descartar = editarRegistroFinalizado(final.registros, "registro-1", {
+        nombre: "Desayuno",
+        segmentos: [{ tipo: "En curso", inicio: fecha(0), fin: fecha(2000) }]
+    }, fecha(6000))
+
+    assert.equal(final.ok, true)
+    assert.equal(final.registro.segmentos.at(-1).tipo, "Pausado")
+    assert.equal(contar.ok, true)
+    assert.equal(contar.registro.segmentos[0].fin.getTime(), 5000)
+    assert.equal(descartar.ok, true)
+    assert.equal(descartar.registro.segmentos[0].fin.getTime(), 2000)
 })
 
 test("explica por qué una edición finalizada produce un intervalo inválido", () => {

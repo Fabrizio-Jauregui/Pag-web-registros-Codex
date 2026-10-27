@@ -15,7 +15,8 @@ import { HistorialRegistros } from "../features/registros/HistorialRegistros.jsx
 import {
     actualizarPlantillaEvento,
     crearPlantillaEvento,
-    eliminarPlantillaEvento
+    eliminarPlantillaEvento,
+    marcarPlantillaEventoUsada
 } from "../domain/eventos/eventos.js"
 import {
     cargarPlantillasEventos,
@@ -45,6 +46,10 @@ import { BibliotecaTareas } from "../features/tareas/BibliotecaTareas.jsx"
 import { crearTarea, crearObjetivo, actualizarObjetivo, cambiarEstadoRama, descendientesDe, obtenerRutaTarea, actualizarTarea, cambiarDestinoTarea, eliminarTarea, moverTareaEnArbol, moverTareaEnCola, posponerTareaEnCola, sincronizarEstadoTareasFocus } from "../domain/tareas/tareas.js"
 import { cargarTareas, guardarTareas } from "../domain/tareas/persistenciaTareas.js"
 import { cargarPlantillasFocus } from "../domain/focus/persistenciaFocus.js"
+import {
+    cargarOrdenPlantillasEventos,
+    CLAVE_ORDEN_PLANTILLAS_EVENTOS
+} from "../domain/eventos/ordenPlantillasEventos.js"
 
 export function App() {
     const [vistaPrincipal, cambiarVistaPrincipal] = useState("calendario")
@@ -55,6 +60,7 @@ export function App() {
             return "oscuro"
         }
     })
+    const [ordenPlantillasEventos, cambiarOrdenPlantillasEventos] = useState(cargarOrdenPlantillasEventos)
     const [estadoPlantillas, cambiarEstadoPlantillas] = useState(cargarPlantillasEventos)
     const [estadoCategorias, cambiarEstadoCategorias] = useState(cargarCategorias)
     const [estadoPlanes, cambiarEstadoPlanes] = useState(cargarPlanes)
@@ -71,7 +77,7 @@ export function App() {
     const [fechaCalendarioSolicitada, cambiarFechaCalendarioSolicitada] = useState({ fecha: null, version: 0 })
     const calendarioRef = useRef(null)
     const inicioFocusPlanificadoRef = useRef(null)
-    const estadoRegistro = useRegistro()
+    const estadoRegistro = useRegistro({ onInicioConEvento: registrarUsoEvento })
     const seguimientoPlanificacion = useSeguimientoPlanificacion(estadoRegistro)
     const objetivos = estadoTareas.ok ? estadoTareas.tareas.filter(tarea => tarea.tipo === "objetivo") : []
     const tareasBase = estadoTareas.ok ? estadoTareas.tareas.filter(tarea => tarea.tipo !== "objetivo") : []
@@ -114,6 +120,23 @@ export function App() {
     function solicitarAccionCalendario(tipo, evento) {
         if (tipo === "registro") calendarioRef.current?.abrirNuevoRegistro(evento.currentTarget)
         if (tipo === "plan") calendarioRef.current?.abrirNuevaPlanificacion(evento.currentTarget)
+    }
+
+    function registrarUsoEvento(id, instante) {
+        if (!estadoPlantillas.ok) return
+        const resultado = marcarPlantillaEventoUsada(estadoPlantillas.plantillas, id, instante)
+        if (!resultado.ok) return
+        const guardado = guardarPlantillasEventos(resultado.plantillas)
+        if (guardado.ok) cambiarEstadoPlantillas({ ok: true, plantillas: resultado.plantillas })
+    }
+
+    function cambiarOrdenEventos(orden) {
+        cambiarOrdenPlantillasEventos(orden)
+        try {
+            localStorage.setItem(CLAVE_ORDEN_PLANTILLAS_EVENTOS, orden)
+        } catch {
+            // La preferencia queda activa durante esta sesión aunque no se pueda guardar.
+        }
     }
 
     function iniciarFocusPlanificado(plan) {
@@ -789,7 +812,8 @@ export function App() {
                 ? "app-shell app-shell-planificaciones"
                 : vistaPrincipal === "analitica" ? "app-shell app-shell-analitica"
                     : vistaPrincipal === "historial" ? "app-shell app-shell-historial"
-                        : vistaPrincipal === "tareas" ? "app-shell app-shell-tareas" : "app-shell"}>
+                    : vistaPrincipal === "tareas" ? "app-shell app-shell-tareas"
+                        : vistaPrincipal === "eventos" ? "app-shell app-shell-eventos" : "app-shell"}>
             <header className="app-header">
                 <div className="app-brand-group">
                     <h1 className="app-brand">Focus</h1>
@@ -816,7 +840,8 @@ export function App() {
                     ? "app-content app-content-planificaciones"
                     : vistaPrincipal === "analitica" ? "app-content app-content-analitica"
                         : vistaPrincipal === "historial" ? "app-content app-content-historial"
-                            : vistaPrincipal === "tareas" ? "app-content app-content-tareas" : "app-content"}>
+                            : vistaPrincipal === "tareas" ? "app-content app-content-tareas"
+                                : vistaPrincipal === "eventos" ? "app-content app-content-eventos" : "app-content"}>
                 <CalendarioDiario
                     ref={calendarioRef}
                     key={fechaCalendarioSolicitada.version}
@@ -935,6 +960,8 @@ export function App() {
                                             estadoRegistro={estadoRegistro}
                                             eventos={plantillas}
                                             tareas={tareasDeTrabajo}
+                                            ordenEventos={ordenPlantillasEventos}
+                                            cambiarOrdenEventos={cambiarOrdenEventos}
                                         />
                                     )}
                                 </section>
@@ -946,6 +973,8 @@ export function App() {
                                 vistaActiva={esVistaFocus}
                                 eventos={plantillas}
                                 tareas={tareasDeTrabajo}
+                                ordenEventos={ordenPlantillasEventos}
+                                cambiarOrdenEventos={cambiarOrdenEventos}
                                 onCrearTarea={crearTareaNueva}
                                 onActualizarTarea={actualizarTareaExistente}
                                 onCambiarDestinoTarea={cambiarDestinoTareaExistente}

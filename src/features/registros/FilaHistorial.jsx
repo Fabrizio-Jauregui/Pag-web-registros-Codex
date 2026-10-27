@@ -43,21 +43,31 @@ function FilaHistorialContenido({ registro, ahora, tareas = [], onEditar, onElim
                     <dl className="historial-metricas">
                         <div><dt>Tiempo efectivo</dt><dd>{formatearDuracion(resumen.efectivo)}</dd></div>
                         <div><dt>Tiempo pausado</dt><dd>{formatearDuracion(resumen.pausado)}</dd></div>
+                        {resumen.sinClasificar > 0 && <div><dt>Tiempo sin registrar</dt><dd>{formatearDuracion(resumen.sinClasificar)}</dd></div>}
                         <div><dt>Tiempo transcurrido</dt><dd>{formatearDuracion(resumen.transcurrido)}</dd></div>
                     </dl>
                     {registro.tareaId && <p className="historial-tarea">Tarea: <strong>{tarea?.rutaNombre ?? tarea?.nombre ?? registro.tareaNombre ?? "Tarea no disponible"}</strong></p>}
                     <h4>Segmentos</h4>
                     <ol className="lista-segmentos">
-                        {registro.segmentos.map((segmento, indice) => (
-                            <li key={`${registro.id}-${indice}`}>
-                                <span>{segmento.tipo}</span>
-                                <time dateTime={segmento.inicio.toISOString()}>{formatearHora(segmento.inicio)}</time>
-                                <span>–</span>
-                                {segmento.fin
-                                    ? <time dateTime={segmento.fin.toISOString()}>{formatearHora(segmento.fin)}</time>
-                                    : <span>En curso</span>}
-                            </li>
-                        ))}
+                        {registro.segmentos.flatMap((segmento, indice) => {
+                            const anterior = registro.segmentos[indice - 1]
+                            const hueco = anterior?.fin ? segmento.inicio.getTime() - anterior.fin.getTime() : 0
+                            return [
+                                ...(hueco > 0 ? [<li key={`${registro.id}-hueco-${indice}`} className="segmento-sin-registrar">
+                                    <span>Sin registrar · {formatearDuracion(Math.floor(hueco / 1000))}</span>
+                                    <time dateTime={anterior.fin.toISOString()}>{formatearHora(anterior.fin)}</time><span>–</span>
+                                    <time dateTime={segmento.inicio.toISOString()}>{formatearHora(segmento.inicio)}</time>
+                                </li>] : []),
+                                <li key={`${registro.id}-${indice}`}>
+                                    <span>{segmento.tipo}</span>
+                                    <time dateTime={segmento.inicio.toISOString()}>{formatearHora(segmento.inicio)}</time>
+                                    <span>–</span>
+                                    {segmento.fin
+                                        ? <time dateTime={segmento.fin.toISOString()}>{formatearHora(segmento.fin)}</time>
+                                        : <span>En curso</span>}
+                                </li>
+                            ]
+                        })}
                     </ol>
                     {registro.motivoCancelacion && (
                         <p className="historial-motivo">Motivo de cancelación: {registro.motivoCancelacion}</p>

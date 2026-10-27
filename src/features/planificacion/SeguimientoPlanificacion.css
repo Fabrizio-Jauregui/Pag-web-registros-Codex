@@ -49,6 +49,7 @@
 .panel-seguimiento-plan section[aria-label="Eventos pendientes del carril de seguimiento"] li span { grid-column: 1 / -1; }
 .panel-seguimiento-plan section[aria-label="Eventos pendientes del carril de seguimiento"] li span { color: var(--color-texto-secundario, #64748b); }
 .panel-seguimiento-plan section[aria-label="Eventos pendientes del carril de seguimiento"] button { min-height: 38px; }
+.panel-seguimiento-plan section[aria-label="Eventos pendientes del carril de seguimiento"] .seguimiento-plan-insertar { grid-column: 1 / -1; }
 .seguimiento-plan-formulario-cronometro { display: grid; gap: 10px; padding: 12px; border: 1px solid var(--color-borde, #cbd5e1); border-radius: 10px; }
 .seguimiento-plan-formulario-cronometro label { display: grid; gap: 5px; }
 .seguimiento-plan-formulario-cronometro input, .seguimiento-plan-formulario-cronometro select { min-height: 40px; width: 100%; }

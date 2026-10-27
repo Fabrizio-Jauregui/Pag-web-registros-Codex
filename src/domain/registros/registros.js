@@ -64,8 +64,6 @@ function validarRegistro(registro, ahora, permitirLimiteExcedido) {
         return false
     }
 
-    let finAnterior = null
-
     for (let indice = 0; indice < registro.segmentos.length; indice += 1) {
         const segmento = registro.segmentos[indice]
         const esUltimo = indice === registro.segmentos.length - 1
@@ -77,16 +75,26 @@ function validarRegistro(registro, ahora, permitirLimiteExcedido) {
             || ![ESTADO_REGISTRO_EN_CURSO, ESTADO_REGISTRO_PAUSADO].includes(segmento.tipo)
             || !esFechaValida(segmento.inicio)
             || (!abierto && !esFechaValida(segmento.fin))
-            || (indice > 0 && registro.segmentos[indice - 1].tipo === segmento.tipo)
         ) {
             return false
         }
 
-        if (abierto !== (esUltimo && registro.estado === segmento.tipo)) {
-            return false
+        if (indice > 0) {
+            const anterior = registro.segmentos[indice - 1]
+            const diferencia = segmento.inicio.getTime() - anterior.fin.getTime()
+            const huecoActividadFinalizada = registro.estado === ESTADO_REGISTRO_FINALIZADO
+                && anterior.tipo === ESTADO_REGISTRO_EN_CURSO
+                && segmento.tipo === ESTADO_REGISTRO_EN_CURSO
+                && diferencia > 0
+
+            if (diferencia < 0
+                || (diferencia !== 0 && !huecoActividadFinalizada)
+                || (anterior.tipo === segmento.tipo && !huecoActividadFinalizada)) {
+                return false
+            }
         }
 
-        if (finAnterior !== null && segmento.inicio.getTime() !== finAnterior) {
+        if (abierto !== (esUltimo && registro.estado === segmento.tipo)) {
             return false
         }
 
@@ -96,7 +104,6 @@ function validarRegistro(registro, ahora, permitirLimiteExcedido) {
             return false
         }
 
-        finAnterior = fin.getTime()
     }
 
     const estaAbierto = [ESTADO_REGISTRO_EN_CURSO, ESTADO_REGISTRO_PAUSADO]
@@ -524,11 +531,18 @@ function explicarIntervalosFinalizados(registro, ahora) {
             return "El fin de cada segmento debe ser posterior a su inicio."
         }
 
-        if (
-            indice > 0
-            && segmento.inicio.getTime() !== segmentos[indice - 1].fin?.getTime()
-        ) {
-            return "Los segmentos deben ser continuos, sin huecos ni solapamientos."
+        if (indice > 0) {
+            const anterior = segmentos[indice - 1]
+            const diferencia = segmento.inicio.getTime() - anterior.fin?.getTime()
+            const huecoActividad = anterior.tipo === ESTADO_REGISTRO_EN_CURSO
+                && segmento.tipo === ESTADO_REGISTRO_EN_CURSO
+                && diferencia > 0
+
+            if (diferencia < 0
+                || (diferencia !== 0 && !huecoActividad)
+                || (anterior.tipo === segmento.tipo && !huecoActividad)) {
+                return "Los segmentos deben ser continuos, salvo cuando se conservan tramos de actividad separados."
+            }
         }
     }
 

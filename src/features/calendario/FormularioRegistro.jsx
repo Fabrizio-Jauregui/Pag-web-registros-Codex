@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react"
+import { formatearDuracion } from "../../domain/tiempo/CalculosDuracion.js"
 
 import {
     leerValorFechaHoraLocal,
@@ -22,7 +23,9 @@ function crearSegmentosIniciales(registro, fechaSeleccionada) {
         return registro.segmentos.map(segmento => ({
             tipo: segmento.tipo,
             inicio: obtenerValorFechaHoraEnSegundos(segmento.inicio),
-            fin: obtenerValorFechaHoraEnSegundos(segmento.fin)
+            fin: obtenerValorFechaHoraEnSegundos(segmento.fin),
+            inicioOriginal: segmento.inicio,
+            finOriginal: segmento.fin
         }))
     }
 
@@ -34,7 +37,9 @@ function crearSegmentosIniciales(registro, fechaSeleccionada) {
     return [{
         tipo: "En curso",
         inicio: obtenerValorFechaHoraEnSegundos(inicio),
-        fin: obtenerValorFechaHoraEnSegundos(fin)
+        fin: obtenerValorFechaHoraEnSegundos(fin),
+        inicioOriginal: null,
+        finOriginal: null
     }]
 }
 
@@ -95,15 +100,20 @@ export function FormularioRegistro({
     function actualizarSegmento(indice, campo, valor) {
         cambiarSegmentos(actuales => actuales.map((segmento, indiceActual) => {
             if (indiceActual === indice) {
-                return { ...segmento, [campo]: valor }
+                return { ...segmento, [campo]: valor, [`${campo}Original`]: null }
             }
 
-            if (campo === "inicio" && indiceActual === indice - 1) {
-                return { ...segmento, fin: valor }
+            const segmentoEditado = actuales[indice]
+            const comparteLimite = campo === "inicio"
+                ? segmento.fin === segmentoEditado.inicio
+                : segmentoEditado.fin === segmento.inicio
+
+            if (campo === "inicio" && indiceActual === indice - 1 && comparteLimite) {
+                return { ...segmento, fin: valor, finOriginal: null }
             }
 
-            if (campo === "fin" && indiceActual === indice + 1) {
-                return { ...segmento, inicio: valor }
+            if (campo === "fin" && indiceActual === indice + 1 && comparteLimite) {
+                return { ...segmento, inicio: valor, inicioOriginal: null }
             }
 
             return segmento
@@ -128,22 +138,35 @@ export function FormularioRegistro({
         const valor = fecha => obtenerValorFechaHoraLocal(fecha).slice(0, 19)
         cambiarSegmentos(actuales => [
             ...actuales.slice(0, indice),
-            { tipo: "En curso", inicio: segmento.inicio, fin: valor(inicioPausa) },
-            { tipo: "Pausado", inicio: valor(inicioPausa), fin: valor(finPausa) },
-            { tipo: "En curso", inicio: valor(finPausa), fin: segmento.fin },
+            { tipo: "En curso", inicio: segmento.inicio, fin: valor(inicioPausa), inicioOriginal: segmento.inicioOriginal, finOriginal: null },
+            { tipo: "Pausado", inicio: valor(inicioPausa), fin: valor(finPausa), inicioOriginal: null, finOriginal: null },
+            { tipo: "En curso", inicio: valor(finPausa), fin: segmento.fin, inicioOriginal: null, finOriginal: segmento.finOriginal },
             ...actuales.slice(indice + 1)
         ])
         cambiarError("")
     }
 
-    function quitarPausa(indice) {
+    function resolverPausa(indice, contarComoActividad) {
         cambiarSegmentos(actuales => {
             const anterior = actuales[indice - 1]
             const siguiente = actuales[indice + 1]
-            if (anterior?.tipo !== "En curso" || siguiente?.tipo !== "En curso") return actuales
+            if (anterior?.tipo !== "En curso") return actuales
+
+            if (!contarComoActividad) {
+                return [...actuales.slice(0, indice), ...actuales.slice(indice + 1)]
+            }
+
+            if (siguiente?.tipo !== "En curso") {
+                return [
+                    ...actuales.slice(0, indice - 1),
+                { tipo: "En curso", inicio: anterior.inicio, fin: actuales[indice].fin, inicioOriginal: anterior.inicioOriginal, finOriginal: actuales[indice].finOriginal },
+                    ...actuales.slice(indice + 1)
+                ]
+            }
+
             return [
                 ...actuales.slice(0, indice - 1),
-                { tipo: "En curso", inicio: anterior.inicio, fin: siguiente.fin },
+                { tipo: "En curso", inicio: anterior.inicio, fin: siguiente.fin, inicioOriginal: anterior.inicioOriginal, finOriginal: siguiente.finOriginal },
                 ...actuales.slice(indice + 2)
             ]
         })
@@ -168,8 +191,8 @@ export function FormularioRegistro({
 
         const segmentosConvertidos = segmentos.map((segmento, indice) => ({
             tipo: segmento.tipo,
-            inicio: leerFechaEditada(segmento.inicio, registro?.segmentos[indice]?.inicio),
-            fin: leerFechaEditada(segmento.fin, registro?.segmentos[indice]?.fin)
+            inicio: leerFechaEditada(segmento.inicio, segmento.inicioOriginal !== undefined ? segmento.inicioOriginal : registro?.segmentos[indice]?.inicio),
+            fin: leerFechaEditada(segmento.fin, segmento.finOriginal !== undefined ? segmento.finOriginal : registro?.segmentos[indice]?.fin)
         }))
 
         let resultado
@@ -264,6 +287,15 @@ export function FormularioRegistro({
 
                 {segmentos.map((segmento, indice) => (
                     <div className="grupo-segmento-registro" key={`${registro?.id ?? "nuevo"}-${indice}`}>
+                        {indice > 0 && (() => {
+                            const anterior = segmentos[indice - 1]
+                            const finAnterior = leerValorFechaHoraLocal(anterior.fin)
+                            const inicioActual = leerValorFechaHoraLocal(segmento.inicio)
+                            const huecoMs = finAnterior && inicioActual ? inicioActual.getTime() - finAnterior.getTime() : 0
+                            return huecoMs > 0 && <p className="registro-intervalo-sin-clasificar" role="status">
+                                Intervalo sin registrar: {formatearDuracion(Math.floor(huecoMs / 1000))}
+                            </p>
+                        })()}
                         <fieldset className="formulario-segmento">
                             <legend>Segmento {indice + 1}: {segmento.tipo === "Pausado" ? "En pausa" : segmento.tipo}</legend>
                             <label>
@@ -294,9 +326,15 @@ export function FormularioRegistro({
                                 </button>
                             )}
                             {segmento.tipo === "Pausado" && (
-                                <button type="button" className="boton-quitar-pausa" onClick={() => quitarPausa(indice)}>
-                                    Quitar pausa
-                                </button>
+                                <div className="opciones-quitar-pausa" role="group" aria-label={`Opciones para quitar la pausa ${indice + 1}`}>
+                                    <span>Al quitarla:</span>
+                                    <button type="button" className="boton-quitar-pausa" onClick={() => resolverPausa(indice, true)}>
+                                        Contar este tiempo como actividad
+                                    </button>
+                                    <button type="button" className="boton-quitar-pausa" onClick={() => resolverPausa(indice, false)}>
+                                        Quitar sin contar este tiempo
+                                    </button>
+                                </div>
                             )}
                         </fieldset>
                     </div>

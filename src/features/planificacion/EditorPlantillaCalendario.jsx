@@ -1,17 +1,10 @@
 import { useMemo, useState } from "react"
+import { formatearDuracionEntrada, parsearDuracionEntrada } from "../../domain/tiempo/duracionEntrada.js"
 
 const hora = segundos => {
     const signo = segundos < 0 ? "−" : ""
     const valor = Math.abs(segundos)
     return `${signo}${String(Math.floor(valor / 3600)).padStart(2, "0")}:${String(Math.floor(valor % 3600 / 60)).padStart(2, "0")}:${String(valor % 60).padStart(2, "0")}`
-}
-const leerHora = valor => {
-    const coincidencia = typeof valor === "string" && valor.match(/^([+-]?)(\d{2,}):(\d{2}):(\d{2})$/)
-    if (!coincidencia) return null
-    const [, signo, horas, minutos, segundos] = coincidencia
-    const total = Number(horas) * 3600 + Number(minutos) * 60 + Number(segundos)
-    if (Number(minutos) > 59 || Number(segundos) > 59 || total > 86400) return null
-    return total * (signo === "-" ? -1 : 1)
 }
 const nuevaActividad = (secuenciaId, ordenSecuencia, nombre = "") => ({
     id: globalThis.crypto.randomUUID(), nombre, eventoId: null, duracionSegundos: 1800,
@@ -152,9 +145,19 @@ export function EditorPlantillaCalendario({ plantilla = null, eventos, plantilla
         if (actividades.length < 2) { cambiarError("Agregá al menos dos actividades a la plantilla."); return }
         for (const actividad of actividades) {
             if (actividad.tipoActividad !== "focus" && !actividad.nombre.trim() && !actividad.eventoId) { cambiarError("Escribí un nombre o elegí un evento para cada actividad."); return }
-            const duracionEnCampo = actividad.duracionTexto === undefined ? actividad.duracionSegundos : leerHora(actividad.duracionTexto)
-            if (!Number.isInteger(duracionEnCampo) || duracionEnCampo <= 0 || duracionEnCampo > 86400) { cambiarError("Cada duración debe ser mayor que cero y usar HH:MM:SS."); return }
+            const duracionEnCampo = actividad.duracionTexto === undefined
+                ? actividad.duracionSegundos
+                : parsearDuracionEntrada(actividad.duracionTexto)
+            if (!Number.isInteger(duracionEnCampo) || duracionEnCampo <= 0 || duracionEnCampo > 86400) {
+                cambiarError("Ingresá una duración válida y mayor que cero. Podés escribir minutos (30), unidades (1h 30m) o HH:MM:SS.")
+                return
+            }
             if (!Number.isInteger(actividad.duracionSegundos) || actividad.duracionSegundos <= 0 || actividad.duracionSegundos > 86400) { cambiarError("Cada duración debe ser mayor que cero y no superar 24 horas."); return }
+        }
+        if (Object.values(desplazamientosTexto).some(texto => texto !== undefined
+            && (parsearDuracionEntrada(texto) === null || parsearDuracionEntrada(texto) < 0))) {
+            cambiarError("Ingresá un desplazamiento válido, por ejemplo 10, 5 min o 1h 30m.")
+            return
         }
         const total = actividadesCalculadas
         if (total.some(actividad => actividad.inicioDesplazamientoSegundos < 0 || actividad.inicioDesplazamientoSegundos + actividad.duracionSegundos > 86400)) {
@@ -195,17 +198,18 @@ export function EditorPlantillaCalendario({ plantilla = null, eventos, plantilla
                         const magnitud = Math.abs(offset)
                         const valor = e.target.value === "antes" ? -(magnitud || 60) : e.target.value === "despues" ? (magnitud || 60) : 0
                         cambiarActividades(actuales => actuales.map(item => item.secuenciaId === secuenciaId ? { ...item, desplazamientoAnclaSegundos: valor } : item))
-                    }}><option value="antes">antes de</option><option value="durante">al mismo tiempo que</option><option value="despues">después de</option></select><input aria-label={`Desplazamiento respecto de ${ancla.nombre || "la actividad de referencia"}`} value={desplazamientosTexto[secuenciaId] ?? hora(Math.abs(offset))} onChange={e => {
+                    }}><option value="antes">antes de</option><option value="durante">al mismo tiempo que</option><option value="despues">después de</option></select><input aria-label={`Desplazamiento respecto de ${ancla.nombre || "la actividad de referencia"}`} placeholder="10 min o 1h 30m" value={desplazamientosTexto[secuenciaId] ?? formatearDuracionEntrada(Math.abs(offset))} onChange={e => {
                         const texto = e.target.value
                         cambiarDesplazamientosTexto(actual => ({ ...actual, [secuenciaId]: texto }))
-                        const magnitud = leerHora(texto)
+                        const magnitud = parsearDuracionEntrada(texto)
                         if (magnitud !== null && magnitud >= 0) {
                             const signo = primera.desplazamientoAnclaSegundos < 0 ? -1 : 1
                             cambiarActividades(actuales => actuales.map(item => item.secuenciaId === secuenciaId ? { ...item, desplazamientoAnclaSegundos: signo * magnitud } : item))
+                            cambiarError("")
                         }
                     }} onBlur={() => {
-                        const valor = leerHora(desplazamientosTexto[secuenciaId] ?? hora(Math.abs(offset)))
-                        if (valor === null || valor < 0) { cambiarError("El desplazamiento debe tener formato HH:MM:SS."); return }
+                        const valor = parsearDuracionEntrada(desplazamientosTexto[secuenciaId] ?? formatearDuracionEntrada(Math.abs(offset)))
+                        if (valor === null || valor < 0) { cambiarError("Ingresá un desplazamiento válido, por ejemplo 10, 5 min o 1h 30m."); return }
                         const signo = primera.desplazamientoAnclaSegundos < 0 ? -1 : 1
                         const desplazamientoAnclaSegundos = signo * Math.abs(valor)
                         cambiarActividades(actuales => actuales.map(item => item.secuenciaId === secuenciaId ? { ...item, desplazamientoAnclaSegundos } : item))
@@ -231,12 +235,12 @@ export function EditorPlantillaCalendario({ plantilla = null, eventos, plantilla
                                 actualizar(actividad.id, { eventoId: seleccionado?.id ?? null, ...(seleccionado ? { nombre: seleccionado.nombre } : {}) })
                             }}><option value="">Sin evento</option>{eventos.map(item => <option key={item.id} value={item.id}>{item.nombre}</option>)}</select></label>
                             <label>Nombre<input aria-label="Nombre" value={evento?.nombre ?? actividad.nombre} disabled={Boolean(evento)} maxLength={80} onChange={e => actualizar(actividad.id, { nombre: e.target.value })} /></label>
-                            <label>Duración (HH:MM:SS)<input aria-label="Duración (HH:MM:SS)" inputMode="numeric" value={actividad.duracionTexto ?? hora(actividad.duracionSegundos)} onChange={e => {
-                                const duracion = leerHora(e.target.value)
+                            <label>Duración<input aria-label="Duración" inputMode="text" placeholder="30, 30 min o 1h 30m" value={actividad.duracionTexto ?? formatearDuracionEntrada(actividad.duracionSegundos)} onChange={e => {
+                                const duracion = parsearDuracionEntrada(e.target.value)
                                 actualizar(actividad.id, { duracionTexto: e.target.value, ...(duracion !== null && duracion > 0 ? { duracionSegundos: duracion } : {}) })
                             }} onBlur={() => {
-                                const valor = leerHora(actividad.duracionTexto ?? "")
-                                if (valor === null || valor <= 0) cambiarError("La duración debe ser mayor que cero y usar el formato HH:MM:SS.")
+                                const valor = parsearDuracionEntrada(actividad.duracionTexto ?? "")
+                                if (valor === null || valor <= 0) cambiarError("Ingresá una duración válida y mayor que cero. Podés escribir minutos (30), unidades (1h 30m) o HH:MM:SS.")
                                 else actualizar(actividad.id, { duracionSegundos: valor, duracionTexto: undefined })
                             }} /></label></>}
                             {actividad.tipoActividad === "focus" && <p>Sesión Focus · {actividad.configuracionFocus.bloques.length} bloques; el calendario reservará su duración completa.</p>}

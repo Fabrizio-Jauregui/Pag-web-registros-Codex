@@ -11,7 +11,7 @@ export function VistaCalendarioDia({
     fechaVisible,
     fragmentos,
     fragmentosPlanes = [],
-    tarjetasSecuenciales = [],
+    marcadoresSecuenciales = [],
     eventos = [],
     onSeleccionar,
     onSeleccionarPlan = () => {},
@@ -43,7 +43,7 @@ export function VistaCalendarioDia({
     }
 
     function iniciarSeleccionFranja(evento) {
-        if (evento.target.closest?.(".bloque-registro, .bloque-plan, .tarjeta-secuencia-cronometro")
+        if (evento.target.closest?.(".bloque-registro, .bloque-plan, .marcador-secuencia-cronometro")
             || (!evento.target.closest?.(".calendario-horas, .calendario-franja, .capa-registros-dia")
                 && evento.target !== evento.currentTarget)
             || !evento.isPrimary
@@ -127,7 +127,7 @@ export function VistaCalendarioDia({
                     fragmentos={fragmentosPlanes}
                     idAplicacion={idAplicacionArmada}
                 />
-                {tarjetasSecuenciales}
+                {marcadoresSecuenciales}
             </div>
         </div>
     )

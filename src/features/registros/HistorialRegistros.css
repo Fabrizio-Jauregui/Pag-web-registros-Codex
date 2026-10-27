@@ -150,6 +150,11 @@
   font-weight: 600;
 }
 
+.lista-segmentos .segmento-sin-registrar {
+  color: #92400e;
+  font-style: italic;
+}
+
 .historial-motivo {
   margin: 14px 0 0;
   color: #9a3412;

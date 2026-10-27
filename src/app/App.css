@@ -369,6 +369,11 @@
   max-width: none;
 }
 
+.app-shell-eventos {
+  width: calc(100% - 40px);
+  max-width: 1200px;
+}
+
 .app-content-planificaciones {
   grid-template-columns: minmax(0, 1fr);
 }
@@ -389,6 +394,10 @@
   grid-template-columns: minmax(0, 1fr);
 }
 
+.app-content-eventos {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .app-content-analitica .app-navigation {
   max-width: 760px;
 }
@@ -401,6 +410,10 @@
 }
 
 .app-content-tareas > .calendario-panel {
+  display: none;
+}
+
+.app-content-eventos > .calendario-panel {
   display: none;
 }
 
@@ -454,6 +467,16 @@
   max-height: none;
 }
 
+.app-content-eventos .panel-herramientas {
+  position: static;
+  max-height: none;
+}
+
+.app-content-eventos .panel-herramientas-contenido {
+  overflow: visible;
+  max-height: none;
+}
+
 @media (max-width: 520px) {
   .app-shell-planificaciones {
     width: calc(100% - 24px);
@@ -472,6 +495,10 @@
   }
 
   .app-shell-tareas {
+    width: calc(100% - 24px);
+  }
+
+  .app-shell-eventos {
     width: calc(100% - 24px);
   }
 

@@ -11,10 +11,14 @@ export function ordenarRegistrosPorInicio(registros) {
 }
 
 export function obtenerResumenRegistro(registro, ahora = new Date()) {
+    const efectivo = calcularTiempoEfectivo(registro.segmentos, ahora)
+    const pausado = calcularTiempoPausado(registro.segmentos, ahora)
+    const transcurrido = calcularTiempoTranscurrido(registro.segmentos, ahora)
     return {
-        efectivo: calcularTiempoEfectivo(registro.segmentos, ahora),
-        pausado: calcularTiempoPausado(registro.segmentos, ahora),
-        transcurrido: calcularTiempoTranscurrido(registro.segmentos, ahora)
+        efectivo,
+        pausado,
+        transcurrido,
+        sinClasificar: Math.max(0, (transcurrido ?? 0) - efectivo - pausado)
     }
 }
 

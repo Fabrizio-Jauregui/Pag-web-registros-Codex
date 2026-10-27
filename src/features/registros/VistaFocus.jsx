@@ -27,7 +27,7 @@ function etiquetaEstado(estado) {
     })[estado] ?? estado
 }
 
-export function VistaFocus({ estadoRegistro, eventos = [], tareas = [], onCrearTarea, onActualizarTarea, onReordenarTarea, onPosponerTarea, onEstadoSesionChange, onRegistrarInicioPlanificado, onPlantillasChange, vistaActiva = true }) {
+export function VistaFocus({ estadoRegistro, eventos = [], tareas = [], onCrearTarea, onActualizarTarea, onReordenarTarea, onPosponerTarea, onEstadoSesionChange, onRegistrarInicioPlanificado, onPlantillasChange, ordenEventos, cambiarOrdenEventos, vistaActiva = true }) {
     const [nombreSesion, cambiarNombreSesion] = useState("Sesión Focus")
     const [usarColaFocus, cambiarUsarColaFocus] = useState(false)
     const [nombreActividadIndependiente, cambiarNombreActividadIndependiente] = useState("")
@@ -195,6 +195,8 @@ export function VistaFocus({ estadoRegistro, eventos = [], tareas = [], onCrearT
                     manejarStop={() => {}}
                     puedeDetener={false}
                     bloqueado={!datos.ok || hayConcentracionActiva}
+                    ordenEventos={ordenEventos}
+                    cambiarOrdenEventos={cambiarOrdenEventos}
                 />
                 {hayConcentracionActiva && <p role="status">Durante la concentración no se pueden iniciar otras actividades. Podrás hacerlo durante un descanso o el tiempo muerto.</p>}
             </section>}

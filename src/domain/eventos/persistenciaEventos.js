@@ -2,6 +2,11 @@ import { validarPlantillaEvento } from "./eventos.js"
 
 export const CLAVE_PLANTILLAS_EVENTOS = "focus.plantillas-eventos.v1"
 
+function fechaOpcionalValida(valor) {
+    return valor === undefined || valor === null
+        || (typeof valor === "string" && valor.trim() !== "" && Number.isFinite(Date.parse(valor)))
+}
+
 function validarColeccion(plantillas) {
     if (!Array.isArray(plantillas)) {
         return false
@@ -19,6 +24,8 @@ function validarColeccion(plantillas) {
             || ids.has(plantilla.id)
             || (plantilla.categoriaId !== undefined && plantilla.categoriaId !== null
                 && (typeof plantilla.categoriaId !== "string" || !plantilla.categoriaId.trim()))
+            || !fechaOpcionalValida(plantilla.creadoEn)
+            || !fechaOpcionalValida(plantilla.ultimoUso)
             || validarPlantillaEvento(plantilla.nombre, plantilla.color) !== null
         ) {
             return false
