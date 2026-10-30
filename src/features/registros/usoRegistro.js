@@ -14,7 +14,7 @@ import {
     iniciarRegistro,
     pausarRegistro
 } from "../../domain/registros/registros.js"
-import { cargarRegistros, guardarRegistros } from "../../domain/registros/persistenciaRegistros.js"
+import { cargarRegistros, guardarRegistros, eliminarRegistroInvalido, CLAVE_REGISTROS } from "../../domain/registros/persistenciaRegistros.js"
 import { cargarSesionActivaFocus } from "../../domain/focus/persistenciaFocus.js"
 
 export function useRegistro({ onInicioConEvento } = {}) {
@@ -61,12 +61,10 @@ export function useRegistro({ onInicioConEvento } = {}) {
         }
 
         limiteFallidoRef.current = null
-        const nuevosDatos = {
-            ok: true,
-            registros: resultado.registros,
-            mensaje: "",
-            advertencia: ""
-        }
+        const cargaPosterior = cargarRegistros()
+        const nuevosDatos = cargaPosterior.ok
+            ? { ...cargaPosterior, mensaje: cargaPosterior.mensaje ?? "", advertencia: cargaPosterior.advertencia ?? "" }
+            : { ok: true, registros: resultado.registros, problemas: datosRef.current.problemas ?? [], mensaje: "", advertencia: cargaPosterior.error }
         datosRef.current = nuevosDatos
         cambiarDatos(nuevosDatos)
         cambiarError("")
@@ -275,6 +273,27 @@ export function useRegistro({ onInicioConEvento } = {}) {
         return guardarTransicion(resultado, { mostrarError: false })
     }
 
+    function eliminarInvalido(indice) {
+        const resultado = eliminarRegistroInvalido(indice)
+        if (!resultado.ok) return resultado
+        const carga = cargarRegistros()
+        const nuevosDatos = { ...carga, mensaje: carga.mensaje ?? "", advertencia: carga.advertencia ?? "" }
+        datosRef.current = nuevosDatos
+        cambiarDatos(nuevosDatos)
+        return { ok: true }
+    }
+
+    function eliminarDatosCorruptos() {
+        try {
+            localStorage.removeItem(CLAVE_REGISTROS)
+            const carga = cargarRegistros()
+            const nuevosDatos = { ...carga, mensaje: "", advertencia: "" }
+            datosRef.current = nuevosDatos
+            cambiarDatos(nuevosDatos)
+            return { ok: true }
+        } catch { return { ok: false, error: "No se pudieron eliminar los datos corruptos." } }
+    }
+
     const marcarComoFocus = useCallback((ids) => {
         if (!datosRef.current.ok || !Array.isArray(ids) || ids.length === 0) return { ok: true }
         const seleccionados = new Set(ids)
@@ -304,6 +323,8 @@ export function useRegistro({ onInicioConEvento } = {}) {
         crearManual,
         editarFinalizado,
         eliminarFinalizado,
+        eliminarInvalido,
+        eliminarDatosCorruptos,
         marcarComoFocus
     }
 }

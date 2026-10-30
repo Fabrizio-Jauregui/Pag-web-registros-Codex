@@ -12,7 +12,7 @@ function crearId() {
     try { return globalThis.crypto.randomUUID() } catch { return null }
 }
 
-export function useSeguimientoPlanificacion(estadoRegistro) {
+export function useSeguimientoPlanificacion(estadoRegistro, tareas = []) {
     const [cargaInicial] = useState(cargarSeguimientoPlanificacion)
     const [estado, cambiarEstado] = useState(() => cargaInicial.estado)
     const [error, cambiarError] = useState(() => cargaInicial.error ?? "")
@@ -20,9 +20,11 @@ export function useSeguimientoPlanificacion(estadoRegistro) {
     const [ahora, cambiarAhora] = useState(() => Date.now())
     const estadoRef = useRef(estado)
     const registroRef = useRef(estadoRegistro)
+    const tareasRef = useRef(tareas)
     const procesarRef = useRef(() => {})
 
     useEffect(() => { registroRef.current = estadoRegistro }, [estadoRegistro])
+    useEffect(() => { tareasRef.current = tareas }, [tareas])
 
     const idSeguimiento = estado?.id
     const registroIdActual = estado?.registroId
@@ -74,11 +76,13 @@ export function useSeguimientoPlanificacion(estadoRegistro) {
 
     function iniciarRegistroDePlan(secuencia, indice, instante) {
         const elemento = secuencia[indice]
+        const tareaActual = elemento.tarea && tareasRef.current.find(item => item.id === elemento.tarea.id)
+        const tarea = tareaActual ? { ...elemento.tarea, nombre: tareaActual.nombre } : elemento.tarea
         return registroRef.current.iniciarConId(
             elemento.nombre,
             elemento.evento,
             new Date(instante),
-            null,
+            tarea,
             { planId: elemento.planId }
         )
     }
@@ -287,11 +291,11 @@ export function useSeguimientoPlanificacion(estadoRegistro) {
         return () => clearInterval(intervalo)
     }, [estado?.estado, estado?.finBloque, estado?.registrosActivos?.length, estado?.modoAvance])
 
-    function empezar(planId, modo, planes, eventos) {
+    function empezar(planId, modo, planes, eventos, tareasDisponibles = tareasRef.current) {
         if (estadoRef.current) return { ok: false, error: "Ya hay un seguimiento de planificación activo." }
         const resultado = crearSecuenciaSeguimiento(planes, modo === "primero"
             ? obtenerPrimerPlanDelDia(planes, planId)
-            : planId, eventos)
+            : planId, eventos, tareasDisponibles)
         if (!resultado.ok) return resultado
 
         const id = crearId()
@@ -777,11 +781,11 @@ export function useSeguimientoPlanificacion(estadoRegistro) {
         return registrarNuevosEventos(sesion, ids)
     }
 
-    function sincronizarPlanes(planes, eventos) {
+    function sincronizarPlanes(planes, eventos, tareasDisponibles = tareasRef.current) {
         const sesion = estadoRef.current
         if (!sesion) return { ok: true }
         const planActualId = sesion.secuencia[sesion.indiceActual]?.planId
-        const actualizacion = crearSecuenciaSeguimiento(planes, planActualId, eventos)
+        const actualizacion = crearSecuenciaSeguimiento(planes, planActualId, eventos, tareasDisponibles)
         if (!actualizacion.ok) return actualizacion
 
         if (sesion.tipoSeguimiento === "cronometro") {

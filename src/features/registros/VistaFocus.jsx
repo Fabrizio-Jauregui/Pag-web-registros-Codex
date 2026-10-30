@@ -3,6 +3,7 @@ import { useEffect, useState } from "react"
 import { formatearDuracion } from "../../domain/tiempo/CalculosDuracion.js"
 import { crearBloquesFocus, useSesionFocus } from "./usoSesionFocus.js"
 import { ControlesRegistro } from "./ControlesRegistro.jsx"
+import { SelectorOrigenActividad } from "../comun/SelectorOrigenActividad.jsx"
 import { ListaRegistrosActivos } from "./ListaRegistrosActivos.jsx"
 import "./VistaFocus.css"
 
@@ -27,9 +28,11 @@ function etiquetaEstado(estado) {
     })[estado] ?? estado
 }
 
-export function VistaFocus({ estadoRegistro, eventos = [], tareas = [], onCrearTarea, onActualizarTarea, onReordenarTarea, onPosponerTarea, onEstadoSesionChange, onRegistrarInicioPlanificado, onPlantillasChange, ordenEventos, cambiarOrdenEventos, vistaActiva = true }) {
+export function VistaFocus({ estadoRegistro, eventos = [], tareas = [], categorias = [], onCrearTarea, onActualizarTarea, onReordenarTarea, onPosponerTarea, onEstadoSesionChange, onRegistrarInicioPlanificado, onPlantillasChange, ordenEventos, cambiarOrdenEventos, vistaActiva = true }) {
     const [nombreSesion, cambiarNombreSesion] = useState("Sesión Focus")
     const [usarColaFocus, cambiarUsarColaFocus] = useState(false)
+    const [eventoSesionId, cambiarEventoSesionId] = useState("")
+    const [tareaSesionId, cambiarTareaSesionId] = useState("")
     const [nombreActividadIndependiente, cambiarNombreActividadIndependiente] = useState("")
     const [eventoIndependienteId, cambiarEventoIndependienteId] = useState("")
     const [tareaIndependienteId, cambiarTareaIndependienteId] = useState("")
@@ -54,13 +57,15 @@ export function VistaFocus({ estadoRegistro, eventos = [], tareas = [], onCrearT
         onActualizarTarea,
         onPosponerTarea,
         onEstadoSesionChange,
-    })
+    }, eventos)
     useEffect(() => { onPlantillasChange?.(focus.plantillas) }, [focus.plantillas, onPlantillasChange])
     onRegistrarInicioPlanificado?.(configuracion => focus.iniciar({
         nombre: configuracion.nombre,
         usarColaFocus: Boolean(configuracion.usarColaFocus),
         bloques: configuracion.bloques,
-        colores: configuracion.colores
+        colores: configuracion.colores,
+        evento: configuracion.evento ?? null,
+        tarea: configuracion.tarea ?? null
     }))
     const { datos, registrosActivos } = estadoRegistro
     const idsRegistrosGuardados = new Set(estadoRegistro.registros.map(registro => registro.id))
@@ -111,6 +116,8 @@ export function VistaFocus({ estadoRegistro, eventos = [], tareas = [], onCrearT
         const config = plantilla.configuracion
         cambiarNombreSesion(config.nombre)
         cambiarUsarColaFocus(Boolean(config.usarColaFocus))
+        cambiarEventoSesionId(config.evento?.id ?? "")
+        cambiarTareaSesionId(config.tarea?.id ?? "")
         cambiarBloques(config.bloques.map(bloque => ({ ...bloque })))
         cambiarPares(Math.max(1, Math.ceil(config.bloques.length / 2)))
         cambiarMinutosConcentracion(config.bloques.find(bloque => bloque.tipo === "concentracion")?.minutos ?? 25)
@@ -121,12 +128,16 @@ export function VistaFocus({ estadoRegistro, eventos = [], tareas = [], onCrearT
     }
 
     function iniciarSesion() {
+        const evento = eventos.find(item => item.id === eventoSesionId) ?? null
+        const tarea = tareas.find(item => item.id === tareaSesionId) ?? null
         focus.iniciar({
             nombre: nombreSesion,
             tarea: null,
             usarColaFocus,
             bloques,
-            colores
+            colores,
+            evento: usarColaFocus ? null : evento,
+            tarea: usarColaFocus ? null : tarea
         })
     }
 
@@ -134,6 +145,8 @@ export function VistaFocus({ estadoRegistro, eventos = [], tareas = [], onCrearT
         const config = {
             nombre: nombreSesion.trim() || "Sesión Focus",
             usarColaFocus,
+            evento: usarColaFocus ? null : eventos.find(item => item.id === eventoSesionId) ?? null,
+            tarea: usarColaFocus ? null : tareas.find(item => item.id === tareaSesionId) ?? null,
             bloques: bloques.map(bloque => ({ ...bloque })),
             colores
         }
@@ -176,19 +189,25 @@ export function VistaFocus({ estadoRegistro, eventos = [], tareas = [], onCrearT
                     <p>Este registro corre por separado y no cambia los bloques ni los controles de la sesión Focus.</p>
                 </div>
                 <ControlesRegistro
-                    idPrefix="focus-independiente"
                     nombre={nombreActividadIndependiente}
                     cambiarNombre={cambiarNombreActividadIndependiente}
                     eventos={eventos}
                     tareas={tareas}
+                    categorias={categorias}
                     eventoId={eventoIndependienteId}
                     cambiarEventoId={nuevoId => {
                         cambiarEventoIndependienteId(nuevoId)
+                        if (nuevoId) cambiarTareaIndependienteId("")
                         const seleccionado = eventos.find(evento => evento.id === nuevoId)
                         cambiarNombreActividadIndependiente(seleccionado?.nombre ?? "")
                     }}
                     tareaId={tareaIndependienteId}
-                    cambiarTareaId={cambiarTareaIndependienteId}
+                    cambiarTareaId={nuevoId => {
+                        cambiarTareaIndependienteId(nuevoId)
+                        if (nuevoId) cambiarEventoIndependienteId("")
+                        const seleccionada = tareas.find(tarea => tarea.id === nuevoId)
+                        cambiarNombreActividadIndependiente(seleccionada?.nombre ?? "")
+                    }}
                     estado="Inactivo"
                     manejarPlay={iniciarActividadIndependiente}
                     manejarPause={() => {}}
@@ -309,6 +328,10 @@ export function VistaFocus({ estadoRegistro, eventos = [], tareas = [], onCrearT
                             <input type="checkbox" checked={usarColaFocus} onChange={evento => cambiarUsarColaFocus(evento.target.checked)} />
                             Usar Cola Focus para asignar las tareas de cada concentración
                         </label>
+                        {!usarColaFocus && <>
+                            <SelectorOrigenActividad tipo="evento" etiqueta="Plantilla de evento" opciones={eventos} categorias={categorias} value={eventoSesionId} disabled={Boolean(tareaSesionId)} ordenEventos={ordenEventos} cambiarOrdenEventos={cambiarOrdenEventos} onChange={opcion => { cambiarEventoSesionId(opcion?.id ?? ""); if (opcion) cambiarTareaSesionId("") }} />
+                            <SelectorOrigenActividad tipo="tarea" etiqueta="Tarea" opciones={tareas} value={tareaSesionId} disabled={Boolean(eventoSesionId)} onChange={opcion => { cambiarTareaSesionId(opcion?.id ?? ""); if (opcion) cambiarEventoSesionId("") }} />
+                        </>}
                         <label>Pares de bloques
                             <select value={pares} onChange={evento => cambiarPares(Number(evento.target.value))}>
                                 {Array.from({ length: 8 }, (_, indice) => <option key={indice + 1} value={indice + 1}>{indice + 1}</option>)}
@@ -364,7 +387,7 @@ export function VistaFocus({ estadoRegistro, eventos = [], tareas = [], onCrearT
                                         <input value={nombrePlantilla} onChange={evento => cambiarNombrePlantilla(evento.target.value)} placeholder="Ej.: Lectura y pausas" maxLength={80} />
                                     </label>
                                     <button type="button" className="focus-boton-secundario" onClick={guardarPlantilla} disabled={!nombrePlantilla.trim()}>Guardar plantilla</button>
-                                    <button type="button" className="focus-accion-principal" onClick={iniciarSesion} disabled={!datos.ok || totalMinutos > 1440}>Iniciar sesión Focus</button>
+                                    <button type="button" className="focus-accion-principal" onClick={iniciarSesion} disabled={!datos.ok || totalMinutos > 1440 || (!usarColaFocus && Boolean(eventoSesionId) === Boolean(tareaSesionId)) || (usarColaFocus && colaFocus.length === 0)}>Iniciar sesión Focus</button>
                                 </div>
                             )}
                         </div>

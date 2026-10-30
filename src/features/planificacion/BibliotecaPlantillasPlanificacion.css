@@ -32,6 +32,7 @@
 .lista-plantillas-plan{display:grid;gap:10px;margin:0;padding:0;list-style:none}
 .lista-plantillas-plan>li{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:center;gap:18px;padding:14px;border:1px solid #cbd5e1;border-radius:10px}
 .plantilla-plan-resumen{min-width:0}.plantilla-plan-resumen ul{margin:7px 0 0;padding-left:20px;color:#475569}
+.plantilla-plan-uso{margin:8px 0 0;padding:8px 10px;border-left:3px solid #0f766e;border-radius:4px;background:#ecfdf5;color:#115e59;font-size:.9rem;line-height:1.4}
 .plantilla-plan-previsualizacion{min-width:0;padding-left:14px;border-left:1px solid #cbd5e1}
 .plantilla-plan-previsualizacion h4{margin-bottom:6px;font-size:.95rem}
 .plantilla-plan-previsualizacion ol{display:grid;gap:5px;margin:0;padding-left:21px;color:#334155}
@@ -53,6 +54,7 @@ html[data-tema="oscuro"] .plantilla-plan-previsualizacion{border-color:#334155}
 html[data-tema="oscuro"] .plantilla-plan-previsualizacion ol,html[data-tema="oscuro"] .plantilla-plan-previsualizacion li span{color:#d4dce8}
 html[data-tema="oscuro"] .plantilla-plan-previsualizacion li small{color:#aab7ca}
 html[data-tema="oscuro"] .plantilla-plan-previsualizacion>p{color:#fca5a5}
+html[data-tema="oscuro"] .plantilla-plan-uso{background:#12342f;color:#a7f3d0;border-color:#2dd4bf}
 html[data-tema="oscuro"] .biblioteca-plantillas-plan button:not(.plan-plantilla-primario){background:#1a2437;color:#e8edf5;border-color:#3a465d}
 html[data-tema="oscuro"] .formulario-plantilla-plan input,html[data-tema="oscuro"] .formulario-plantilla-plan select,html[data-tema="oscuro"] .plan-plantilla-fecha input{background:#1a2437;color:#e8edf5;border-color:#3a465d}
 @media(min-width:901px){.panel-herramientas .biblioteca-plantillas-plan{padding:18px 14px}.panel-herramientas .biblioteca-plantillas-plan-header{align-items:stretch;flex-direction:column;gap:10px}.panel-herramientas .acciones-crear-plantilla{align-items:stretch;flex-direction:column}.panel-herramientas .lista-plantillas-plan>li{grid-template-columns:minmax(0,1fr);gap:12px}.panel-herramientas .plantilla-plan-previsualizacion{padding:12px 0 0;border-top:1px solid #cbd5e1;border-left:0}.panel-herramientas .plantilla-plan-acciones{grid-column:auto;justify-content:flex-start}.panel-herramientas .actividad-plantilla-plan{grid-template-columns:minmax(0,1fr)}}

@@ -74,6 +74,26 @@ function deserializarRegistros(datos) {
     return registros
 }
 
+function analizarRegistros(datos, ahora) {
+    if (!Array.isArray(datos)) return { registros: [], problemas: [{ indice: null, titulo: "Colección de registros", detalle: "El contenido guardado no es una lista de registros.", bruto: null }] }
+    const registros = []
+    const problemas = []
+    const ids = new Set()
+    datos.forEach((bruto, indice) => {
+        const convertidos = deserializarRegistros([bruto])
+        const registro = convertidos?.[0]
+        let detalle = ""
+        if (!registro) detalle = "Faltan datos o hay fechas de segmentos inválidas."
+        else if (typeof registro.id !== "string" || !registro.id.trim()) detalle = "El registro no tiene un identificador válido."
+        else if (ids.has(registro.id)) detalle = "El identificador del registro está repetido."
+        else if (Boolean(registro.eventoId) === Boolean(registro.tareaId)) detalle = "Debe tener exactamente un origen: una plantilla de evento o una tarea."
+        else if (!validarColeccionRegistros([registro], ahora, { permitirLimiteExcedido: true })) detalle = "El registro tiene datos inválidos, un estado incorrecto o intervalos inconsistentes."
+        if (detalle) problemas.push({ indice, titulo: registro?.nombre || `Registro ${indice + 1}`, detalle, bruto })
+        else { registros.push(registro); ids.add(registro.id) }
+    })
+    return { registros, problemas }
+}
+
 function serializarRegistros(registros) {
     return JSON.stringify(registros.map(registro => ({
         ...registro,
@@ -101,20 +121,15 @@ export function cargarRegistros(almacenamiento = null, ahora = new Date()) {
         } catch {
             return {
                 ok: false,
-                error: "Los registros guardados no tienen un formato JSON válido. No se modificaron los datos."
+                error: "Los registros guardados no tienen un formato JSON válido. No se modificaron los datos.",
+                problemas: [{ indice: null, titulo: "Colección de registros", detalle: "El contenido no es JSON válido; solo se puede quitar la colección completa." }]
             }
         }
 
-        const registros = deserializarRegistros(datos)
-
-        if (
-            registros === null
-            || !validarColeccionRegistros(registros, ahora, { permitirLimiteExcedido: true })
-        ) {
-            return {
-                ok: false,
-                error: "Los registros guardados tienen datos o intervalos inválidos. No se modificaron los datos."
-            }
+        const analisis = analizarRegistros(datos, ahora)
+        const registros = analisis.registros
+        if (analisis.problemas.some(problema => problema.indice === null)) {
+            return { ok: false, error: analisis.problemas[0].detalle, problemas: analisis.problemas }
         }
 
         const recuperacion = aplicarLimitesVencidos(registros, ahora)
@@ -124,7 +139,7 @@ export function cargarRegistros(almacenamiento = null, ahora = new Date()) {
         }
 
         if (!recuperacion.cambioPorLimite) {
-            return { ok: true, registros }
+            return { ok: true, registros, ...(analisis.problemas.length ? { problemas: analisis.problemas } : {}) }
         }
 
         const guardado = guardarRegistros(recuperacion.registros, almacen, ahora)
@@ -132,6 +147,7 @@ export function cargarRegistros(almacenamiento = null, ahora = new Date()) {
         return {
             ok: true,
             registros: recuperacion.registros,
+            ...(analisis.problemas.length ? { problemas: analisis.problemas } : {}),
             mensaje: recuperacion.mensaje,
             advertencia: guardado.ok ? "" : guardado.error
         }
@@ -153,7 +169,17 @@ export function guardarRegistros(registros, almacenamiento = null, ahora = new D
 
     try {
         const almacen = almacenamiento ?? globalThis.localStorage
-        almacen.setItem(CLAVE_REGISTROS, serializarRegistros(registros))
+        let invalidos = []
+        try {
+            const contenido = almacen.getItem(CLAVE_REGISTROS)
+            const originales = JSON.parse(contenido ?? "[]")
+            if (!Array.isArray(originales)) return { ok: false, error: "El contenido de registros no se puede modificar hasta eliminar la colección corrupta." }
+            invalidos = analizarRegistros(originales, ahora).problemas.map(problema => problema.bruto)
+        } catch { return { ok: false, error: "El contenido de registros no se puede modificar hasta eliminar la colección corrupta." } }
+        almacen.setItem(CLAVE_REGISTROS, JSON.stringify([
+            ...JSON.parse(serializarRegistros(registros)),
+            ...invalidos
+        ]))
         return { ok: true }
     } catch {
         return {
@@ -161,4 +187,15 @@ export function guardarRegistros(registros, almacenamiento = null, ahora = new D
             error: "No se pudieron guardar los registros en este navegador. Verificá el espacio disponible y los permisos de almacenamiento."
         }
     }
+}
+
+export function eliminarRegistroInvalido(indice, almacenamiento = null) {
+    try {
+        const almacen = almacenamiento ?? globalThis.localStorage
+        const originales = JSON.parse(almacen.getItem(CLAVE_REGISTROS) ?? "null")
+        if (!Array.isArray(originales) || !Number.isInteger(indice) || indice < 0 || indice >= originales.length) return { ok: false, error: "No se encontró ese registro inválido." }
+        originales.splice(indice, 1)
+        almacen.setItem(CLAVE_REGISTROS, JSON.stringify(originales))
+        return { ok: true }
+    } catch { return { ok: false, error: "No se pudo eliminar el registro inválido." } }
 }

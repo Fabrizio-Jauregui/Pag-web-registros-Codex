@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import { leerValorFechaHoraLocal, obtenerValorFechaHoraLocal } from "./segmentosCalendario.js"
+import { SelectorOrigenActividad } from "../comun/SelectorOrigenActividad.jsx"
 
 function valorFechaHora(fecha) {
     return obtenerValorFechaHoraLocal(fecha).slice(0, 19)
@@ -9,6 +10,7 @@ function crearValoresIniciales(plan, fechaSeleccionada, valoresIniciales = null)
     if (plan) return {
         nombre: plan.nombre,
         eventoId: plan.eventoId ?? "",
+        tareaId: plan.tareaId ?? "",
         inicio: valorFechaHora(plan.inicio),
         fin: valorFechaHora(plan.fin)
     }
@@ -17,10 +19,10 @@ function crearValoresIniciales(plan, fechaSeleccionada, valoresIniciales = null)
     inicio.setHours(9, 0, 0, 0)
     const fin = new Date(inicio)
     fin.setMinutes(fin.getMinutes() + 30)
-    return { nombre: "", eventoId: "", inicio: valorFechaHora(inicio), fin: valorFechaHora(fin) }
+    return { nombre: "", eventoId: "", tareaId: "", inicio: valorFechaHora(inicio), fin: valorFechaHora(fin) }
 }
 
-export function FormularioPlan({ plan = null, fechaSeleccionada, eventos, onGuardar, onCrearRecurrencia, onCancelar, valoresIniciales = null }) {
+export function FormularioPlan({ plan = null, fechaSeleccionada, eventos, tareas = [], categorias = [], ordenEventos = "ultimo-uso", cambiarOrdenEventos = () => {}, onGuardar, onCrearRecurrencia, onCancelar, valoresIniciales = null }) {
     const esSesionFocus = plan?.tipoPlanificacion === "focus"
     const [repetirSemanalmente, cambiarRepetirSemanalmente] = useState(false)
     const [diasSemana, cambiarDiasSemana] = useState(() => [fechaSeleccionada.getDay()])
@@ -30,9 +32,11 @@ export function FormularioPlan({ plan = null, fechaSeleccionada, eventos, onGuar
     const [error, cambiarError] = useState("")
     const nombreRef = useRef(null)
     const eventoRef = useRef(null)
+    const tareaRef = useRef(null)
     const inicioRef = useRef(null)
     const finRef = useRef(null)
     const eventoSeleccionado = eventos.find(evento => evento.id === valores.eventoId)
+    const tareaSeleccionada = tareas.find(tarea => tarea.id === valores.tareaId)
 
     useEffect(() => {
         eventoRef.current?.focus()
@@ -65,12 +69,27 @@ export function FormularioPlan({ plan = null, fechaSeleccionada, eventos, onGuar
             eventoRef.current?.focus()
             return
         }
+        if (valores.tareaId && !tareaSeleccionada) {
+            const mensaje = "La tarea seleccionada ya no está disponible. Elegí otra tarea."
+            cambiarError(mensaje)
+            tareaRef.current?.focus()
+            return
+        }
+        if (!esSesionFocus || !plan?.configuracionFocus?.usarColaFocus) {
+            if (Boolean(eventoSeleccionado) === Boolean(tareaSeleccionada)) {
+                const mensaje = "Elegí una plantilla de evento o una tarea como origen."
+                cambiarError(mensaje)
+                eventoRef.current?.focus()
+                return
+            }
+        }
         const cambios = {
             id: plan?.id,
             ...(plan?.plantillaOrigenId ? { plantillaOrigenId: plan.plantillaOrigenId } : {}),
             ...(plan?.plantillaOrigenNombre ? { plantillaOrigenNombre: plan.plantillaOrigenNombre } : {}),
             nombre: valores.nombre,
             evento: eventoSeleccionado ?? null,
+            tarea: tareaSeleccionada ?? null,
             inicio,
             fin,
             alcance
@@ -97,37 +116,53 @@ export function FormularioPlan({ plan = null, fechaSeleccionada, eventos, onGuar
             <form aria-labelledby="titulo-formulario-plan" onSubmit={guardar} onKeyDown={evento => {
                 if (evento.key === "Escape") { evento.preventDefault(); onCancelar() }
             }}>
+                <SelectorOrigenActividad
+                    tipo="evento"
+                    etiqueta="Plantilla de evento"
+                    opciones={eventos}
+                    categorias={categorias}
+                    value={valores.eventoId}
+                    missingName={plan?.nombre}
+                    ref={eventoRef}
+                    disabled={Boolean(valores.tareaId)}
+                    ordenEventos={ordenEventos}
+                    cambiarOrdenEventos={cambiarOrdenEventos}
+                    onChange={opcion => {
+                        const id = opcion?.id ?? ""
+                        cambiarValores(actuales => ({
+                            ...actuales,
+                            eventoId: id,
+                            tareaId: id ? "" : actuales.tareaId,
+                            nombre: opcion?.nombre ?? actuales.nombre
+                        }))
+                        cambiarError("")
+                    }}
+                />
+                <SelectorOrigenActividad
+                    tipo="tarea"
+                    etiqueta="Tarea"
+                    opciones={tareas}
+                    value={valores.tareaId ?? ""}
+                    missingName={plan?.tareaNombre ?? plan?.nombre}
+                    ref={tareaRef}
+                    disabled={Boolean(valores.eventoId)}
+                    onChange={opcion => {
+                        const id = opcion?.id ?? ""
+                        cambiarValores(actuales => ({ ...actuales, tareaId: id, eventoId: id ? "" : actuales.eventoId, nombre: opcion?.nombre ?? actuales.nombre }))
+                        cambiarError("")
+                    }}
+                />
                 {!esSesionFocus && <label>
-                    <span>Plantilla de evento (opcional)</span>
-                    <select
-                        ref={eventoRef}
-                        value={valores.eventoId}
-                        onChange={evento => {
-                            const nuevoId = evento.target.value
-                            const nuevoEvento = eventos.find(plantilla => plantilla.id === nuevoId)
-                            cambiarValores(actuales => ({
-                                ...actuales,
-                                eventoId: nuevoId,
-                                nombre: nuevoEvento?.nombre ?? actuales.nombre
-                            }))
-                            cambiarError("")
-                        }}
-                    >
-                        <option value="">Sin plantilla</option>
-                        {eventos.map(evento => <option key={evento.id} value={evento.id}>{evento.nombre}</option>)}
-                    </select>
-                </label>}
-                <label>
                     <span>Nombre de la actividad</span>
                     <input
                         ref={nombreRef}
-                        value={eventoSeleccionado?.nombre ?? valores.nombre}
-                        onChange={evento => cambiar("nombre", evento.target.value)}
+                        value={eventoSeleccionado?.nombre ?? tareaSeleccionada?.nombre ?? valores.nombre}
+                        readOnly
                         maxLength={80}
-                        disabled={Boolean(eventoSeleccionado)}
+                        disabled={!eventoSeleccionado && !tareaSeleccionada}
                         required
                     />
-                </label>
+                </label>}
                 <div className="campos-horario-plan">
                     <label>
                         <span>Inicio</span>

@@ -22,6 +22,9 @@ export function validarReglaRecurrencia(regla) {
     if (typeof regla.nombre !== "string" || !regla.nombre.trim() || regla.nombre.length > 80) return false
     if (regla.eventoId !== null && typeof regla.eventoId !== "string") return false
     if (regla.colorEvento !== null && !/^#[\da-fA-F]{6}$/.test(regla.colorEvento)) return false
+    if (regla.tareaId !== undefined && (typeof regla.tareaId !== "string" || !regla.tareaId.trim())) return false
+    if (regla.tareaNombre !== undefined && (typeof regla.tareaNombre !== "string" || !regla.tareaNombre.trim())) return false
+    if ((typeof regla.eventoId === "string") === (typeof regla.tareaId === "string")) return false
     const inicio = leerFechaISO(regla.fechaInicio)
     const fin = regla.fechaFin === null ? null : leerFechaISO(regla.fechaFin)
     if (!inicio || (regla.fechaFin !== null && (!fin || fin < inicio))) return false
@@ -52,6 +55,7 @@ export function crearReglaRecurrencia(plan, diasSemana, fechaFin = null, generar
     inicioDia.setHours(0, 0, 0, 0)
     const regla = {
         id: generarId(), idSerie: null, nombre: plan.nombre, eventoId: plan.eventoId, colorEvento: plan.colorEvento,
+        ...(plan.tareaId ? { tareaId: plan.tareaId, tareaNombre: plan.tareaNombre } : {}),
         ...(typeof plan.plantillaOrigenId === "string" && plan.plantillaOrigenId.trim()
             ? { plantillaOrigenId: plan.plantillaOrigenId } : {}),
         ...(typeof plan.plantillaOrigenNombre === "string" && plan.plantillaOrigenNombre.trim()
@@ -97,6 +101,7 @@ export function generarAparicionesRecurrencia(reglas, inicioRango, finRango) {
                     const fin = new Date(inicio.getTime() + regla.duracionMs)
                     visibles.push({ id: `recurrencia-${regla.id}-${fecha}`, nombre: regla.nombre,
                         eventoId: regla.eventoId, colorEvento: regla.colorEvento, inicio, fin,
+                        ...(regla.tareaId ? { tareaId: regla.tareaId, tareaNombre: regla.tareaNombre } : {}),
                         ...(Number.isInteger(regla.ordenSeguimiento) ? { ordenSeguimiento: regla.ordenSeguimiento } : {}),
                         ...(regla.plantillaOrigenId ? { plantillaOrigenId: regla.plantillaOrigenId } : {}),
                         ...(regla.plantillaOrigenNombre ? { plantillaOrigenNombre: regla.plantillaOrigenNombre } : {}),
@@ -253,8 +258,9 @@ export function cambiarRecurrencia(reglas, id, fecha, cambios, alcance = "solo")
     )) }
     if (alcance === "solo") {
         const inicio = cambios.inicio.toISOString(); const fin = cambios.fin.toISOString()
-        const excepciones = { ...regla.excepciones, [fecha]: { id: `excepcion-${id}-${fecha}`, nombre: cambios.nombre,
+        const excepciones = { ...regla.excepciones, [fecha]: { id: `excepcion-${id}-${fecha}`, nombre: cambios.evento?.nombre ?? cambios.tarea?.nombre ?? cambios.nombre.trim(),
             eventoId: cambios.evento?.id ?? null, colorEvento: cambios.evento?.color ?? regla.colorEvento,
+            ...(cambios.tarea ? { tareaId: cambios.tarea.id, tareaNombre: cambios.tarea.nombre } : {}),
             ...(Number.isInteger(cambios.ordenSeguimiento) ? { ordenSeguimiento: cambios.ordenSeguimiento } : {}),
             inicio, fin } }
         return { ok: true, reglas: reglas.map(item => item.id === id ? { ...item, excepciones } : item) }
@@ -271,11 +277,17 @@ export function cambiarRecurrencia(reglas, id, fecha, cambios, alcance = "solo")
 }
 
 function actualizarBase(regla, cambios) {
-    return { ...regla, nombre: cambios.nombre.trim(), eventoId: cambios.evento?.id ?? null,
+    const actualizada = { ...regla, nombre: cambios.evento?.nombre ?? cambios.tarea?.nombre ?? cambios.nombre.trim(), eventoId: cambios.evento?.id ?? null,
         colorEvento: cambios.evento?.color ?? regla.colorEvento,
+        ...(cambios.tarea ? { tareaId: cambios.tarea.id, tareaNombre: cambios.tarea.nombre } : {}),
         ...(Number.isInteger(cambios.ordenSeguimiento) ? { ordenSeguimiento: cambios.ordenSeguimiento } : {}),
         segundosInicio: cambios.inicio.getHours() * 3600 + cambios.inicio.getMinutes() * 60 + cambios.inicio.getSeconds(),
         milisegundosInicio: cambios.inicio.getMilliseconds(), duracionMs: cambios.fin - cambios.inicio }
+    if (!cambios.tarea) {
+        delete actualizada.tareaId
+        delete actualizada.tareaNombre
+    }
+    return actualizada
 }
 
 export function eliminarRecurrencia(reglas, id, fecha, alcance = "solo") {
@@ -301,14 +313,43 @@ export function cargarRecurrencias(almacenamiento = null) {
         almacenamiento ??= globalThis.localStorage
         const texto = almacenamiento.getItem(CLAVE_RECURRENCIAS)
         if (texto === null) return { ok: true, reglas: [] }
-        const reglas = JSON.parse(texto)
-        return validarColeccionRecurrencias(reglas) ? { ok: true, reglas }
-            : { ok: false, error: "Las recurrencias guardadas tienen datos inválidos. No se modificaron." }
+        const reglasBrutas = JSON.parse(texto)
+        if (!Array.isArray(reglasBrutas)) return { ok: false, reglas: [], error: "Las recurrencias guardadas no tienen formato de lista." }
+        const reglas = []
+        const problemas = []
+        const ids = new Set()
+        reglasBrutas.forEach((regla, indice) => {
+            const errorId = ids.has(regla?.id)
+            const tieneEvento = typeof regla?.eventoId === "string" && regla.eventoId.trim() !== ""
+            const tieneTarea = typeof regla?.tareaId === "string" && regla.tareaId.trim() !== ""
+            if (!validarReglaRecurrencia(regla) || errorId) problemas.push({ indice, titulo: regla?.nombre || `Recurrencia ${indice + 1}`, detalle: errorId ? "El identificador de la recurrencia está repetido." : tieneEvento === tieneTarea ? "Debe tener exactamente un origen: una plantilla de evento o una tarea." : "La recurrencia tiene fechas, repeticiones o excepciones inválidas." })
+            else { reglas.push(regla); ids.add(regla.id) }
+        })
+        return { ok: true, reglas, ...(problemas.length ? { problemas } : {}) }
     } catch { return { ok: false, error: "No se pudieron leer las recurrencias guardadas." } }
 }
 
 export function guardarRecurrencias(reglas, almacenamiento = null) {
     if (!validarColeccionRecurrencias(reglas)) return { ok: false, error: "No se guardaron las recurrencias porque contienen datos inválidos." }
-    try { almacenamiento ??= globalThis.localStorage; almacenamiento.setItem(CLAVE_RECURRENCIAS, JSON.stringify(reglas)); return { ok: true } }
+    try {
+        almacenamiento ??= globalThis.localStorage
+        let invalidas = []
+        try {
+            const actuales = JSON.parse(almacenamiento.getItem(CLAVE_RECURRENCIAS) ?? "[]")
+            if (!Array.isArray(actuales)) return { ok: false, error: "La colección de recurrencias está corrupta; eliminála desde la revisión de datos antes de continuar." }
+            const vistos = new Set()
+            invalidas = actuales.filter(regla => {
+                if (!validarReglaRecurrencia(regla) || vistos.has(regla?.id)) return true
+                vistos.add(regla.id); return false
+            })
+        } catch { return { ok: false, error: "La colección de recurrencias está corrupta; eliminála desde la revisión de datos antes de continuar." }
+        }
+        almacenamiento.setItem(CLAVE_RECURRENCIAS, JSON.stringify([...reglas, ...invalidas])); return { ok: true }
+    }
     catch { return { ok: false, error: "No se pudieron guardar las recurrencias en este navegador." } }
+}
+
+export function eliminarRecurrenciaInvalida(indice, almacenamiento = null) {
+    try { almacenamiento ??= globalThis.localStorage; const reglas = JSON.parse(almacenamiento.getItem(CLAVE_RECURRENCIAS) ?? "null"); if (!Array.isArray(reglas) || !Number.isInteger(indice) || indice < 0 || indice >= reglas.length) return { ok: false, error: "No se encontró esa recurrencia inválida." }; reglas.splice(indice, 1); almacenamiento.setItem(CLAVE_RECURRENCIAS, JSON.stringify(reglas)); return { ok: true } }
+    catch { return { ok: false, error: "No se pudo eliminar la recurrencia inválida." } }
 }

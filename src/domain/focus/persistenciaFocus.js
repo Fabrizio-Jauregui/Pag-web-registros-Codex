@@ -22,30 +22,74 @@ function guardar(clave, valor, almacenamiento) {
 
 export function cargarPlantillasFocus(almacenamiento = null) {
     const resultado = leerLista(CLAVE_PLANTILLAS_FOCUS, almacenamiento)
-    return resultado.ok
-        ? { ok: true, plantillas: resultado.valor.filter(esPlantillaValida) }
-        : { ok: false, plantillas: [], error: "No se pudieron leer las plantillas de Focus guardadas." }
+    if (!resultado.ok) return { ok: false, plantillas: [], problemas: [], error: "No se pudieron leer las plantillas de Focus guardadas." }
+    const plantillas = []
+    const problemas = []
+    resultado.valor.forEach((plantilla, indice) => {
+        if (esPlantillaValida(plantilla)) plantillas.push(plantilla)
+        else problemas.push({ tipo: "focus-plantilla", indice, titulo: plantilla?.nombrePlantilla || `Plantilla Focus ${indice + 1}`, detalle: detalleInvalidezConfiguracionFocus(plantilla?.configuracion) })
+    })
+    return { ok: true, plantillas, ...(problemas.length ? { problemas } : {}) }
 }
 
 export function guardarPlantillasFocus(plantillas, almacenamiento = null) {
     if (!Array.isArray(plantillas) || !plantillas.every(esPlantillaValida)) {
         return { ok: false, error: "Las plantillas de Focus contienen datos inválidos." }
     }
-    return guardar(CLAVE_PLANTILLAS_FOCUS, plantillas, almacenamiento)
+    try {
+        const almacen = almacenamiento ?? globalThis.localStorage
+        const actuales = JSON.parse(almacen.getItem(CLAVE_PLANTILLAS_FOCUS) ?? "[]")
+        if (!Array.isArray(actuales)) return { ok: false, error: "La colección de plantillas Focus está corrupta; eliminála desde la revisión de datos." }
+        const invalidas = actuales.filter(plantilla => !esPlantillaValida(plantilla))
+        return guardar(CLAVE_PLANTILLAS_FOCUS, [...plantillas, ...invalidas], almacen)
+    } catch { return { ok: false, error: "No se pudieron conservar las plantillas Focus inválidas." } }
+}
+
+export function eliminarPlantillaFocusInvalida(indice, almacenamiento = null) {
+    try {
+        const almacen = almacenamiento ?? globalThis.localStorage
+        const plantillas = JSON.parse(almacen.getItem(CLAVE_PLANTILLAS_FOCUS) ?? "null")
+        if (!Array.isArray(plantillas) || !Number.isInteger(indice) || indice < 0 || indice >= plantillas.length) return { ok: false, error: "No se encontró esa plantilla Focus inválida." }
+        plantillas.splice(indice, 1)
+        return guardar(CLAVE_PLANTILLAS_FOCUS, plantillas, almacen)
+    } catch { return { ok: false, error: "No se pudo eliminar la plantilla Focus inválida." } }
 }
 
 export function cargarHistorialFocus(almacenamiento = null) {
     const resultado = leerLista(CLAVE_HISTORIAL_FOCUS, almacenamiento)
-    return resultado.ok
-        ? { ok: true, sesiones: resultado.valor.filter(esSesionValida) }
-        : { ok: false, sesiones: [], error: "No se pudo leer el historial de Focus guardado." }
+    if (!resultado.ok) return { ok: false, sesiones: [], problemas: [], error: "No se pudo leer el historial de Focus guardado." }
+    const sesiones = []
+    const problemas = []
+    resultado.valor.forEach((sesion, indice) => {
+        if (esSesionValida(sesion)) sesiones.push(sesion)
+        else problemas.push({ tipo: "focus-historial", indice, firma: JSON.stringify(sesion), titulo: sesion?.configuracion?.nombre || `Sesión Focus ${indice + 1}`, detalle: detalleInvalidezConfiguracionFocus(sesion?.configuracion) })
+    })
+    return { ok: true, sesiones, ...(problemas.length ? { problemas } : {}) }
 }
 
 export function guardarHistorialFocus(sesiones, almacenamiento = null) {
     if (!Array.isArray(sesiones) || !sesiones.every(esSesionValida)) {
         return { ok: false, error: "El historial de Focus contiene datos inválidos." }
     }
-    return guardar(CLAVE_HISTORIAL_FOCUS, sesiones, almacenamiento)
+    try {
+        const almacen = almacenamiento ?? globalThis.localStorage
+        const originales = JSON.parse(almacen.getItem(CLAVE_HISTORIAL_FOCUS) ?? "[]")
+        if (!Array.isArray(originales)) return { ok: false, error: "El historial Focus está corrupto; eliminá la colección desde la revisión de datos." }
+        const invalidas = originales.filter(sesion => !esSesionValida(sesion))
+        return guardar(CLAVE_HISTORIAL_FOCUS, [...sesiones, ...invalidas], almacen)
+    } catch { return { ok: false, error: "No se pudieron conservar las sesiones Focus inválidas." } }
+}
+
+export function eliminarSesionFocusInvalida(indice, firma = null, almacenamiento = null) {
+    try {
+        const almacen = almacenamiento ?? globalThis.localStorage
+        const sesiones = JSON.parse(almacen.getItem(CLAVE_HISTORIAL_FOCUS) ?? "null")
+        if (!Array.isArray(sesiones)) return { ok: false, error: "No se encontró esa sesión Focus inválida." }
+        const indiceActual = firma ? sesiones.findIndex(sesion => JSON.stringify(sesion) === firma) : indice
+        if (!Number.isInteger(indiceActual) || indiceActual < 0 || indiceActual >= sesiones.length || esSesionValida(sesiones[indiceActual])) return { ok: false, error: "No se encontró esa sesión Focus inválida." }
+        sesiones.splice(indiceActual, 1)
+        return guardar(CLAVE_HISTORIAL_FOCUS, sesiones, almacen)
+    } catch { return { ok: false, error: "No se pudo eliminar la sesión Focus inválida." } }
 }
 
 export function cargarSesionActivaFocus(almacenamiento = null) {
@@ -53,7 +97,9 @@ export function cargarSesionActivaFocus(almacenamiento = null) {
         const valor = JSON.parse((almacenamiento ?? globalThis.localStorage).getItem(CLAVE_SESION_ACTIVA_FOCUS) ?? "null")
         return valor === null || esSesionActivaValida(valor)
             ? { ok: true, sesion: valor }
-            : { ok: false, sesion: null, error: "La sesión Focus guardada tiene datos inválidos." }
+            : { ok: false, sesion: null, error: !esConfiguracionValida(valor?.configuracion)
+                ? detalleInvalidezConfiguracionFocus(valor?.configuracion)
+                : "La sesión Focus tiene fechas, bloques o estado inválidos." }
     } catch {
         return { ok: false, sesion: null, error: "No se pudo leer la sesión Focus guardada." }
     }
@@ -63,6 +109,15 @@ export function guardarSesionActivaFocus(sesion, almacenamiento = null) {
     if (sesion !== null && !esSesionActivaValida(sesion)) {
         return { ok: false, error: "La sesión Focus contiene datos inválidos." }
     }
+    try {
+        const almacen = almacenamiento ?? globalThis.localStorage
+        const contenido = almacen.getItem(CLAVE_SESION_ACTIVA_FOCUS)
+        if (contenido !== null) {
+            let actual
+            try { actual = JSON.parse(contenido) } catch { return { ok: false, error: "Hay una sesión Focus guardada corrupta. Eliminála desde la revisión del Historial antes de iniciar otra." } }
+            if (actual !== null && !esSesionActivaValida(actual)) return { ok: false, error: "Hay una sesión Focus guardada inválida. Eliminála desde la revisión del Historial antes de iniciar otra." }
+        }
+    } catch { return { ok: false, error: "No se pudo revisar la sesión Focus guardada." } }
     return guardar(CLAVE_SESION_ACTIVA_FOCUS, sesion, almacenamiento)
 }
 
@@ -87,12 +142,31 @@ function esConfiguracionValida(valor) {
         && Object.values(valor.colores).every(color => typeof color === "string" && /^#[\da-fA-F]{6}$/.test(color))
     )
     const colaValida = valor?.usarColaFocus === undefined || typeof valor.usarColaFocus === "boolean"
+    const eventoValido = valor?.evento === undefined || valor.evento === null || (
+        typeof valor.evento === "object"
+        && typeof valor.evento.id === "string" && valor.evento.id.trim() !== ""
+        && typeof valor.evento.nombre === "string" && valor.evento.nombre.trim() !== ""
+        && typeof valor.evento.color === "string" && /^#[\da-fA-F]{6}$/.test(valor.evento.color)
+    )
+    const tieneEvento = Boolean(valor?.evento)
+    const tieneTarea = Boolean(valor?.tarea)
+    const origenValido = Boolean(valor?.usarColaFocus) && !tieneEvento && !tieneTarea
+        || tieneEvento !== tieneTarea && eventoValido && tareaValida
     return valor !== null && typeof valor === "object"
         && typeof valor.nombre === "string" && valor.nombre.trim() !== ""
         && Array.isArray(valor.bloques) && valor.bloques.length > 0 && valor.bloques.every(esBloqueValido)
         && tareaValida
         && colaValida
+        && eventoValido
+        && origenValido
         && coloresValidos
+}
+
+function detalleInvalidezConfiguracionFocus(configuracion) {
+    if (configuracion && !configuracion.usarColaFocus && Boolean(configuracion.evento) === Boolean(configuracion.tarea)) {
+        return "Debe tener exactamente un origen: una plantilla de evento o una tarea."
+    }
+    return "La sesión tiene fechas, bloques, colores o relaciones inválidas."
 }
 
 function esPlantillaValida(valor) {

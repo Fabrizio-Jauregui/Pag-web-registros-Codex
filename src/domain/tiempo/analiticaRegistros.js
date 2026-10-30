@@ -67,16 +67,26 @@ export function agruparTiempoPorTarea(registros, inicio, fin, ahora = new Date()
         .sort((a, b) => b.segundos - a.segundos || a.nombre.localeCompare(b.nombre, "es"))
 }
 
+function categoriasValidasDeEvento(evento, categorias) {
+    if (!evento) return []
+    const categoriaIds = Array.isArray(evento.categoriaIds)
+        ? evento.categoriaIds
+        : evento.categoriaId ? [evento.categoriaId] : []
+    return [...new Set(categoriaIds)].filter(id => categorias.some(categoria => categoria.id === id))
+}
+
 export function agruparTiempoPorCategoria(registros, eventos, categorias, inicio, fin, ahora = new Date()) {
     if (!Array.isArray(registros) || !Array.isArray(eventos) || !Array.isArray(categorias)) return []
     const grupos = new Map()
     for (const registro of registros) {
         const evento = eventos.find(elemento => elemento.id === registro.eventoId)
-        const categoria = categorias.find(elemento => elemento.id === evento?.categoriaId)
-        const categoriaId = categoria?.id ?? null
-        const clave = categoriaId ?? "__sin_categoria__"
-        if (!grupos.has(clave)) grupos.set(clave, { categoriaId, registros: [] })
-        grupos.get(clave).registros.push(registro)
+        const categoriaIds = categoriasValidasDeEvento(evento, categorias)
+        if (categoriaIds.length === 0) categoriaIds.push(null)
+        for (const categoriaId of categoriaIds) {
+            const clave = categoriaId ?? "__sin_categoria__"
+            if (!grupos.has(clave)) grupos.set(clave, { categoriaId, registros: [] })
+            grupos.get(clave).registros.push(registro)
+        }
     }
     return [...grupos.values()].map(grupo => {
         const categoria = categorias.find(elemento => elemento.id === grupo.categoriaId)
@@ -96,10 +106,10 @@ export function calcularAnaliticaRegistros(registros, eventos, inicio, fin, ahor
     const categoriaSeleccionada = opciones.categoriaId
     const registrosFiltrados = categoriaSeleccionada
         ? registros.filter(registro => {
-            const categoriaId = eventoPorId.get(registro.eventoId)?.categoriaId
+            const categoriaIds = categoriasValidasDeEvento(eventoPorId.get(registro.eventoId), categorias)
             return categoriaSeleccionada === "__sin_categoria__"
-                ? !categorias.some(categoria => categoria.id === categoriaId)
-                : categoriaId === categoriaSeleccionada
+                ? categoriaIds.length === 0
+                : categoriaIds.includes(categoriaSeleccionada)
         })
         : registros
     const agrupamiento = ["categoria", "tarea"].includes(opciones.agruparPor) ? opciones.agruparPor : "evento"

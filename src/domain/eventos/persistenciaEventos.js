@@ -1,4 +1,4 @@
-import { validarPlantillaEvento } from "./eventos.js"
+import { normalizarPlantillaEvento, obtenerCategoriasPlantillaEvento, validarPlantillaEvento } from "./eventos.js"
 
 export const CLAVE_PLANTILLAS_EVENTOS = "focus.plantillas-eventos.v1"
 
@@ -15,6 +15,14 @@ function validarColeccion(plantillas) {
     const ids = new Set()
 
     return plantillas.every(plantilla => {
+        const categoriaIds = plantilla?.categoriaIds !== undefined
+            ? plantilla.categoriaIds
+            : plantilla?.categoriaId === undefined || plantilla.categoriaId === null
+                ? []
+                : typeof plantilla.categoriaId === "string" ? [plantilla.categoriaId] : null
+        const categoriasValidas = Array.isArray(categoriaIds)
+            && categoriaIds.every(id => typeof id === "string" && id.trim())
+            && new Set(categoriaIds).size === categoriaIds.length
         if (
             plantilla === null
             || typeof plantilla !== "object"
@@ -22,8 +30,7 @@ function validarColeccion(plantillas) {
             || typeof plantilla.id !== "string"
             || plantilla.id.trim() === ""
             || ids.has(plantilla.id)
-            || (plantilla.categoriaId !== undefined && plantilla.categoriaId !== null
-                && (typeof plantilla.categoriaId !== "string" || !plantilla.categoriaId.trim()))
+            || !categoriasValidas
             || !fechaOpcionalValida(plantilla.creadoEn)
             || !fechaOpcionalValida(plantilla.ultimoUso)
             || validarPlantillaEvento(plantilla.nombre, plantilla.color) !== null
@@ -63,7 +70,7 @@ export function cargarPlantillasEventos(almacenamiento = null) {
             }
         }
 
-        return { ok: true, plantillas }
+        return { ok: true, plantillas: plantillas.map(normalizarPlantillaEvento) }
     } catch {
         return {
             ok: false,
@@ -84,7 +91,7 @@ export function guardarPlantillasEventos(plantillas, almacenamiento = null) {
         const almacen = almacenamiento ?? globalThis.localStorage
         almacen.setItem(
             CLAVE_PLANTILLAS_EVENTOS,
-            JSON.stringify(plantillas)
+            JSON.stringify(plantillas.map(normalizarPlantillaEvento))
         )
         return { ok: true }
     } catch {

@@ -28,11 +28,22 @@ function validarConfiguracionFocus(configuracion) {
     return null
 }
 
+function validarOrigenActividad(actividad) {
+    const tieneEvento = typeof actividad.eventoId === "string" && actividad.eventoId.trim() !== ""
+    const tieneTarea = typeof actividad.tareaId === "string" && actividad.tareaId.trim() !== ""
+    if (actividad.tareaId !== undefined && !tieneTarea) return "La tarea vinculada a la actividad no es válida."
+    if (actividad.tareaNombre !== undefined && (typeof actividad.tareaNombre !== "string" || !actividad.tareaNombre.trim())) return "El nombre de la tarea vinculada no es válido."
+    if (actividad.tipoActividad === "focus" && actividad.configuracionFocus?.usarColaFocus && !tieneEvento && !tieneTarea) return null
+    return tieneEvento === tieneTarea ? "Elegí una plantilla de evento o una tarea para cada actividad." : null
+}
+
 export function validarActividadPlantilla(actividad) {
     if (!actividad || typeof actividad !== "object" || Array.isArray(actividad)) return "Una actividad de la plantilla no tiene un formato válido."
     if (typeof actividad.nombre !== "string" || !actividad.nombre.trim()) return "Escribí el nombre de cada actividad."
     if (actividad.nombre.trim().length > 80) return "El nombre de una actividad no puede superar los 80 caracteres."
     if (actividad.eventoId !== null && (typeof actividad.eventoId !== "string" || !actividad.eventoId.trim())) return "La plantilla de evento vinculada no es válida."
+    const errorOrigen = validarOrigenActividad(actividad)
+    if (errorOrigen) return errorOrigen
     if (actividad.tipoActividad === "focus") {
         const errorFocus = validarConfiguracionFocus(actividad.configuracionFocus)
         if (errorFocus) return errorFocus
@@ -53,6 +64,8 @@ function validarActividadPorDuracion(actividad) {
     if (typeof actividad.nombre !== "string" || !actividad.nombre.trim()) return "Escribí el nombre de cada actividad."
     if (actividad.nombre.trim().length > 80) return "El nombre de una actividad no puede superar los 80 caracteres."
     if (actividad.eventoId !== null && (typeof actividad.eventoId !== "string" || !actividad.eventoId.trim())) return "La plantilla de evento vinculada no es válida."
+    const errorOrigen = validarOrigenActividad(actividad)
+    if (errorOrigen) return errorOrigen
     if (actividad.tipoActividad === "focus") {
         const errorFocus = validarConfiguracionFocus(actividad.configuracionFocus)
         if (errorFocus) return errorFocus
@@ -120,6 +133,8 @@ function validarActividadSinDuracion(actividad) {
     if (!actividad || typeof actividad !== "object" || Array.isArray(actividad)) return "Un evento de la plantilla no tiene un formato válido."
     if (typeof actividad.nombre !== "string" || !actividad.nombre.trim()) return "Escribí el nombre de cada evento."
     if (actividad.nombre.trim().length > 80) return "El nombre de un evento no puede superar los 80 caracteres."
+    const errorOrigen = validarOrigenActividad(actividad)
+    if (errorOrigen) return errorOrigen
     if (actividad.tipoActividad === "focus") return validarConfiguracionFocus(actividad.configuracionFocus)
     if (actividad.eventoId !== null && (typeof actividad.eventoId !== "string" || !actividad.eventoId.trim())) return "La plantilla de evento vinculada no es válida."
     return null
@@ -250,6 +265,7 @@ export function yaAplicadaEnFecha(planes, plantillaId, fecha) {
 }
 
 function prepararActividadesPlantilla(plantilla, fecha, eventos, opciones = {}) {
+    const tareas = opciones.tareas ?? []
     const error = validarPlantillaPlanificacion(plantilla)
     const dia = normalizarFechaLocal(fecha)
     if (error) return { ok: false, error }
@@ -268,8 +284,11 @@ function prepararActividadesPlantilla(plantilla, fecha, eventos, opciones = {}) 
         : materializarActividades(plantilla)
     for (let indice = 0; indice < actividadesMaterializadas.length; indice += 1) {
         const actividad = actividadesMaterializadas[indice]
-        const evento = actividad.tipoActividad === "focus" ? null : actividad.eventoId ? eventos.find(item => item.id === actividad.eventoId) : null
+        const evento = actividad.eventoId ? eventos.find(item => item.id === actividad.eventoId) : null
+        const tarea = actividad.tareaId ? tareas.find(item => item.id === actividad.tareaId) : null
         if (actividad.eventoId && !evento) return { ok: false, error: `No se pudo aplicar "${plantilla.nombre}": el evento "${actividad.nombre}" ya no está disponible. Editá la plantilla y elegí otro evento.` }
+        if (actividad.tareaId && !tarea) return { ok: false, error: `No se pudo aplicar "${plantilla.nombre}": la tarea "${actividad.tareaNombre ?? actividad.nombre}" ya no está disponible. Editá la plantilla y elegí otra tarea.` }
+        if (!evento && !tarea && !(actividad.tipoActividad === "focus" && actividad.configuracionFocus?.usarColaFocus)) return { ok: false, error: `Elegí un evento o una tarea para "${actividad.nombre}".` }
         const duracionSegundos = actividad.tipoActividad === "focus" ? duracionConfiguracionFocus(actividad.configuracionFocus) : actividad.duracionSegundos
         const inicioSegundos = modo === "duraciones" ? cursor : modo === "relativo" || modo === "secuencias" ? horaInicio + actividad.inicioDesplazamientoSegundos : modo === "cronometro" ? horaInicio : actividad.inicioSegundos
         const finAbsoluto = modo === "duraciones" ? cursor + duracionSegundos : modo === "relativo" || modo === "secuencias" ? inicioSegundos + duracionSegundos : modo === "cronometro" && actividad.tipoActividad === "focus" ? inicioSegundos + duracionSegundos : null
@@ -280,7 +299,7 @@ function prepararActividadesPlantilla(plantilla, fecha, eventos, opciones = {}) 
             : fechaConSegundos(dia, actividad.finSegundos, actividad.finDia)
         if (!inicio || (modo !== "cronometro" && (!fin || fin <= inicio))) return { ok: false, error: `No se pudo crear el horario de "${actividad.nombre}" en esa fecha.` }
         if ((modo !== "cronometro" || actividad.tipoActividad === "focus") && inicio <= ahora) return { ok: false, error: `No se puede aplicar la actividad "${actividad.nombre}" a las ${inicio.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" })}: ese horario ya pasó o ya está transcurriendo. Ajustá el horario o elegí una fecha futura.` }
-        actividades.push({ actividad: { ...actividad, ordenSeguimientoCronometro: indice }, evento, inicio, fin })
+        actividades.push({ actividad: { ...actividad, ordenSeguimientoCronometro: indice }, evento, tarea, inicio, fin })
         if (modo === "duraciones") cursor = finAbsoluto
     }
     for (const sesionFocus of actividades.filter(item => item.actividad.tipoActividad === "focus")) {
@@ -305,9 +324,10 @@ export function previsualizarPlantillaPlanificacion(plantilla, fecha, eventos, o
     if (!resultado.ok) return resultado
     return {
         ok: true,
-        actividades: resultado.actividades.map(({ actividad, evento, inicio, fin }) => ({
-            nombre: evento?.nombre ?? actividad.nombre,
+        actividades: resultado.actividades.map(({ actividad, evento, tarea, inicio, fin }) => ({
+            nombre: evento?.nombre ?? tarea?.nombre ?? actividad.nombre,
             eventoNombre: evento?.nombre ?? null,
+            tareaNombre: tarea?.nombre ?? null,
             inicio,
             fin,
             sinDuracion: plantilla.modo === "cronometro" && actividad.tipoActividad !== "focus",
@@ -325,8 +345,8 @@ export function aplicarPlantillaPlanificacion(plantilla, fecha, eventos, opcione
     const idAplicacion = opciones.idAplicacion ?? identidad(generarId, "No se pudo identificar esta aplicación de plantilla.")
     if (typeof idAplicacion !== "string") return { ok: false, error: idAplicacion.error }
     const planes = []
-    for (const { actividad, evento, inicio, fin } of preparado.actividades) {
-        const resultado = crearPlan({ nombre: actividad.tipoActividad === "focus" ? actividad.configuracionFocus.nombre : actividad.nombre, evento, inicio, fin: fin ?? new Date(inicio.getTime() + 1000) }, generarId)
+    for (const { actividad, evento, tarea, inicio, fin } of preparado.actividades) {
+        const resultado = crearPlan({ nombre: actividad.tipoActividad === "focus" ? actividad.configuracionFocus.nombre : actividad.nombre, evento, tarea, inicio, fin: fin ?? new Date(inicio.getTime() + 1000), ...(actividad.tipoActividad === "focus" ? { tipoPlanificacion: "focus", configuracionFocus: structuredClone(actividad.configuracionFocus) } : {}) }, generarId)
         if (!resultado.ok) return resultado
         planes.push({ ...resultado.plan, ...(plantilla.modo === "cronometro" && actividad.tipoActividad !== "focus" ? { fin: null } : {}), ...(actividad.tipoActividad === "focus" ? { tipoPlanificacion: "focus", configuracionFocus: structuredClone(actividad.configuracionFocus), ...(plantilla.modo === "cronometro" ? { modoAplicacionPlanificacion: "cronometro", grupoCronometro: actividad.grupoCronometro, ordenSeguimiento: actividad.ordenSeguimientoCronometro } : {}) } : {}), plantillaOrigenId: plantilla.id, plantillaOrigenNombre: plantilla.nombre, fechaAplicacion: formatearFechaISO(preparado.dia), idAplicacionPlantilla: idAplicacion,
             ...(plantilla.modo === "cronometro" && actividad.tipoActividad !== "focus" ? {

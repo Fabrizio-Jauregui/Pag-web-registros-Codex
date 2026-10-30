@@ -16,6 +16,13 @@ export function validarPlan(plan) {
     if (plan.colorEvento !== null && !/^#[\da-fA-F]{6}$/.test(plan.colorEvento)) {
         return "El color del plan no es válido."
     }
+    if (plan.tareaId !== undefined && (typeof plan.tareaId !== "string" || !plan.tareaId.trim())) return "La tarea vinculada al plan no es válida."
+    if (plan.tareaNombre !== undefined && (typeof plan.tareaNombre !== "string" || !plan.tareaNombre.trim())) return "El nombre de la tarea vinculada al plan no es válido."
+    const tieneEvento = typeof plan.eventoId === "string" && plan.eventoId.trim() !== ""
+    const tieneTarea = typeof plan.tareaId === "string" && plan.tareaId.trim() !== ""
+    if (tieneEvento === tieneTarea && (plan.tipoPlanificacion !== "focus" || !plan.configuracionFocus?.usarColaFocus)) {
+        return "El plan debe tener una plantilla de evento o una tarea como origen."
+    }
     if (plan.ordenSeguimiento !== undefined
         && (!Number.isInteger(plan.ordenSeguimiento) || plan.ordenSeguimiento < 0)) {
         return "El orden de seguimiento del plan no es válido."
@@ -88,12 +95,14 @@ export function validarCompatibilidadPlanesFocus(planes, idsModificados) {
     return null
 }
 
-export function crearPlan({ nombre, evento = null, inicio, fin, ordenSeguimiento }, generarId = () => globalThis.crypto.randomUUID()) {
+export function crearPlan({ nombre, evento = null, tarea = null, inicio, fin, ordenSeguimiento, tipoPlanificacion, configuracionFocus }, generarId = () => globalThis.crypto.randomUUID()) {
     const plan = {
         id: "pendiente",
-        nombre: evento?.nombre ?? nombre,
+        nombre: tipoPlanificacion === "focus" ? nombre : evento?.nombre ?? tarea?.nombre ?? nombre,
         eventoId: evento?.id ?? null,
         colorEvento: evento?.color ?? COLOR_PLAN_PREDETERMINADO,
+        ...(tarea ? { tareaId: tarea.id, tareaNombre: tarea.nombre } : {}),
+        ...(tipoPlanificacion === "focus" ? { tipoPlanificacion, configuracionFocus } : {}),
         inicio,
         fin,
         ...(Number.isInteger(ordenSeguimiento) ? { ordenSeguimiento } : {})
@@ -134,12 +143,17 @@ export function actualizarPlan(planes, id, cambios) {
         : null
     const plan = {
         ...actual,
-        nombre: actual.tipoPlanificacion === "focus" ? cambios.nombre : cambios.evento?.nombre ?? cambios.nombre,
-        eventoId: actual.tipoPlanificacion === "focus" ? null : cambios.evento?.id ?? null,
-        colorEvento: actual.tipoPlanificacion === "focus" ? actual.colorEvento : cambios.evento?.color ?? COLOR_PLAN_PREDETERMINADO,
+        nombre: actual.tipoPlanificacion === "focus" ? cambios.nombre : cambios.evento?.nombre ?? cambios.tarea?.nombre ?? cambios.nombre,
+        eventoId: cambios.evento?.id ?? null,
+        colorEvento: cambios.evento?.color ?? COLOR_PLAN_PREDETERMINADO,
+        ...(cambios.tarea ? { tareaId: cambios.tarea.id, tareaNombre: cambios.tarea.nombre } : {}),
         inicio,
         fin: duracionFocus === null ? cambios.fin : new Date(inicio.getTime() + duracionFocus),
         ...(actual.tipoPlanificacion === "focus" ? { configuracionFocus: { ...actual.configuracionFocus, nombre: cambios.nombre?.trim() } } : {})
+    }
+    if (!cambios.tarea || cambios.evento) {
+        delete plan.tareaId
+        delete plan.tareaNombre
     }
     const error = validarPlan(plan)
     if (error) return { ok: false, error }

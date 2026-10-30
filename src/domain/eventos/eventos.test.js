@@ -37,12 +37,19 @@ test("permite nombres repetidos porque las plantillas se distinguen por ID", () 
     assert.notEqual(primera.plantilla.id, segunda.plantilla.id)
 })
 
-test("crea y actualiza eventos con una categoría opcional sin alterar su identidad", () => {
-    const creado = crearPlantillaEvento("Trabajo", "#123456", "categoria-1", () => "evento-1")
-    assert.equal(creado.plantilla.categoriaId, "categoria-1")
-    const actualizado = actualizarPlantillaEvento([creado.plantilla], "evento-1", "Trabajo", "#123456", null)
+test("crea y actualiza eventos con varias categorías sin alterar su identidad", () => {
+    const creado = crearPlantillaEvento("Trabajo", "#123456", ["categoria-1", "categoria-2"], () => "evento-1")
+    assert.deepEqual(creado.plantilla.categoriaIds, ["categoria-1", "categoria-2"])
+    const actualizado = actualizarPlantillaEvento([creado.plantilla], "evento-1", "Trabajo", "#123456", ["categoria-2"])
     assert.equal(actualizado.plantillas[0].id, "evento-1")
-    assert.equal("categoriaId" in actualizado.plantillas[0], false)
+    assert.deepEqual(actualizado.plantillas[0].categoriaIds, ["categoria-2"])
+    const sinCategorias = actualizarPlantillaEvento(actualizado.plantillas, "evento-1", "Trabajo", "#123456", [])
+    assert.equal("categoriaIds" in sinCategorias.plantillas[0], false)
+})
+
+test("rechaza categorías duplicadas o con identificadores vacíos", () => {
+    assert.equal(crearPlantillaEvento("Trabajo", "#123456", ["categoria-1", "categoria-1"]).ok, false)
+    assert.equal(crearPlantillaEvento("Trabajo", "#123456", [" "]).ok, false)
 })
 
 test("editar conserva el ID y no muta la plantilla original", () => {

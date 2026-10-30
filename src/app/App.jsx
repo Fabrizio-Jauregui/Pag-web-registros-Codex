@@ -16,7 +16,9 @@ import {
     actualizarPlantillaEvento,
     crearPlantillaEvento,
     eliminarPlantillaEvento,
-    marcarPlantillaEventoUsada
+    marcarPlantillaEventoUsada,
+    normalizarPlantillaEvento,
+    obtenerCategoriasPlantillaEvento
 } from "../domain/eventos/eventos.js"
 import {
     cargarPlantillasEventos,
@@ -25,9 +27,9 @@ import {
 import { crearCategoria, actualizarCategoria, eliminarCategoria } from "../domain/categorias/categorias.js"
 import { cargarCategorias, guardarCategorias } from "../domain/categorias/persistenciaCategorias.js"
 import { crearPlan, actualizarPlan, eliminarAplicacionPlan, eliminarPlan, eliminarPlanesDePlantilla, compararPlanesPorSeguimiento, validarCompatibilidadPlanesFocus } from "../domain/planificacion/planes.js"
-import { cargarPlanes, guardarPlanes, CLAVE_PLANES } from "../domain/planificacion/persistenciaPlanes.js"
+import { cargarPlanes, guardarPlanes, eliminarPlanInvalido, CLAVE_PLANES } from "../domain/planificacion/persistenciaPlanes.js"
 import { formatearFechaISO } from "../domain/tiempo/FechaCalendario.js"
-import { cargarRecurrencias, guardarRecurrencias, crearReglaRecurrencia, cambiarRecurrencia, eliminarRecurrencia, eliminarRecurrenciasDePlantilla, generarAparicionesRecurrencia, CLAVE_RECURRENCIAS } from "../domain/planificacion/recurrencias.js"
+import { cargarRecurrencias, guardarRecurrencias, crearReglaRecurrencia, cambiarRecurrencia, eliminarRecurrencia, eliminarRecurrenciasDePlantilla, generarAparicionesRecurrencia, eliminarRecurrenciaInvalida, CLAVE_RECURRENCIAS } from "../domain/planificacion/recurrencias.js"
 import {
     aplicarPlantillaPlanificacion,
     actualizarPlantillaPlanificacion,
@@ -38,9 +40,12 @@ import {
 import {
     cargarPlantillasPlanificacion,
     guardarPlantillasPlanificacion,
+    eliminarPlantillaPlanificacionInvalida,
+    eliminarColeccionPlantillasPlanificacionCorrupta,
     CLAVE_PLANTILLAS_PLANIFICACION
 } from "../domain/planificacion/persistenciaPlantillasPlanificacion.js"
 import { CLAVE_SEGUIMIENTO_PLANIFICACION } from "../domain/planificacion/persistenciaSeguimientoPlanificacion.js"
+import { cargarUsosPlantillasPlanificacion, guardarUsosPlantillasPlanificacion, eliminarUsosPlantillasPlanificacionCorruptos, plantillaUsadaEnFecha } from "../domain/planificacion/persistenciaUsosPlantillas.js"
 import { ejecutarTransaccionAlmacenamiento } from "../domain/planificacion/transaccionAlmacenamiento.js"
 import { BibliotecaPlantillasPlanificacion } from "../features/planificacion/BibliotecaPlantillasPlanificacion.jsx"
 import { useSeguimientoPlanificacion } from "../features/planificacion/usoSeguimientoPlanificacion.js"
@@ -48,7 +53,7 @@ import { PanelSeguimientoPlanificacion } from "../features/planificacion/Seguimi
 import { BibliotecaTareas } from "../features/tareas/BibliotecaTareas.jsx"
 import { crearTarea, crearObjetivo, actualizarObjetivo, cambiarEstadoRama, descendientesDe, obtenerRutaTarea, actualizarTarea, cambiarDestinoTarea, eliminarTarea, moverTareaEnArbol, moverTareaEnCola, posponerTareaEnCola, sincronizarEstadoTareasFocus } from "../domain/tareas/tareas.js"
 import { cargarTareas, guardarTareas } from "../domain/tareas/persistenciaTareas.js"
-import { cargarPlantillasFocus } from "../domain/focus/persistenciaFocus.js"
+import { cargarPlantillasFocus, cargarHistorialFocus, cargarSesionActivaFocus, eliminarSesionFocusInvalida, eliminarPlantillaFocusInvalida, CLAVE_HISTORIAL_FOCUS, CLAVE_SESION_ACTIVA_FOCUS, CLAVE_PLANTILLAS_FOCUS } from "../domain/focus/persistenciaFocus.js"
 import {
     cargarOrdenPlantillasEventos,
     CLAVE_ORDEN_PLANTILLAS_EVENTOS
@@ -69,19 +74,22 @@ export function App() {
     const [estadoPlanes, cambiarEstadoPlanes] = useState(cargarPlanes)
     const [estadoRecurrencias, cambiarEstadoRecurrencias] = useState(cargarRecurrencias)
     const [estadoPlantillasPlan, cambiarEstadoPlantillasPlan] = useState(cargarPlantillasPlanificacion)
+    const [estadoUsosPlantillasPlan, cambiarEstadoUsosPlantillasPlan] = useState(cargarUsosPlantillasPlanificacion)
     const [estadoTareas, cambiarEstadoTareas] = useState(cargarTareas)
     const [estadoPlantillasFocus, cambiarEstadoPlantillasFocus] = useState(cargarPlantillasFocus)
+    const [diagnosticoHistorialFocus, cambiarDiagnosticoHistorialFocus] = useState(cargarHistorialFocus)
+    const [diagnosticoSesionFocus, cambiarDiagnosticoSesionFocus] = useState(cargarSesionActivaFocus)
     const publicarPlantillasFocus = useCallback(plantillasFocus => {
         cambiarEstadoPlantillasFocus(actual => actual.plantillas === plantillasFocus
             ? actual
-            : { ok: true, plantillas: plantillasFocus })
+            : { ...cargarPlantillasFocus(), plantillas: plantillasFocus })
     }, [])
     const [estadoFocusTareas, cambiarEstadoFocusTareas] = useState({ activa: false, tareaActivaId: null })
     const [fechaCalendarioSolicitada, cambiarFechaCalendarioSolicitada] = useState({ fecha: null, version: 0 })
     const calendarioRef = useRef(null)
     const inicioFocusPlanificadoRef = useRef(null)
     const estadoRegistro = useRegistro({ onInicioConEvento: registrarUsoEvento })
-    const seguimientoPlanificacion = useSeguimientoPlanificacion(estadoRegistro)
+    const seguimientoPlanificacion = useSeguimientoPlanificacion(estadoRegistro, estadoTareas.ok ? estadoTareas.tareas : [])
     const objetivos = estadoTareas.ok ? estadoTareas.tareas.filter(tarea => tarea.tipo === "objetivo") : []
     const tareasBase = estadoTareas.ok ? estadoTareas.tareas.filter(tarea => tarea.tipo !== "objetivo") : []
     const tareasDeTrabajo = estadoTareas.ok
@@ -91,6 +99,33 @@ export function App() {
         }))
         : []
     const plantillas = estadoPlantillas.ok ? estadoPlantillas.plantillas : []
+    const problemasPlanes = estadoPlanes.ok
+        ? (estadoPlanes.problemas ?? []).map(problema => ({ ...problema, tipo: "plan" }))
+        : (estadoPlanes.problemas?.length
+            ? estadoPlanes.problemas.map(problema => ({ ...problema, tipo: "plan" }))
+            : [{ tipo: "plan", indice: null, titulo: "Planes guardados", detalle: estadoPlanes.error }])
+    const problemasRevision = [
+        ...(estadoRegistro.datos.problemas ?? []).map(problema => ({ ...problema, tipo: "registro" })),
+        ...problemasPlanes,
+        ...(estadoRecurrencias.ok
+            ? (estadoRecurrencias.problemas ?? []).map(problema => ({ ...problema, tipo: "recurrencia" }))
+            : [{ tipo: "recurrencia", indice: null, titulo: "Recurrencias", detalle: estadoRecurrencias.error }]),
+        ...(estadoPlantillasPlan.ok
+            ? (estadoPlantillasPlan.problemas ?? []).map(problema => ({ ...problema, tipo: "plantilla-plan" }))
+            : [{ tipo: "plantilla-plan", indice: null, titulo: "Plantillas de planificación", detalle: estadoPlantillasPlan.error }]),
+        ...(!estadoUsosPlantillasPlan.ok
+            ? [{ tipo: "uso-plantilla", indice: null, titulo: "Usos de plantillas de planificación", detalle: estadoUsosPlantillasPlan.error }]
+            : []),
+        ...(diagnosticoHistorialFocus.ok
+            ? (diagnosticoHistorialFocus.problemas ?? [])
+            : [{ tipo: "focus-historial", indice: null, titulo: "Historial de sesiones Focus", detalle: diagnosticoHistorialFocus.error }]),
+        ...(estadoPlantillasFocus.ok
+            ? (estadoPlantillasFocus.problemas ?? [])
+            : [{ tipo: "focus-plantilla", indice: null, titulo: "Plantillas Focus", detalle: estadoPlantillasFocus.error }]),
+        ...(!diagnosticoSesionFocus.ok
+            ? [{ tipo: "focus-activa", indice: null, titulo: "Sesión Focus activa", detalle: diagnosticoSesionFocus.error }]
+            : [])
+    ]
     const idAplicacionSeguimiento = seguimientoPlanificacion.estado?.idAplicacionPlantilla
     const fechaSeguimiento = seguimientoPlanificacion.estado
         ? new Date(seguimientoPlanificacion.estado.secuencia[seguimientoPlanificacion.estado.indiceActual].inicioPrevisto)
@@ -145,10 +180,56 @@ export function App() {
     function iniciarFocusPlanificado(plan) {
         if (plan?.tipoPlanificacion !== "focus" || !plan.configuracionFocus) return { ok: false, error: "Este plan no contiene una sesión Focus válida." }
         if (typeof inicioFocusPlanificadoRef.current !== "function") return { ok: false, error: "Focus todavía no está disponible para iniciar la sesión." }
-        const iniciada = inicioFocusPlanificadoRef.current(plan.configuracionFocus)
-        if (!iniciada) return { ok: false, error: "No se pudo iniciar la sesión Focus. Revisá si ya hay otra sesión activa." }
+        const evento = plantillas.find(item => item.id === plan.eventoId) ?? null
+        const tarea = estadoTareas.ok ? estadoTareas.tareas.find(item => item.id === plan.tareaId) ?? (plan.tareaId ? { id: plan.tareaId, nombre: plan.tareaNombre } : null) : null
+        const inicio = registrarUsoPlantillaPlan(plan, () => inicioFocusPlanificadoRef.current({ ...plan.configuracionFocus, evento, tarea })
+            ? { ok: true }
+            : { ok: false, error: "No se pudo iniciar la sesión Focus. Revisá si ya hay otra sesión activa." })
+        if (!inicio.ok) return inicio
         cambiarVistaPrincipal("focus")
         return { ok: true }
+    }
+
+    function registrarUsoPlantillaPlan(plan, iniciarRegistro) {
+        if (!plan?.plantillaOrigenId || !plan?.idAplicacionPlantilla) return iniciarRegistro()
+        if (!estadoUsosPlantillasPlan.ok) return { ok: false, error: estadoUsosPlantillasPlan.error }
+        const fecha = plan.fechaAplicacion ?? formatearFechaISO(plan.inicio)
+        if (plantillaUsadaEnFecha(estadoUsosPlantillasPlan.usos, plan.plantillaOrigenId, fecha)) {
+            return { ok: false, error: "Esta plantilla ya se usó en esa fecha. Podés seguir usando otra plantilla, incluso si coincide en horario." }
+        }
+        const uso = {
+            plantillaId: plan.plantillaOrigenId,
+            fecha,
+            idAplicacionPlantilla: plan.idAplicacionPlantilla,
+            usadaEn: new Date().toISOString()
+        }
+        const usosPrevios = estadoUsosPlantillasPlan.usos
+        const usosNuevos = [...usosPrevios, uso]
+        const guardado = guardarUsosPlantillasPlanificacion(usosNuevos)
+        if (!guardado.ok) return guardado
+        const resultado = iniciarRegistro()
+        if (resultado.ok) {
+            cambiarEstadoUsosPlantillasPlan({ ok: true, usos: usosNuevos })
+            return resultado
+        }
+        const revertido = guardarUsosPlantillasPlanificacion(usosPrevios)
+        if (!revertido.ok) {
+            cambiarEstadoUsosPlantillasPlan(cargarUsosPlantillasPlanificacion())
+            return { ...resultado, error: `${resultado.error} Además, no se pudo revertir el uso reservado de la plantilla: ${revertido.error}` }
+        }
+        return resultado
+    }
+
+    const seguimientoParaCalendario = {
+        ...seguimientoPlanificacion,
+        empezar(planId, modo, planes, eventos, tareas) {
+            const seleccionado = planes.find(plan => plan.id === planId)
+            if (!seleccionado?.plantillaOrigenId) {
+                return seguimientoPlanificacion.empezar(planId, modo, planes, eventos, tareas)
+            }
+            const inicio = () => seguimientoPlanificacion.empezar(planId, modo, planes, eventos, tareas)
+            return registrarUsoPlantillaPlan(seleccionado, inicio)
+        }
     }
 
     function confirmarCambio(nuevasPlantillas) {
@@ -173,7 +254,7 @@ export function App() {
             : [...planes, ...apariciones].filter(plan => plan.inicio.getFullYear() === fecha.getFullYear()
                 && plan.inicio.getMonth() === fecha.getMonth()
                 && plan.inicio.getDate() === fecha.getDate())
-        return seguimientoPlanificacion.sincronizarPlanes(visibles, plantillas)
+        return seguimientoPlanificacion.sincronizarPlanes(visibles, plantillas, estadoTareas.ok ? estadoTareas.tareas : [])
     }
 
     function confirmarPlanes(nuevosPlanes) {
@@ -195,8 +276,78 @@ export function App() {
             guardarPlanes(anteriores)
             return sincronizacion
         }
-        cambiarEstadoPlanes({ ok: true, planes: nuevosPlanes })
+        cambiarEstadoPlanes(cargarPlanes())
         return { ok: true }
+    }
+
+    function eliminarPlanInvalidoDesdeHistorial(indice) {
+        const resultado = eliminarPlanInvalido(indice)
+        if (resultado.ok) cambiarEstadoPlanes(cargarPlanes())
+        return resultado
+    }
+
+    function eliminarPlanesCorruptosDesdeHistorial() {
+        try {
+            localStorage.removeItem(CLAVE_PLANES)
+            cambiarEstadoPlanes(cargarPlanes())
+            return { ok: true }
+        } catch { return { ok: false, error: "No se pudieron eliminar los datos de planes corruptos." } }
+    }
+
+    function eliminarProblemaRevision(problema) {
+        if (problema.tipo === "registro") return problema.indice === null
+            ? estadoRegistro.eliminarDatosCorruptos()
+            : estadoRegistro.eliminarInvalido(problema.indice)
+        if (problema.tipo === "plan") return problema.indice === null
+            ? eliminarPlanesCorruptosDesdeHistorial()
+            : eliminarPlanInvalidoDesdeHistorial(problema.indice)
+        if (problema.tipo === "recurrencia") {
+            if (problema.indice === null) {
+                try { localStorage.removeItem(CLAVE_RECURRENCIAS); cambiarEstadoRecurrencias(cargarRecurrencias()); return { ok: true } }
+                catch { return { ok: false, error: "No se pudieron eliminar las recurrencias corruptas." } }
+            }
+            const resultado = eliminarRecurrenciaInvalida(problema.indice)
+            if (resultado.ok) cambiarEstadoRecurrencias(cargarRecurrencias())
+            return resultado
+        }
+        if (problema.tipo === "plantilla-plan") {
+            if (problema.indice === null) {
+                const resultado = eliminarColeccionPlantillasPlanificacionCorrupta()
+                if (resultado.ok) cambiarEstadoPlantillasPlan(cargarPlantillasPlanificacion())
+                return resultado
+            }
+            const resultado = eliminarPlantillaPlanificacionInvalida(problema.indice)
+            if (resultado.ok) cambiarEstadoPlantillasPlan(cargarPlantillasPlanificacion())
+            return resultado
+        }
+        if (problema.tipo === "uso-plantilla") {
+            const resultado = eliminarUsosPlantillasPlanificacionCorruptos()
+            if (resultado.ok) cambiarEstadoUsosPlantillasPlan(cargarUsosPlantillasPlanificacion())
+            return resultado
+        }
+        if (problema.tipo === "focus-historial") {
+            if (problema.indice === null) {
+                try { localStorage.removeItem(CLAVE_HISTORIAL_FOCUS); cambiarDiagnosticoHistorialFocus(cargarHistorialFocus()); return { ok: true } }
+                catch { return { ok: false, error: "No se pudo eliminar el historial Focus corrupto." } }
+            }
+            const resultado = eliminarSesionFocusInvalida(problema.indice, problema.firma)
+            if (resultado.ok) cambiarDiagnosticoHistorialFocus(cargarHistorialFocus())
+            return resultado
+        }
+        if (problema.tipo === "focus-plantilla") {
+            if (problema.indice === null) {
+                try { localStorage.removeItem(CLAVE_PLANTILLAS_FOCUS); cambiarEstadoPlantillasFocus(cargarPlantillasFocus()); return { ok: true } }
+                catch { return { ok: false, error: "No se pudieron eliminar las plantillas Focus corruptas." } }
+            }
+            const resultado = eliminarPlantillaFocusInvalida(problema.indice)
+            if (resultado.ok) cambiarEstadoPlantillasFocus(cargarPlantillasFocus())
+            return resultado
+        }
+        if (problema.tipo === "focus-activa") {
+            try { localStorage.removeItem(CLAVE_SESION_ACTIVA_FOCUS); cambiarDiagnosticoSesionFocus(cargarSesionActivaFocus()); return { ok: true } }
+            catch { return { ok: false, error: "No se pudo eliminar la sesión Focus activa corrupta." } }
+        }
+        return { ok: false, error: "No se reconoce este tipo de dato inválido." }
     }
 
     function confirmarRecurrencias(nuevas) {
@@ -207,7 +358,7 @@ export function App() {
             guardarRecurrencias(estadoRecurrencias.ok ? estadoRecurrencias.reglas : [])
             return sincronizacion
         }
-        cambiarEstadoRecurrencias({ ok: true, reglas: nuevas })
+        cambiarEstadoRecurrencias(cargarRecurrencias())
         return { ok: true }
     }
 
@@ -261,16 +412,19 @@ export function App() {
                 if (regla.id !== aparicion.idRecurrencia) return regla
                 const fechaExcepcion = aparicion.fechaRecurrencia
                 const evento = plantillas.find(item => item.id === aparicion.eventoId)
+                const tarea = estadoTareas.ok ? estadoTareas.tareas.find(item => item.id === aparicion.tareaId) : null
                 const excepcion = {
                     id: aparicion.id,
                     nombre: aparicion.nombre,
                     eventoId: aparicion.eventoId ?? null,
                     colorEvento: aparicion.colorEvento,
+                    ...(aparicion.tareaId ? { tareaId: aparicion.tareaId, tareaNombre: tarea?.nombre ?? aparicion.tareaNombre } : {}),
                     inicio: aparicion.inicio.toISOString(),
                     fin: aparicion.fin.toISOString(),
                     ordenSeguimiento: ordenPorId.get(aparicion.id)
                 }
                 if (aparicion.eventoId && !evento) return regla
+                if (aparicion.tareaId && !tarea) return regla
                 return { ...regla, excepciones: { ...regla.excepciones, [fechaExcepcion]: excepcion } }
             })
         }
@@ -291,15 +445,16 @@ export function App() {
                 : [...nuevosPlanes, ...nuevasApariciones].filter(plan => plan.inicio.getFullYear() === fecha.getFullYear()
                     && plan.inicio.getMonth() === fecha.getMonth()
                     && plan.inicio.getDate() === fecha.getDate()),
-            plantillas
+            plantillas,
+            estadoTareas.ok ? estadoTareas.tareas : []
         )
         if (!sincronizacion.ok) {
             guardarPlanes(planesBase)
             guardarRecurrencias(reglasBase)
             return sincronizacion
         }
-        cambiarEstadoPlanes({ ok: true, planes: nuevosPlanes })
-        cambiarEstadoRecurrencias({ ok: true, reglas: nuevasReglas })
+            cambiarEstadoPlanes(cargarPlanes())
+        cambiarEstadoRecurrencias(cargarRecurrencias())
         return { ok: true }
     }
 
@@ -309,7 +464,8 @@ export function App() {
         const fecha = new Date(sesion.secuencia[sesion.indiceActual].inicioPrevisto)
         if (sesion.tipoSeguimiento === "cronometro" && cambios.tipoSecuencial) {
             const evento = cambios.eventoId ? plantillas.find(item => item.id === cambios.eventoId) : null
-            const creado = crearPlan({ nombre: evento?.nombre ?? cambios.nombre, evento, inicio: fecha, fin: new Date(fecha.getTime() + 1000) })
+            const tarea = cambios.tareaId && estadoTareas.ok ? estadoTareas.tareas.find(item => item.id === cambios.tareaId) : null
+            const creado = crearPlan({ nombre: evento?.nombre ?? tarea?.nombre ?? cambios.nombre, evento, tarea, inicio: fecha, fin: new Date(fecha.getTime() + 1000) })
             if (!creado.ok) return creado
             const planCreado = { ...creado.plan, fin: null, plantillaOrigenId: sesion.secuencia[0].plantillaOrigenId,
                 plantillaOrigenNombre: sesion.secuencia[0].plantillaOrigenNombre, idAplicacionPlantilla: sesion.idAplicacionPlantilla,
@@ -387,8 +543,9 @@ export function App() {
         if (seguimientoPlanificacion.estado?.tipoSeguimiento === "cronometro") {
             if ((seguimientoPlanificacion.estado.iniciados ?? []).includes(plan.id)) return { ok: false, error: "Un evento iniciado ya no se puede editar." }
             const evento = cambios.eventoId ? plantillas.find(item => item.id === cambios.eventoId) : null
+            const tarea = cambios.tareaId && estadoTareas.ok ? estadoTareas.tareas.find(item => item.id === cambios.tareaId) : null
             const resultadoSecuencial = actualizarPlan(estadoPlanes.planes, plan.id, {
-                nombre: evento?.nombre ?? cambios.nombre, evento, inicio: plan.inicio, fin: plan.fin
+                nombre: evento?.nombre ?? tarea?.nombre ?? cambios.nombre, evento, tarea, inicio: plan.inicio, fin: plan.fin
             })
             if (!resultadoSecuencial.ok) return resultadoSecuencial
             const nuevos = resultadoSecuencial.planes.map(item => item.id === plan.id ? { ...item, grupoCronometro: cambios.grupoCronometro } : item)
@@ -414,7 +571,7 @@ export function App() {
     function confirmarPlantillasPlan(nuevas) {
         const guardado = guardarPlantillasPlanificacion(nuevas)
         if (!guardado.ok) return guardado
-        cambiarEstadoPlantillasPlan({ ok: true, plantillas: nuevas })
+        cambiarEstadoPlantillasPlan(cargarPlantillasPlanificacion())
         return { ok: true }
     }
 
@@ -515,8 +672,17 @@ export function App() {
     function eliminarTareaExistente(id) {
         if (!estadoTareas.ok) return { ok: false, error: estadoTareas.error }
         if (!estadoRegistro.datos.ok) return { ok: false, error: "No se puede comprobar si hay registros vinculados porque no se pudieron cargar." }
+        if (!estadoPlantillasPlan.ok || !estadoPlanes.ok || !estadoRecurrencias.ok || !estadoPlantillasFocus.ok) {
+            return { ok: false, error: "No se pudieron revisar todos los vínculos de esta tarea; no se modificó ningún dato." }
+        }
         if (estadoRegistro.registros.some(registro => registro.tareaId === id)) {
             return { ok: false, error: "No se puede eliminar esta tarea porque está vinculada a uno o más registros." }
+        }
+        if ((estadoPlantillasPlan.ok && estadoPlantillasPlan.plantillas.some(plantilla => plantilla.actividades.some(actividad => actividad.tareaId === id)))
+            || (estadoPlanes.ok && estadoPlanes.planes.some(plan => plan.tareaId === id))
+            || (estadoRecurrencias.ok && estadoRecurrencias.reglas.some(regla => regla.tareaId === id))
+            || (estadoPlantillasFocus.ok && estadoPlantillasFocus.plantillas.some(plantilla => plantilla.configuracion?.tarea?.id === id))) {
+            return { ok: false, error: "No se puede eliminar esta tarea porque está vinculada a una plantilla o plan. Quitá primero esos vínculos." }
         }
         if (descendientesDe(estadoTareas.tareas, id).length) {
             return { ok: false, error: "No se puede eliminar una tarea que contiene subtareas. Reorganizá o eliminá primero sus descendientes." }
@@ -601,9 +767,9 @@ export function App() {
             return { ok: true }
         })
         if (!guardado.ok) return guardado
-        cambiarEstadoPlantillasPlan({ ok: true, plantillas: plantillasNuevas.plantillas })
-        cambiarEstadoPlanes({ ok: true, planes: planesNuevos.planes })
-        cambiarEstadoRecurrencias({ ok: true, reglas: recurrenciasNuevas.reglas })
+        cambiarEstadoPlantillasPlan(cargarPlantillasPlanificacion())
+        cambiarEstadoPlanes(cargarPlanes())
+        cambiarEstadoRecurrencias(cargarRecurrencias())
         return { ok: true }
     }
 
@@ -612,7 +778,9 @@ export function App() {
         const plantilla = estadoPlantillasPlan.plantillas.find(item => item.id === id)
         if (!plantilla) return { ok: false, error: "No se encontró la plantilla de planificación." }
         if (yaAplicadaEnFecha(estadoPlanes.planes, id, fecha) && !permitirDuplicado) return { ok: false, duplicado: true }
-        const resultado = aplicarPlantillaPlanificacion(plantilla, fecha, plantillas, { ahora: new Date(), horaInicioSegundos })
+        const resultado = aplicarPlantillaPlanificacion(plantilla, fecha, plantillas, {
+            ahora: new Date(), horaInicioSegundos, tareas: estadoTareas.ok ? tareasDeTrabajo : []
+        })
         if (!resultado.ok) return resultado
         const guardado = confirmarPlanes([...estadoPlanes.planes, ...resultado.planes])
         if (!guardado.ok) return guardado
@@ -742,16 +910,19 @@ export function App() {
             : guardado
     }
 
-    function crearEvento(nombre, color, categoriaId = null) {
+    function crearEvento(nombre, color, categoriaIds = []) {
         if (!estadoPlantillas.ok) {
             return { ok: false, error: estadoPlantillas.error }
         }
 
-        if (categoriaId && (!estadoCategorias.ok || !estadoCategorias.categorias.some(categoria => categoria.id === categoriaId))) {
-            return { ok: false, error: "La categoría seleccionada no está disponible." }
+        const ids = typeof categoriaIds === "string" ? [categoriaIds] : categoriaIds
+        if (!Array.isArray(ids) || new Set(ids).size !== ids.length
+            || ids.some(id => typeof id !== "string" || !id.trim())
+            || ids.length && (!estadoCategorias.ok || ids.some(id => !estadoCategorias.categorias.some(categoria => categoria.id === id)))) {
+            return { ok: false, error: "Una de las categorías seleccionadas no está disponible." }
         }
 
-        const resultado = crearPlantillaEvento(nombre, color, categoriaId)
+        const resultado = crearPlantillaEvento(nombre, color, ids)
 
         if (resultado.ok) {
             return confirmarCambio([...plantillas, resultado.plantilla])
@@ -760,16 +931,19 @@ export function App() {
         return resultado
     }
 
-    function actualizarEvento(id, nombre, color, categoriaId = null) {
+    function actualizarEvento(id, nombre, color, categoriaIds = []) {
         if (!estadoPlantillas.ok) {
             return { ok: false, error: estadoPlantillas.error }
         }
 
-        if (categoriaId && (!estadoCategorias.ok || !estadoCategorias.categorias.some(categoria => categoria.id === categoriaId))) {
-            return { ok: false, error: "La categoría seleccionada no está disponible." }
+        const ids = typeof categoriaIds === "string" ? [categoriaIds] : categoriaIds
+        if (!Array.isArray(ids) || new Set(ids).size !== ids.length
+            || ids.some(id => typeof id !== "string" || !id.trim())
+            || ids.length && (!estadoCategorias.ok || ids.some(id => !estadoCategorias.categorias.some(categoria => categoria.id === id)))) {
+            return { ok: false, error: "Una de las categorías seleccionadas no está disponible." }
         }
 
-        const resultado = actualizarPlantillaEvento(plantillas, id, nombre, color, categoriaId)
+        const resultado = actualizarPlantillaEvento(plantillas, id, nombre, color, ids)
 
         if (resultado.ok) {
             return confirmarCambio(resultado.plantillas)
@@ -804,9 +978,12 @@ export function App() {
         const resultado = eliminarCategoria(estadoCategorias.categorias, id)
         if (!resultado.ok) return resultado
         const eventosActualizados = plantillas.map(plantilla => {
-            if (plantilla.categoriaId !== id) return plantilla
-            const actualizado = { ...plantilla }
-            delete actualizado.categoriaId
+            const categoriaIds = obtenerCategoriasPlantillaEvento(plantilla)
+            if (!categoriaIds.includes(id)) return normalizarPlantillaEvento(plantilla)
+            const actualizado = normalizarPlantillaEvento(plantilla)
+            const categoriasRestantes = categoriaIds.filter(categoriaId => categoriaId !== id)
+            if (categoriasRestantes.length) actualizado.categoriaIds = categoriasRestantes
+            else delete actualizado.categoriaIds
             return actualizado
         })
         const guardadoCategorias = guardarCategorias(resultado.categorias)
@@ -859,6 +1036,14 @@ export function App() {
                 ok: false,
                 error: "No se puede eliminar esta plantilla porque está vinculada a uno o más planes."
             }
+        }
+
+        if (!estadoRecurrencias.ok || !estadoPlantillasFocus.ok) return { ok: false, error: "No se pudieron revisar todos los vínculos de esta plantilla; no se modificó ningún dato." }
+        if (estadoRecurrencias.reglas.some(regla => regla.eventoId === id)) {
+            return { ok: false, error: "No se puede eliminar esta plantilla porque está vinculada a una recurrencia." }
+        }
+        if (estadoPlantillasFocus.plantillas.some(plantilla => plantilla.configuracion?.evento?.id === id)) {
+            return { ok: false, error: "No se puede eliminar esta plantilla porque está vinculada a una plantilla de sesión Focus." }
         }
 
         if (estadoRegistro.registros.some(registro => registro.eventoId === id)) {
@@ -966,6 +1151,9 @@ export function App() {
                     registros={estadoRegistro.registros}
                     eventos={plantillas}
                     tareas={tareasDeTrabajo}
+                    categorias={estadoCategorias.ok ? estadoCategorias.categorias : []}
+                    ordenEventos={ordenPlantillasEventos}
+                    cambiarOrdenEventos={cambiarOrdenEventos}
                     planes={estadoPlanes.ok ? estadoPlanes.planes : []}
                     recurrencias={estadoRecurrencias.ok ? estadoRecurrencias.reglas : []}
                     fechaInicial={fechaCalendarioSolicitada.fecha}
@@ -981,16 +1169,20 @@ export function App() {
                     onEliminarRecurrencia={eliminarRecurrenciaPlanificacion}
                     onEliminarAplicacionPlan={eliminarAplicacionPlanificacion}
                     onMoverAplicacionPlan={moverAplicacionPlanificacion}
-                    seguimientoPlanificacion={seguimientoPlanificacion}
+                    seguimientoPlanificacion={seguimientoParaCalendario}
                     onIniciarSesionFocus={iniciarFocusPlanificado}
                 />
 
                 <aside className="panel-herramientas" aria-label="Panel de herramientas">
                     <div className="panel-herramientas-contenido">
                         <PanelSeguimientoPlanificacion
-                            seguimiento={seguimientoPlanificacion}
+                            seguimiento={seguimientoParaCalendario}
                             planes={planesSeguimiento}
                             eventos={plantillas}
+                            tareas={tareasDeTrabajo}
+                            categorias={estadoCategorias.ok ? estadoCategorias.categorias : []}
+                            ordenEventos={ordenPlantillasEventos}
+                            cambiarOrdenEventos={cambiarOrdenEventos}
                             onCrearPlan={crearPlanEnSeguimiento}
                             onCrearRecurrencia={crearRecurrenciaEnSeguimiento}
                             onActualizarPlan={editarPlanEnSeguimiento}
@@ -1027,6 +1219,7 @@ export function App() {
                                             estadoRegistro={estadoRegistro}
                                             eventos={plantillas}
                                             tareas={tareasDeTrabajo}
+                                            categorias={estadoCategorias.ok ? estadoCategorias.categorias : []}
                                             ordenEventos={ordenPlantillasEventos}
                                             cambiarOrdenEventos={cambiarOrdenEventos}
                                         />
@@ -1040,6 +1233,7 @@ export function App() {
                                 vistaActiva={esVistaFocus}
                                 eventos={plantillas}
                                 tareas={tareasDeTrabajo}
+                                categorias={estadoCategorias.ok ? estadoCategorias.categorias : []}
                                 ordenEventos={ordenPlantillasEventos}
                                 cambiarOrdenEventos={cambiarOrdenEventos}
                                 onCrearTarea={crearTareaNueva}
@@ -1075,7 +1269,13 @@ export function App() {
                                 plantillas={estadoPlantillasPlan.ok ? estadoPlantillasPlan.plantillas : []}
                         plantillasFocus={estadoPlantillasFocus.ok ? estadoPlantillasFocus.plantillas : []}
                                 eventos={plantillas}
+                                tareas={tareasDeTrabajo}
+                                usosPlantillas={estadoUsosPlantillasPlan.ok ? estadoUsosPlantillasPlan.usos : []}
+                                categorias={estadoCategorias.ok ? estadoCategorias.categorias : []}
+                                ordenEventos={ordenPlantillasEventos}
+                                cambiarOrdenEventos={cambiarOrdenEventos}
                                 errorCarga={estadoPlantillasPlan.ok ? "" : estadoPlantillasPlan.error}
+                                errorUsos={estadoUsosPlantillasPlan.ok ? "" : estadoUsosPlantillasPlan.error}
                                 planes={estadoPlanes.ok ? estadoPlanes.planes : []}
                                 recurrencias={estadoRecurrencias.ok ? estadoRecurrencias.reglas : []}
                                 planesEnSeguimiento={planesSeguimiento}
@@ -1105,10 +1305,19 @@ export function App() {
                                 ahora={estadoRegistro.ahora}
                                 tareas={tareasDeTrabajo}
                                 eventos={plantillas}
+                                categorias={estadoCategorias.ok ? estadoCategorias.categorias : []}
+                                ordenEventos={ordenPlantillasEventos}
+                                cambiarOrdenEventos={cambiarOrdenEventos}
                                 datosDisponibles={estadoRegistro.datos.ok}
                                 errorCarga={estadoRegistro.datos.error}
+                                problemas={problemasRevision}
                                 onEditar={estadoRegistro.editarFinalizado}
                                 onEliminar={estadoRegistro.eliminarFinalizado}
+                                onEliminarInvalido={estadoRegistro.eliminarInvalido}
+                                onEliminarDatosCorruptos={estadoRegistro.eliminarDatosCorruptos}
+                                onEliminarPlanInvalido={eliminarPlanInvalidoDesdeHistorial}
+                                onEliminarPlanesCorruptos={eliminarPlanesCorruptosDesdeHistorial}
+                                onEliminarProblema={eliminarProblemaRevision}
                             />
                         </div>
                         <div hidden={vistaPrincipal !== "tareas"}>

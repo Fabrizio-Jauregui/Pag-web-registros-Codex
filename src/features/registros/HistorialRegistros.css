@@ -24,6 +24,13 @@
 .historial-editor { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; overflow: auto; padding: 20px; background: rgb(15 23 42 / 65%); }
 .historial-editor .formulario-registro { width: min(760px, 100%); max-height: calc(100vh - 40px); overflow: auto; margin: auto; }
 
+.historial-problemas { display: grid; gap: 10px; margin: 16px 0; padding: 14px; border: 1px solid #f59e0b; border-radius: 10px; background: #fffbeb; color: #78350f; }
+.historial-problemas > p { margin: 0; }
+.historial-problemas article { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 10px; border-top: 1px solid #fde68a; }
+.historial-problemas article p { margin: 4px 0 0; }
+.historial-problemas button { flex: 0 0 auto; padding: 7px 11px; border: 1px solid #b45309; border-radius: 7px; background: white; color: #78350f; cursor: pointer; }
+@media (max-width: 560px) { .historial-problemas article { align-items: flex-start; flex-direction: column; } }
+
 .historial-registros-header {
   margin-bottom: 14px;
 }

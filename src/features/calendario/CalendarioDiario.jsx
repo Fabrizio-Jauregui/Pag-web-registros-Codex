@@ -96,6 +96,9 @@ export const CalendarioDiario = forwardRef(function CalendarioDiario({
     registros = [],
     eventos = [],
     tareas = [],
+    categorias = [],
+    ordenEventos = "ultimo-uso",
+    cambiarOrdenEventos = () => {},
     ahora = new Date(),
     onCrearRegistro = () => ({ ok: false, error: "La operación no está disponible." }),
     onEditarRegistro = () => ({ ok: false, error: "La operación no está disponible." }),
@@ -217,7 +220,7 @@ export const CalendarioDiario = forwardRef(function CalendarioDiario({
         const nombre = ancla.plantillaOrigenNombre ?? "Secuencia sin nombre"
         const horaAncla = formatearInstante(ancla.inicio, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
         const iniciar = (planId, modo) => {
-            const resultado = seguimientoPlanificacion?.empezar(planId, modo, planesVisibles, eventos)
+            const resultado = seguimientoPlanificacion?.empezar(planId, modo, planesVisibles, eventos, tareas)
             cambiarEstadoAjuste(resultado?.ok ? { mensaje: "Empezó el seguimiento de la planificación." } : { error: resultado?.error ?? "No se pudo iniciar el cronómetro." })
         }
 
@@ -251,6 +254,7 @@ export const CalendarioDiario = forwardRef(function CalendarioDiario({
                             const resultado = onIniciarSesionFocus(plan)
                             cambiarEstadoAjuste(resultado?.ok ? { mensaje: "Se inició la sesión Focus planificada." } : { error: resultado?.error ?? "No se pudo iniciar la sesión Focus." })
                         }}>Iniciar Focus</button>
+                        <button type="button" disabled={Boolean(sesion)} onClick={() => eliminarActividadCronometro(plan)}>Eliminar del calendario</button>
                     </li>
                     const elemento = sesion?.secuencia.find(item => item.planId === plan.id)
                     const activo = sesion?.registrosActivos?.find(item => item.planId === plan.id)
@@ -260,11 +264,13 @@ export const CalendarioDiario = forwardRef(function CalendarioDiario({
                         <span>{elemento?.nombre ?? eventos.find(evento => evento.id === plan.eventoId)?.nombre ?? plan.nombre}</span>
                         <span>{activo ? "En curso" : completado ? "Finalizado" : omitido ? "Omitido" : "Pendiente"}</span>
                         {!sesion && <button type="button" onClick={() => iniciar(plan.id, "actual")}>Iniciar este evento</button>}
+                        <button type="button" disabled={Boolean(sesion)} onClick={() => eliminarActividadCronometro(plan)}>Eliminar del calendario</button>
                     </li>
                 })}</ol>
                 {!sesion && actividades.filter(plan => plan.modoSeguimientoPlanificacion === "cronometro"
                     && (plan.grupoCronometro ?? 0) === (primero.grupoCronometro ?? 0)).length > 1
                     && <button type="button" className="secuencia-cronometro-iniciar-grupo" onClick={() => iniciar(primero.id, "grupo")}>Iniciar juntos los eventos de la primera etapa</button>}
+                {!sesion && actividades.length > 0 && <button type="button" className="secuencia-cronometro-eliminar" onClick={() => eliminarSecuenciaCronometro(ancla.idAplicacionPlantilla, nombre, actividades.length)}>Eliminar planificación del calendario</button>}
                 {sesion && <p>Los cronómetros de los eventos activos continúan por separado. Podés iniciar la siguiente etapa desde el panel de seguimiento.</p>}
             </section>
         }
@@ -513,6 +519,33 @@ export const CalendarioDiario = forwardRef(function CalendarioDiario({
             : `Se eliminaron ${resultado.cantidadEliminada} actividades de la aplicación. La plantilla se conservó.` })
     }
 
+    function eliminarActividadCronometro(plan) {
+        const confirmado = window.confirm(`¿Querés eliminar "${plan.nombre}" del calendario? Esta acción no se puede deshacer.`)
+        if (!confirmado) return
+        const resultado = onEliminarPlan(plan.id)
+        if (!resultado.ok) {
+            cambiarEstadoAjuste({ error: resultado.error })
+            return
+        }
+        cambiarEstadoAjuste({ mensaje: `Se eliminó "${plan.nombre}" del calendario.` })
+    }
+
+    function eliminarSecuenciaCronometro(idAplicacion, nombre, cantidad) {
+        if (typeof idAplicacion !== "string" || !idAplicacion) return
+        const actividades = cantidad === 1 ? "la única actividad" : `las ${cantidad} actividades`
+        const confirmado = window.confirm(`¿Querés eliminar ${actividades} de "${nombre}" del calendario? La plantilla reutilizable se conservará. Esta acción no se puede deshacer.`)
+        if (!confirmado) return
+        const resultado = onEliminarAplicacionPlan(idAplicacion)
+        if (!resultado.ok) {
+            cambiarEstadoAjuste({ error: resultado.error })
+            return
+        }
+        cambiarIdAplicacionCronometroSeleccionada(null)
+        cambiarEstadoAjuste({ mensaje: resultado.cantidadEliminada === 1
+            ? "Se eliminó la planificación del calendario. La plantilla se conservó."
+            : `Se eliminaron ${resultado.cantidadEliminada} actividades del calendario. La plantilla se conservó.` })
+    }
+
     function editarDesdeCalendario(id, cambios) {
         const resultado = onEditarRegistro(id, cambios)
 
@@ -551,6 +584,9 @@ export const CalendarioDiario = forwardRef(function CalendarioDiario({
         const evento = registro.eventoId
             ? eventos.find(plantilla => plantilla.id === registro.eventoId)
             : null
+        const tarea = registro.tareaId
+            ? tareas.find(item => item.id === registro.tareaId) ?? { id: registro.tareaId, nombre: registro.tareaNombre }
+            : null
 
         if (registro.eventoId && !evento) {
             cambiarEstadoAjuste({
@@ -562,6 +598,7 @@ export const CalendarioDiario = forwardRef(function CalendarioDiario({
         const resultado = onEditarRegistro(registro.id, {
             nombre: registro.nombre,
             evento,
+            tarea,
             segmentos
         })
 
@@ -597,6 +634,9 @@ export const CalendarioDiario = forwardRef(function CalendarioDiario({
         const evento = plan.eventoId
             ? eventos.find(plantilla => plantilla.id === plan.eventoId)
             : null
+        const tarea = plan.tareaId
+            ? tareas.find(item => item.id === plan.tareaId) ?? { id: plan.tareaId, nombre: plan.tareaNombre }
+            : null
         if (plan.eventoId && !evento) {
             cambiarEstadoAjuste({ error: "No se pudo ajustar la planificación porque su plantilla vinculada no está disponible." })
             return
@@ -604,6 +644,7 @@ export const CalendarioDiario = forwardRef(function CalendarioDiario({
         const resultado = onActualizarPlan(plan.idRecurrencia ?? plan.id, {
             nombre: plan.nombre,
             evento,
+            tarea,
             inicio: cambios.inicio,
             fin: cambios.fin,
             idRecurrencia: plan.idRecurrencia,
@@ -799,6 +840,9 @@ export const CalendarioDiario = forwardRef(function CalendarioDiario({
                     fechaSeleccionada={fechaSeleccionada}
                     eventos={eventos}
                     tareas={tareas}
+                    categorias={categorias}
+                    ordenEventos={ordenEventos}
+                    cambiarOrdenEventos={cambiarOrdenEventos}
                     onCrear={crearDesdeCalendario}
                     onEditar={editarDesdeCalendario}
                     onCancelar={() => cambiarFormulario(null)}
@@ -811,6 +855,10 @@ export const CalendarioDiario = forwardRef(function CalendarioDiario({
                     plan={formularioPlan.plan ?? null}
                     fechaSeleccionada={fechaSeleccionada}
                     eventos={eventos}
+                    tareas={tareas}
+                    categorias={categorias}
+                    ordenEventos={ordenEventos}
+                    cambiarOrdenEventos={cambiarOrdenEventos}
                     onGuardar={guardarPlanDesdeFormulario}
                     onCrearRecurrencia={crearRecurrenciaDesdeFormulario}
                     onCancelar={() => cambiarFormularioPlan(null)}
@@ -842,7 +890,7 @@ export const CalendarioDiario = forwardRef(function CalendarioDiario({
                     seguimientoActivo={Boolean(seguimientoPlanificacion?.estado)}
                     planActivoSeguimiento={planSeleccionado.id === planActivoSeguimientoId}
                     onSeguirPlan={(id, modo) => {
-                        const resultado = seguimientoPlanificacion?.empezar(id, modo, planesVisibles, eventos)
+                        const resultado = seguimientoPlanificacion?.empezar(id, modo, planesVisibles, eventos, tareas)
                         if (resultado?.ok) cambiarPlanSeleccionado(null)
                         return resultado
                     }}

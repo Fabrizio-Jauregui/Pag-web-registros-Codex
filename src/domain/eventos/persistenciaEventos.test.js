@@ -55,6 +55,15 @@ test("sigue cargando eventos existentes que todavía no incluyen categoría", ()
     assert.deepEqual(cargarPlantillasEventos(crearAlmacenamiento(JSON.stringify(existentes))), { ok: true, plantillas: existentes })
 })
 
+test("normaliza la categoría única de eventos existentes al formato de lista", () => {
+    const existentes = [{ id: "evento-anterior", nombre: "Lectura", color: "#112233", categoriaId: "categoria-1" }]
+    const resultado = cargarPlantillasEventos(crearAlmacenamiento(JSON.stringify(existentes)))
+    assert.deepEqual(resultado, {
+        ok: true,
+        plantillas: [{ id: "evento-anterior", nombre: "Lectura", color: "#112233", categoriaIds: ["categoria-1"] }]
+    })
+})
+
 test("rechaza JSON dañado sin sobrescribir el valor original", () => {
     const contenidoOriginal = "{json incompleto"
     const almacenamiento = crearAlmacenamiento(contenidoOriginal)

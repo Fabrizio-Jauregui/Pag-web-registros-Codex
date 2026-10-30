@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import { formatearDuracion } from "../../domain/tiempo/CalculosDuracion.js"
+import { SelectorOrigenActividad } from "../comun/SelectorOrigenActividad.jsx"
 
 import {
     leerValorFechaHoraLocal,
@@ -48,6 +49,9 @@ export function FormularioRegistro({
     fechaSeleccionada,
     eventos,
     tareas = [],
+    categorias = [],
+    ordenEventos = "ultimo-uso",
+    cambiarOrdenEventos = () => {},
     onCrear,
     onEditar,
     onCancelar
@@ -60,6 +64,7 @@ export function FormularioRegistro({
     ))
     const [error, cambiarError] = useState("")
     const plantillaRef = useRef(null)
+    const tareaRef = useRef(null)
     const nombreRef = useRef(null)
     const inicioRef = useRef(null)
     const finRef = useRef(null)
@@ -80,6 +85,8 @@ export function FormularioRegistro({
             nombreRef.current?.focus()
         } else if (detalle.includes("plantilla")) {
             plantillaRef.current?.focus()
+        } else if (detalle.includes("tarea")) {
+            tareaRef.current?.focus()
         } else if (detalle.includes("inicio")) {
             inicioRef.current?.focus()
         } else if (
@@ -176,16 +183,24 @@ export function FormularioRegistro({
     function guardar(evento) {
         evento.preventDefault()
 
+        if (Boolean(eventoId) === Boolean(tareaId)) {
+            const mensaje = "Elegí una plantilla de evento o una tarea para el registro."
+            cambiarError(mensaje)
+            plantillaRef.current?.focus()
+            return
+        }
+
         if (eventoId && !eventoSeleccionado) {
             const mensaje = "La plantilla seleccionada ya no está disponible. Elegí otra o quitá la selección."
             cambiarError(mensaje)
-            enfocarCampoDelError(mensaje)
+            plantillaRef.current?.focus()
             return
         }
 
         if (tareaId && !tareaSeleccionada) {
             const mensaje = "La tarea seleccionada ya no está disponible. Elegí otra o quitá la selección."
             cambiarError(mensaje)
+            tareaRef.current?.focus()
             return
         }
 
@@ -241,47 +256,55 @@ export function FormularioRegistro({
                 onSubmit={guardar}
                 onKeyDown={manejarTeclaFormulario}
             >
-                <label>
-                    <span>Plantilla de evento (opcional)</span>
-                    <select
-                        ref={plantillaRef}
-                        value={eventoId}
-                        onChange={cambio => {
-                            const nuevoEventoId = cambio.target.value
-                            const eventoPrevio = eventos.find(evento => evento.id === eventoId)
-                            const nuevoEvento = eventos.find(evento => evento.id === nuevoEventoId)
-                            cambiarEventoId(nuevoEventoId)
-                            if (nuevoEvento || eventoPrevio) {
-                                cambiarNombre(nuevoEvento?.nombre ?? eventoPrevio.nombre)
-                            }
-                            cambiarError("")
-                        }}
-                    >
-                        <option value="">Sin plantilla</option>
-                        {eventos.map(evento => (
-                            <option key={evento.id} value={evento.id}>{evento.nombre}</option>
-                        ))}
-                    </select>
-                </label>
+                <SelectorOrigenActividad
+                    tipo="evento"
+                    etiqueta="Plantilla de evento"
+                    opciones={eventos}
+                    categorias={categorias}
+                    value={eventoId}
+                    missingName={registro?.nombre}
+                    ref={plantillaRef}
+                    disabled={Boolean(tareaId)}
+                    ordenEventos={ordenEventos}
+                    cambiarOrdenEventos={cambiarOrdenEventos}
+                    onChange={opcion => {
+                        const nuevoId = opcion?.id ?? ""
+                        const eventoPrevio = eventos.find(evento => evento.id === eventoId)
+                        cambiarEventoId(nuevoId)
+                        if (nuevoId) cambiarTareaId("")
+                        cambiarNombre(opcion?.nombre ?? (nuevoId ? "" : eventoPrevio?.nombre ?? ""))
+                        cambiarError("")
+                    }}
+                />
+
+                <SelectorOrigenActividad
+                    tipo="tarea"
+                    etiqueta="Tarea"
+                    opciones={tareas}
+                    value={tareaId}
+                    missingName={registro?.tareaNombre}
+                    ref={tareaRef}
+                    disabled={Boolean(eventoId)}
+                    emptyLabel="Elegí una tarea"
+                    onChange={opcion => {
+                        const nuevoId = opcion?.id ?? ""
+                        cambiarTareaId(nuevoId)
+                        if (nuevoId) cambiarEventoId("")
+                        cambiarNombre(opcion?.nombre ?? "")
+                        cambiarError("")
+                    }}
+                />
 
                 <label>
-                    <span>Tarea (opcional)</span>
-                    <select value={tareaId} onChange={cambio => { cambiarTareaId(cambio.target.value); cambiarError("") }}>
-                        <option value="">Sin tarea</option>
-                        {tareaId && !tareaSeleccionada && <option value={tareaId}>{registro?.tareaNombre ?? "Tarea no disponible"}</option>}
-                        {tareas.map(tarea => <option key={tarea.id} value={tarea.id}>{tarea.nombre} · {tarea.estado}</option>)}
-                    </select>
-                </label>
-
-                <label>
-                    <span>Nombre de la actividad</span>
+                    <span>Nombre del registro</span>
                     <input
                         type="text"
                         ref={nombreRef}
-                        value={eventoSeleccionado?.nombre ?? nombre}
-                        disabled={Boolean(eventoSeleccionado)}
+                        value={eventoSeleccionado?.nombre ?? tareaSeleccionada?.nombre ?? nombre}
+                        placeholder="Se completa al elegir un evento o una tarea"
+                        readOnly
+                        disabled={!eventoSeleccionado && !tareaSeleccionada}
                         maxLength={80}
-                        onChange={cambio => cambiarNombre(cambio.target.value)}
                     />
                 </label>
 

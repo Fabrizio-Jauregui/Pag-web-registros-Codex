@@ -1,9 +1,10 @@
-import { ordenarPlantillasEventos, OPCIONES_ORDEN_PLANTILLAS_EVENTOS } from "../../domain/eventos/ordenPlantillasEventos.js"
+import { SelectorOrigenActividad } from "../comun/SelectorOrigenActividad.jsx"
 
 export function ControlesRegistro({
     nombre,
     cambiarNombre,
     eventos = [],
+    categorias = [],
     tareas = [],
     tareaId = "",
     cambiarTareaId = () => {},
@@ -20,63 +21,48 @@ export function ControlesRegistro({
     cambiarOrdenEventos = () => {}
 }) {
     const idNombre = idPrefix ? `${idPrefix}-nombre-registro` : "nombre-registro"
-    const idEvento = idPrefix ? `${idPrefix}-evento-registro` : "evento-registro"
-    const idTarea = idPrefix ? `${idPrefix}-tarea-registro` : "tarea-registro"
-    const idOrdenEventos = idPrefix ? `${idPrefix}-orden-eventos-registro` : "orden-eventos-registro"
-    const eventosOrdenados = ordenarPlantillasEventos(eventos, ordenEventos)
+    const sinOrigen = !eventoId && !tareaId
+    const eventoSeleccionado = eventos.find(item => item.id === eventoId)
+    const tareaSeleccionada = tareas.find(item => item.id === tareaId)
     return (
         <div className="controles-temporizador">
             <label htmlFor={idNombre}>
-                <span>Nombre del temporizador</span>
+                <span>Nombre del registro</span>
                 <input
                     id={idNombre}
                     type="text"
-                    value={nombre}
-                    disabled={estado !== "Inactivo" || bloqueado || Boolean(eventoId)}
+                    value={eventoSeleccionado?.nombre ?? tareaSeleccionada?.nombre ?? nombre}
+                    disabled
                     onChange={e => cambiarNombre(e.target.value)}
                 />
             </label>
 
-            <label htmlFor={idTarea}>
-                <span>Tarea (opcional)</span>
-                <select
-                    id={idTarea}
-                    value={tareaId}
-                    disabled={estado !== "Inactivo" || bloqueado}
-                    onChange={evento => cambiarTareaId(evento.target.value)}
-                >
-                    <option value="">Sin tarea</option>
-                    {tareas.map(tarea => <option value={tarea.id} key={tarea.id}>{tarea.rutaNombre ?? tarea.nombre} · {tarea.estado}</option>)}
-                </select>
-            </label>
+            <SelectorOrigenActividad
+                tipo="tarea"
+                etiqueta="Tarea"
+                opciones={tareas}
+                value={tareaId}
+                emptyLabel="Sin tarea"
+                disabled={estado !== "Inactivo" || bloqueado || Boolean(eventoId)}
+                onChange={opcion => cambiarTareaId(opcion?.id ?? "")}
+            />
 
-            <label htmlFor={idOrdenEventos}>
-                <span>Ordenar plantillas</span>
-                <select
-                    id={idOrdenEventos}
-                    value={ordenEventos}
-                    onChange={evento => cambiarOrdenEventos(evento.target.value)}
-                >
-                    {OPCIONES_ORDEN_PLANTILLAS_EVENTOS.map(opcion => (
-                        <option value={opcion.valor} key={opcion.valor}>{opcion.etiqueta}</option>
-                    ))}
-                </select>
-            </label>
+            <SelectorOrigenActividad
+                tipo="evento"
+                etiqueta="Plantilla de evento"
+                opciones={eventos}
+                categorias={categorias}
+                value={eventoId}
+                emptyLabel="Sin plantilla"
+                ordenEventos={ordenEventos}
+                cambiarOrdenEventos={cambiarOrdenEventos}
+                disabled={estado !== "Inactivo" || bloqueado || Boolean(tareaId)}
+                onChange={opcion => cambiarEventoId(opcion?.id ?? "")}
+            />
 
-            <label htmlFor={idEvento}>
-                <span>Plantilla de evento</span>
-                <select
-                    id={idEvento}
-                    value={eventoId}
-                    disabled={estado !== "Inactivo" || bloqueado}
-                    onChange={evento => cambiarEventoId(evento.target.value)}
-                >
-                    <option value="">Sin plantilla</option>
-                    {eventosOrdenados.map(plantilla => (
-                        <option value={plantilla.id} key={plantilla.id}>{plantilla.nombre}</option>
-                    ))}
-                </select>
-            </label>
+            {sinOrigen
+                ? <p className="ayuda-temporizador" role="status">Elegí una tarea o una plantilla de evento para iniciar el registro.</p>
+                : <p className="ayuda-temporizador" role="status">El registro se guardará con el nombre de la {eventoId ? "plantilla de evento" : "tarea"} seleccionada.</p>}
 
             <p className={`estado-temporizador estado-temporizador-${estado.toLowerCase().replaceAll(" ", "-")}`}>
                 Estado actual: <strong>{estado}</strong>
@@ -86,7 +72,7 @@ export function ControlesRegistro({
                 <button
                     type="button"
                     className="boton-iniciar-temporizador"
-                    disabled={estado === "En curso" || bloqueado}
+                    disabled={estado === "En curso" || bloqueado || (estado === "Inactivo" && sinOrigen)}
                     onClick={manejarPlay}
                 >
                     {estado === "Pausado" ? "Reanudar" : "Iniciar"}

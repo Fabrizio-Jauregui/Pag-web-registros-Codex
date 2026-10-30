@@ -89,12 +89,12 @@ test("agrupa por tarea y no confunde los registros de tareas con actividades sin
     ])
 })
 
-test("agrupa por categoría, incluye registros manuales en sin categoría y une intervalos simultáneos", () => {
+test("clasifica un registro completo bajo cada categoría y conserva los intervalos sin categoría", () => {
     const inicio = new Date(2026, 9, 12)
     const fin = new Date(2026, 9, 13)
     const categorias = [{ id: "salud", nombre: "Salud" }, { id: "casa", nombre: "Casa" }]
     const eventos = [
-        { id: "correr", nombre: "Correr", categoriaId: "salud" },
+        { id: "correr", nombre: "Correr", categoriaIds: ["salud", "casa"] },
         { id: "yoga", nombre: "Yoga", categoriaId: "salud" },
         { id: "limpiar", nombre: "Limpiar", categoriaId: "casa" },
         { id: "leer", nombre: "Leer" }
@@ -108,13 +108,15 @@ test("agrupa por categoría, incluye registros manuales en sin categoría y une 
     ]
     const agrupada = calcularAnaliticaRegistros(registros, eventos, inicio, fin, fin, { categorias, agruparPor: "categoria" })
     assert.deepEqual(agrupada.porCategoria.map(({ nombre, segundos }) => ({ nombre, segundos })), [
+        { nombre: "Casa", segundos: 90 * 60 },
         { nombre: "Salud", segundos: 90 * 60 },
-        { nombre: "Casa", segundos: 30 * 60 },
         { nombre: "Sin categoría", segundos: 25 * 60 }
     ])
     const filtrada = calcularAnaliticaRegistros(registros, eventos, inicio, fin, fin, { categorias, categoriaId: "salud" })
     assert.equal(filtrada.totalSegundos, 90 * 60)
     assert.deepEqual(filtrada.porEvento.map(grupo => grupo.nombre), ["Correr", "Yoga"])
+    const filtradaCasa = calcularAnaliticaRegistros(registros, eventos, inicio, fin, fin, { categorias, categoriaId: "casa" })
+    assert.equal(filtradaCasa.totalSegundos, 90 * 60)
     const sinCategoria = calcularAnaliticaRegistros(registros, eventos, inicio, fin, fin, { categorias, categoriaId: "__sin_categoria__" })
     assert.equal(sinCategoria.totalSegundos, 25 * 60)
     assert.deepEqual(sinCategoria.porEvento.map(grupo => grupo.nombre).sort(), ["Leer", "Sin evento vinculado"])

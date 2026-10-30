@@ -9,7 +9,7 @@ import { ControlesRegistro } from "./ControlesRegistro"
 import { ResumenDuracion } from "./ResumenDuracion"
 import { ListaRegistrosActivos } from "./ListaRegistrosActivos.jsx"
 
-export function EstadosRegistros({ estadoRegistro, eventos = [], tareas = [], ordenEventos, cambiarOrdenEventos }) {
+export function EstadosRegistros({ estadoRegistro, eventos = [], tareas = [], categorias = [], ordenEventos, cambiarOrdenEventos }) {
     const [nombre, cambiarNombre] = useState("")
     const [eventoId, cambiarEventoId] = useState("")
     const [tareaId, cambiarTareaId] = useState("")
@@ -22,8 +22,16 @@ export function EstadosRegistros({ estadoRegistro, eventos = [], tareas = [], or
 
     function cambiarEventoSeleccionado(nuevoId) {
         cambiarEventoId(nuevoId)
+        if (nuevoId) cambiarTareaId("")
         const evento = eventos.find(plantilla => plantilla.id === nuevoId)
         cambiarNombre(evento?.nombre ?? "")
+    }
+
+    function cambiarTareaSeleccionada(nuevoId) {
+        cambiarTareaId(nuevoId)
+        if (nuevoId) cambiarEventoId("")
+        const tarea = tareas.find(elemento => elemento.id === nuevoId)
+        cambiarNombre(tarea?.nombre ?? "")
     }
 
     function manejarPlay() {
@@ -54,10 +62,11 @@ export function EstadosRegistros({ estadoRegistro, eventos = [], tareas = [], or
                 cambiarNombre={cambiarNombre}
                 eventos={eventos}
                 tareas={tareas}
+                categorias={categorias}
                 eventoId={eventoId}
                 cambiarEventoId={cambiarEventoSeleccionado}
                 tareaId={tareaId}
-                cambiarTareaId={cambiarTareaId}
+                cambiarTareaId={cambiarTareaSeleccionada}
                 estado="Inactivo"
                 manejarPlay={manejarPlay}
                 manejarPause={() => {}}

@@ -9,15 +9,37 @@ function fechaLocalISO(instante) {
     return `${instante.getFullYear()}-${String(instante.getMonth() + 1).padStart(2, "0")}-${String(instante.getDate()).padStart(2, "0")}`
 }
 
+function etiquetaTipoProblema(tipo) {
+    return ({
+        registro: "Registro",
+        plan: "Plan de calendario",
+        recurrencia: "Recurrencia",
+        "plantilla-plan": "Plantilla de planificación",
+        "uso-plantilla": "Uso de plantilla de planificación",
+        "focus-historial": "Sesión Focus finalizada",
+        "focus-activa": "Sesión Focus activa",
+        "focus-plantilla": "Plantilla Focus"
+    })[tipo] ?? "Dato"
+}
+
 export function HistorialRegistros({
     registros,
     ahora = new Date(),
     tareas = [],
     eventos = [],
+    categorias = [],
+    ordenEventos = "ultimo-uso",
+    cambiarOrdenEventos = () => {},
     datosDisponibles = true,
     errorCarga = "",
+    problemas = [],
     onEditar = () => ({ ok: false }),
-    onEliminar = () => ({ ok: false })
+    onEliminar = () => ({ ok: false }),
+    onEliminarInvalido = () => ({ ok: false }),
+    onEliminarDatosCorruptos = () => ({ ok: false }),
+    onEliminarPlanInvalido = () => ({ ok: false }),
+    onEliminarPlanesCorruptos = () => ({ ok: false }),
+    onEliminarProblema = null
 }) {
     const [buscarNombre, cambiarBuscarNombre] = useState("")
     const [fecha, cambiarFecha] = useState("")
@@ -45,6 +67,18 @@ export function HistorialRegistros({
         cambiarError("")
     }
 
+    function eliminarProblema(problema) {
+        const mensaje = problema.indice === null
+            ? "No se pudo separar el contenido en elementos. ¿Querés eliminar todos los datos guardados de esta sección? Esta acción no se puede deshacer."
+            : `¿Querés eliminar “${problema.titulo}”? Motivo: ${problema.detalle}`
+        if (!window.confirm(mensaje)) return
+        const resultado = onEliminarProblema ? onEliminarProblema(problema) : problema.tipo === "plan"
+            ? problema.indice === null ? onEliminarPlanesCorruptos() : onEliminarPlanInvalido(problema.indice)
+            : problema.indice === null ? onEliminarDatosCorruptos() : onEliminarInvalido(problema.indice)
+        if (!resultado?.ok) cambiarError(resultado?.error || "No se pudo eliminar el dato inválido.")
+        else cambiarError("")
+    }
+
     return (
         <section className="historial-registros" aria-labelledby="titulo-historial">
             <header className="historial-registros-header">
@@ -55,6 +89,15 @@ export function HistorialRegistros({
             </header>
             {!datosDisponibles && <p role="alert">{errorCarga || "No se pudo cargar el historial."}</p>}
             {error && <p role="alert">{error}</p>}
+            {(problemas.length > 0 || !datosDisponibles) && <section className="historial-problemas" aria-labelledby="titulo-datos-invalidos">
+                <h3 id="titulo-datos-invalidos">Datos que necesitan atención</h3>
+                <p>Los elementos válidos siguen disponibles. Revisá el motivo antes de eliminar un elemento.</p>
+                {problemas.map(problema => <article key={`${problema.tipo ?? "dato"}-${problema.indice ?? "coleccion"}`}>
+                    <div><strong>{etiquetaTipoProblema(problema.tipo)}: {problema.titulo}</strong><p>{problema.detalle}</p></div>
+                    <button type="button" onClick={() => eliminarProblema(problema)}>Eliminar</button>
+                </article>)}
+                {!datosDisponibles && problemas.length === 0 && <button type="button" onClick={() => eliminarProblema({ tipo: "registro", indice: null, titulo: "Registros", detalle: errorCarga })}>Eliminar datos de registros corruptos</button>}
+            </section>}
             {datosDisponibles && <div className="historial-filtros" aria-label="Filtros del historial">
                 <label><span>Buscar por nombre</span><input type="search" value={buscarNombre} onChange={evento => cambiarBuscarNombre(evento.target.value)} /></label>
                 <label><span>Día</span><input type="date" value={fecha} onChange={evento => cambiarFecha(evento.target.value)} /></label>
@@ -78,6 +121,9 @@ export function HistorialRegistros({
                     fechaSeleccionada={registroEditando.segmentos[0].inicio}
                     eventos={eventos}
                     tareas={tareas}
+                    categorias={categorias}
+                    ordenEventos={ordenEventos}
+                    cambiarOrdenEventos={cambiarOrdenEventos}
                     onCrear={() => ({ ok: false })}
                     onEditar={onEditar}
                     onCancelar={() => cambiarRegistroEditando(null)}

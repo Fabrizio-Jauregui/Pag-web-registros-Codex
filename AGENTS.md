@@ -48,6 +48,7 @@ Antes de cambiar una función, identificá sus puntos de entrada, sus datos comp
 ## Principios de producto confirmados
 
 - Planificar algo y registrar que ocurrió son conceptos distintos. La falta de un registro no demuestra que la actividad no haya ocurrido.
+- Aplicar una plantilla de planificación al calendario no cuenta como usarla. Al iniciar un registro siguiendo una de sus aplicaciones, esa plantilla queda inhabilitada para el resto de la fecha de aplicación; otras plantillas pueden usarse aunque sus horarios se superpongan.
 - En general se permiten actividades superpuestas. La concentración de una sesión Focus es una excepción deliberada: no debe coexistir con otro registro activo; revisá el comportamiento actual para descansos, pausas y tiempo muerto antes de tocar esa regla.
 - Focus sirve para registrar períodos de concentración vinculados a tareas cuando corresponda; no conviertas actividades cotidianas en sesiones de concentración.
 - La duración de cada actividad es individual. Al mostrar el tiempo de un día, distinguí entre sumar duraciones de actividades y medir cobertura del reloj; no confundas esos conceptos ni elimines solapamientos silenciosamente.

@@ -10,8 +10,8 @@ function mismoDiaLocal(fecha, dia) {
         && fecha.getDate() === dia.getDate()
 }
 
-export function crearSecuenciaSeguimiento(planes, idPlanSeleccionado, eventos = []) {
-    if (!Array.isArray(planes) || !Array.isArray(eventos)) {
+export function crearSecuenciaSeguimiento(planes, idPlanSeleccionado, eventos = [], tareas = []) {
+    if (!Array.isArray(planes) || !Array.isArray(eventos) || !Array.isArray(tareas)) {
         return { ok: false, error: "No se pudieron cargar los planes del día." }
     }
 
@@ -64,10 +64,13 @@ export function crearSecuenciaSeguimiento(planes, idPlanSeleccionado, eventos = 
     const planesSecuencia = ordenados.slice(indiceSeleccionado)
     const secuencia = planesSecuencia.map(plan => {
         const evento = eventos.find(item => item.id === plan.eventoId)
+        const tareaActual = tareas.find(item => item.id === plan.tareaId)
+        const tarea = plan.tareaId ? { id: plan.tareaId, nombre: tareaActual?.nombre ?? plan.tareaNombre ?? plan.nombre } : null
         return {
             planId: plan.id,
-            nombre: evento?.nombre ?? plan.nombre,
+            nombre: evento?.nombre ?? tarea?.nombre ?? plan.nombre,
             evento: evento ? { id: evento.id, nombre: evento.nombre, color: evento.color } : null,
+            tarea,
             inicioPrevisto: plan.inicio.toISOString(),
             finPrevisto: esCronometro ? null : plan.fin.toISOString(),
             duracionMs: esCronometro ? null : plan.fin.getTime() - plan.inicio.getTime(),

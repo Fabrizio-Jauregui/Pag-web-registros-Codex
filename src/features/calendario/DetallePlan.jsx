@@ -24,7 +24,8 @@ export function DetallePlan({ plan, evento, onEditar, onEliminar, onEliminarApli
             <header>
                 <div>
                     <h3 id="titulo-detalle-plan">Plan: {nombre}</h3>
-                    <p>{plan.tipoPlanificacion === "focus" ? "Sesión Focus planificada" : `Actividad planificada${evento ? ` · Plantilla: ${evento.nombre}` : ""}`}</p>
+                    <p>{plan.tipoPlanificacion === "focus" ? "Sesión Focus planificada" : `Actividad planificada${evento ? ` · Evento: ${evento.nombre}` : plan.tareaId ? ` · Tarea: ${plan.tareaNombre ?? plan.nombre}` : ""}`}</p>
+                    {plan.tipoPlanificacion === "focus" && (plan.eventoId || plan.tareaId) && <p>Los períodos de concentración se registrarán como {evento?.nombre ?? plan.tareaNombre ?? plan.nombre}.</p>}
                 </div>
                 <button type="button" aria-label="Cerrar detalle del plan" onClick={onCerrar}>Cerrar</button>
             </header>

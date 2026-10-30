@@ -2,6 +2,7 @@ import { useState } from "react"
 import { formatearDuracion } from "../../domain/tiempo/CalculosDuracion.js"
 import { useReloj } from "../../app/useReloj.js"
 import { FormularioPlan } from "../calendario/FormularioPlan.jsx"
+import { SelectorOrigenActividad } from "../comun/SelectorOrigenActividad.jsx"
 import "./SeguimientoPlanificacion.css"
 
 function valorLocal(fecha) {
@@ -13,6 +14,10 @@ export function PanelSeguimientoPlanificacion({
     seguimiento,
     planes = [],
     eventos = [],
+    tareas = [],
+    categorias = [],
+    ordenEventos = "ultimo-uso",
+    cambiarOrdenEventos = () => {},
     onCrearPlan,
     onCrearRecurrencia,
     onActualizarPlan,
@@ -125,13 +130,16 @@ export function PanelSeguimientoPlanificacion({
         cambiarErrorCola("")
         const grupoAsignado = grupo ?? Math.max(-1, ...estado.secuencia.map(item => item.grupo ?? 0)) + 1
         const eventoId = plan?.eventoId ?? ""
+        const tareaId = plan?.tareaId ?? ""
         const nombrePlantilla = eventos.find(evento => evento.id === eventoId)?.nombre
+        const nombreTarea = tareas.find(tarea => tarea.id === tareaId)?.nombre ?? plan?.tareaNombre
         cambiarFormularioCronometro({
             plan,
             grupo: grupoAsignado,
             indiceInsercion,
             eventoId,
-            nombre: nombrePlantilla ?? plan?.nombre ?? ""
+            tareaId,
+            nombre: nombrePlantilla ?? nombreTarea ?? plan?.nombre ?? ""
         })
     }
     function cambiarEventoFormularioCronometro(eventoId) {
@@ -141,9 +149,20 @@ export function PanelSeguimientoPlanificacion({
             return {
                 ...actual,
                 eventoId,
+                tareaId: eventoId ? "" : actual.tareaId,
                 nombre: evento?.nombre ?? actual.nombre
             }
         })
+        cambiarErrorCola("")
+    }
+    function cambiarTareaFormularioCronometro(tareaId) {
+        const tarea = tareas.find(item => item.id === tareaId)
+        cambiarFormularioCronometro(actual => actual ? {
+            ...actual,
+            tareaId,
+            eventoId: tareaId ? "" : actual.eventoId,
+            nombre: tarea?.nombre ?? actual.nombre
+        } : actual)
         cambiarErrorCola("")
     }
     function guardarEventoCronometro(evento) {
@@ -334,16 +353,21 @@ export function PanelSeguimientoPlanificacion({
                     plan={formularioPlan.plan ?? null}
                     fechaSeleccionada={fechaSeguimiento}
                     eventos={eventos}
+                    tareas={tareas}
+                    categorias={categorias}
+                    ordenEventos={ordenEventos}
+                    cambiarOrdenEventos={cambiarOrdenEventos}
                     valoresIniciales={valoresIniciales}
                     onGuardar={guardarPlan}
                     onCrearRecurrencia={crearRecurrencia}
                     onCancelar={() => cambiarFormularioPlan(null)}
                 />
             )}
-            {esCronometro && formularioCronometro && <form className="seguimiento-plan-formulario-cronometro" aria-label={formularioCronometro.plan ? "Editar evento pendiente" : "Agregar evento"} onSubmit={evento => { evento.preventDefault(); guardarEventoCronometro({ tipoSecuencial: true, nombre: formularioCronometro.nombre.trim(), eventoId: formularioCronometro.eventoId || null, grupoCronometro: formularioCronometro.grupo })}}>
+            {esCronometro && formularioCronometro && <form className="seguimiento-plan-formulario-cronometro" aria-label={formularioCronometro.plan ? "Editar evento pendiente" : "Agregar evento"} onSubmit={evento => { evento.preventDefault(); guardarEventoCronometro({ tipoSecuencial: true, nombre: formularioCronometro.nombre.trim(), eventoId: formularioCronometro.eventoId || null, tareaId: formularioCronometro.tareaId || null, grupoCronometro: formularioCronometro.grupo })}}>
                 <h4>{formularioCronometro.plan ? "Editar evento pendiente" : "Agregar evento"}</h4>
-                <label>Evento (opcional)<select name="eventoId" value={formularioCronometro.eventoId} onChange={evento => cambiarEventoFormularioCronometro(evento.target.value)}><option value="">Sin evento</option>{eventos.map(item => <option key={item.id} value={item.id}>{item.nombre}</option>)}</select></label>
-                <label>Nombre<input name="nombre" maxLength={80} value={formularioCronometro.nombre} disabled={Boolean(formularioCronometro.eventoId)} onChange={evento => cambiarFormularioCronometro(actual => ({ ...actual, nombre: evento.target.value }))} required /></label>
+                <SelectorOrigenActividad tipo="evento" etiqueta="Evento" opciones={eventos} categorias={categorias} value={formularioCronometro.eventoId} disabled={Boolean(formularioCronometro.tareaId)} ordenEventos={ordenEventos} cambiarOrdenEventos={cambiarOrdenEventos} onChange={evento => cambiarEventoFormularioCronometro(evento?.id ?? "")} />
+                <SelectorOrigenActividad tipo="tarea" etiqueta="Tarea" opciones={tareas} value={formularioCronometro.tareaId} disabled={Boolean(formularioCronometro.eventoId)} onChange={tarea => cambiarTareaFormularioCronometro(tarea?.id ?? "")} />
+                <label>Nombre<input name="nombre" value={eventos.find(item => item.id === formularioCronometro.eventoId)?.nombre ?? tareas.find(item => item.id === formularioCronometro.tareaId)?.nombre ?? ""} disabled readOnly /></label>
                 <div className="seguimiento-plan-item-acciones"><button type="submit">Guardar</button><button type="button" onClick={() => cambiarFormularioCronometro(null)}>Cancelar</button></div>
             </form>}
         </section>

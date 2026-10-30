@@ -18,6 +18,8 @@ function esFechaValida(fecha) {
 }
 
 function validarRegistro(registro, ahora, permitirLimiteExcedido) {
+    const tieneEvento = typeof registro?.eventoId === "string" && registro.eventoId.trim() !== ""
+    const tieneTarea = typeof registro?.tareaId === "string" && registro.tareaId.trim() !== ""
     if (
         registro === null
         || typeof registro !== "object"
@@ -34,6 +36,7 @@ function validarRegistro(registro, ahora, permitirLimiteExcedido) {
         ))
         || (registro.eventoId === null && registro.colorEvento !== null)
         || (registro.eventoId !== null && registro.colorEvento === null)
+        || tieneEvento === tieneTarea
         || (registro.tareaId !== undefined && registro.tareaId !== null
             && (typeof registro.tareaId !== "string" || registro.tareaId.trim() === ""))
         || (registro.tareaNombre !== undefined && registro.tareaNombre !== null
@@ -207,8 +210,15 @@ function datosDeTarea(tarea) {
     }
 }
 
-function obtenerNombre(nombre, evento) {
-    return evento === null ? nombre.trim() : evento.nombre.trim()
+function obtenerNombre(evento, tarea) {
+    return evento?.nombre.trim() ?? tarea.nombre.trim()
+}
+
+function validarOrigen(evento, tarea) {
+    if ((evento === null) === (tarea === null)) {
+        return "Elegí una plantilla de evento o una tarea para el registro."
+    }
+    return null
 }
 
 function crearIdUnico(registros, generarId) {
@@ -237,6 +247,7 @@ export function iniciarRegistro(
     planId = null,
     opciones = {}
 ) {
+    void nombre
     if (!validarColeccionRegistros(registros, instante)) {
         return { ok: false, error: "Los registros actuales tienen intervalos inválidos." }
     }
@@ -247,16 +258,15 @@ export function iniciarRegistro(
 
     if (!validarTarea(tarea)) return { ok: false, error: "La tarea seleccionada no es válida." }
 
+    const errorOrigen = validarOrigen(evento, tarea)
+    if (errorOrigen) return { ok: false, error: errorOrigen }
+
     if (planId !== null && (typeof planId !== "string" || planId.trim() === "")) {
         return { ok: false, error: "El plan de origen no es válido." }
     }
 
     if (opciones.origenFocus !== undefined && typeof opciones.origenFocus !== "boolean") {
         return { ok: false, error: "El origen Focus del registro no es válido." }
-    }
-
-    if (typeof nombre !== "string" || (evento === null && nombre.trim() === "")) {
-        return { ok: false, error: "Escribí un nombre para iniciar el registro." }
     }
 
     if (!esFechaValida(instante)) {
@@ -271,7 +281,7 @@ export function iniciarRegistro(
 
     const registro = {
         id: identidad.id,
-        nombre: obtenerNombre(nombre, evento),
+        nombre: obtenerNombre(evento, tarea),
         ...datosDeEvento(evento),
         ...datosDeTarea(tarea),
         ...(planId ? { planId } : {}),
@@ -336,6 +346,7 @@ export function crearRegistroManual(
     generarId = () => globalThis.crypto.randomUUID(),
     ahora = new Date()
 ) {
+    void nombre
     const segmentos = segmentosEntrada ?? (esFechaValida(inicio) && esFechaValida(fin)
         ? [{ tipo: ESTADO_REGISTRO_EN_CURSO, inicio, fin }]
         : null)
@@ -410,9 +421,8 @@ export function crearRegistroManual(
 
     if (!validarTarea(tarea)) return { ok: false, error: "La tarea seleccionada no es válida." }
 
-    if (typeof nombre !== "string" || (evento === null && nombre.trim() === "")) {
-        return { ok: false, error: "Escribí un nombre para el registro." }
-    }
+    const errorOrigen = validarOrigen(evento, tarea)
+    if (errorOrigen) return { ok: false, error: errorOrigen }
 
     const identidad = crearIdUnico(registros, generarId)
 
@@ -422,7 +432,7 @@ export function crearRegistroManual(
 
     const registro = {
         id: identidad.id,
-        nombre: obtenerNombre(nombre, evento),
+        nombre: obtenerNombre(evento, tarea),
         ...datosDeEvento(evento),
         ...datosDeTarea(tarea),
         estado: ESTADO_REGISTRO_FINALIZADO,
@@ -455,7 +465,6 @@ export function editarRegistroFinalizado(registros, id, cambios, ahora = new Dat
     const tarea = cambios && Object.hasOwn(cambios, "tarea") ? cambios.tarea : (
         registro.tareaId ? { id: registro.tareaId, nombre: registro.tareaNombre } : null
     )
-    const nombre = cambios?.nombre
     const segmentos = cambios?.segmentos
 
     if (!validarEvento(evento)) {
@@ -464,9 +473,8 @@ export function editarRegistroFinalizado(registros, id, cambios, ahora = new Dat
 
     if (!validarTarea(tarea)) return { ok: false, error: "La tarea seleccionada no es válida." }
 
-    if (typeof nombre !== "string" || (evento === null && nombre.trim() === "")) {
-        return { ok: false, error: "Escribí un nombre para el registro." }
-    }
+    const errorOrigen = validarOrigen(evento, tarea)
+    if (errorOrigen) return { ok: false, error: errorOrigen }
 
     if (!Array.isArray(segmentos) || segmentos.length === 0) {
         return { ok: false, error: "El registro necesita al menos un segmento." }
@@ -474,7 +482,7 @@ export function editarRegistroFinalizado(registros, id, cambios, ahora = new Dat
 
     const actualizado = {
         ...registro,
-        nombre: obtenerNombre(nombre, evento),
+        nombre: obtenerNombre(evento, tarea),
         ...datosDeEvento(evento),
         ...datosDeTarea(tarea),
         segmentos: segmentos.map(segmento => ({ ...segmento }))

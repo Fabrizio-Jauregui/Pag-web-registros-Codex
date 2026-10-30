@@ -1443,6 +1443,7 @@ html[data-tema="oscuro"] .marco-aplicacion-planificacion {
 .tarjeta-secuencia-cronometro li > span:first-child { flex: 1 1 180px; }
 .tarjeta-secuencia-cronometro .secuencia-cronometro-activo { color: #0f766e; font-weight: 700; }
 .secuencia-cronometro-iniciar-grupo { justify-self: start; }
+.secuencia-cronometro-eliminar { justify-self: start; border-color: #b91c1c; color: #991b1b; }
 
 html[data-tema="oscuro"] .tarjeta-secuencia-cronometro,
 html[data-tema="oscuro"] .marcador-secuencia-cronometro { background: color-mix(in srgb, #14b8a6 12%, #151827); color: #f1f5f9; }
@@ -1452,5 +1453,5 @@ html[data-tema="oscuro"] .marcador-secuencia-cronometro { background: color-mix(
     .tarjeta-secuencia-cronometro > header { align-items: flex-start; flex-direction: column; }
     .secuencia-cronometro-estado { width: 100%; justify-content: space-between; }
     .tarjeta-secuencia-cronometro li { align-items: stretch; }
-    .tarjeta-secuencia-cronometro li button, .secuencia-cronometro-iniciar-grupo { width: 100%; }
+    .tarjeta-secuencia-cronometro li button, .secuencia-cronometro-iniciar-grupo, .secuencia-cronometro-eliminar { width: 100%; }
 }

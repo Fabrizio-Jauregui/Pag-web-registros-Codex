@@ -112,6 +112,27 @@
   font: inherit;
 }
 
+.campo-categorias-evento {
+  grid-column: 1 / -1;
+  min-width: 0;
+  margin: 0;
+  padding: 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+}
+
+.campo-categorias-evento legend { padding: 0 5px; font-weight: 600; }
+.campo-categorias-evento p { margin: 0 0 4px; color: #64748b; }
+.campo-categorias-evento > label { display: flex; align-items: center; gap: 8px; width: fit-content; min-height: 32px; }
+.campo-categorias-evento input[type="checkbox"] { width: 18px; height: 18px; accent-color: #4f46e5; }
+.campo-categorias-evento small { color: #64748b; }
+
+.filtro-eventos-categoria { display: flex; justify-content: flex-end; margin-bottom: 14px; }
+.filtro-eventos-categoria label { display: flex; align-items: center; gap: 10px; color: #334155; font-size: 0.9rem; }
+.filtro-eventos-categoria select { min-height: 40px; max-width: 100%; padding: 7px 10px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; color: #172033; font: inherit; }
+.filtro-eventos-categoria select:focus-visible,
+.campo-categorias-evento input:focus-visible { outline: 3px solid #2563eb; outline-offset: 2px; }
+
 .evento-categoria { display: block; margin-top: 3px; color: #64748b; font-weight: 400; }
 
 .campo-color-evento input {
@@ -216,6 +237,8 @@
   .evento-fila {
     flex-wrap: wrap;
   }
+
+  .filtro-eventos-categoria label { width: 100%; align-items: stretch; flex-direction: column; }
 
   .evento-acciones {
     width: 100%;

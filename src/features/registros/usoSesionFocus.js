@@ -46,19 +46,19 @@ function cerrarExtraAbierto(extras, tipo, instante) {
     return extras.map((extra, actual) => actual === indice ? { ...extra, fin: fechaIso(instante) } : extra)
 }
 
-function crearConfiguracion(nombre, bloques, colores, usarColaFocus = false) {
+function crearConfiguracion(nombre, bloques, colores, usarColaFocus = false, evento = null, tarea = null) {
     return {
         nombre: nombre.trim(),
         nombreActividad: "Concentración",
-        evento: null,
-        tarea: null,
+        evento,
+        tarea,
         usarColaFocus: Boolean(usarColaFocus),
         bloques: bloques.map(bloque => ({ ...bloque })),
         colores: { concentracion: "#6366f1", descanso: "#10b981", pausa: "#f59e0b", tiempoMuerto: "#ef4444", ...colores }
     }
 }
 
-export function useSesionFocus(estadoRegistro, tareas = [], accionesTareas = {}) {
+export function useSesionFocus(estadoRegistro, tareas = [], accionesTareas = {}, eventos = []) {
     const [plantillas, cambiarPlantillas] = useState(() => cargarPlantillasFocus().plantillas)
     const [historial, cambiarHistorial] = useState(() => cargarHistorialFocus().sesiones)
     const [sesion, cambiarSesion] = useState(() => cargarSesionActivaFocus().sesion)
@@ -67,11 +67,13 @@ export function useSesionFocus(estadoRegistro, tareas = [], accionesTareas = {})
     const sesionRef = useRef(sesion)
     const registroRef = useRef(estadoRegistro)
     const tareasRef = useRef(tareas)
+    const eventosRef = useRef(eventos)
     const accionesTareasRef = useRef(accionesTareas)
     const historialRef = useRef(historial)
     const reconciliarRef = useRef(null)
     useEffect(() => {
         tareasRef.current = tareas
+        eventosRef.current = eventos
         accionesTareasRef.current = accionesTareas
     })
 
@@ -149,11 +151,17 @@ export function useSesionFocus(estadoRegistro, tareas = [], accionesTareas = {})
         if (!actual.trabajoPendienteInicio || actual.registroId || actual.estado !== "concentracion") return actual
         const cola = actual.configuracion.usarColaFocus ? obtenerColaFocus() : []
         const tarea = cola.find(item => item.id === actual.tareaActivaId) ?? cola[0] ?? null
+        const eventoConfigurado = actual.configuracion.evento
+        const evento = actual.configuracion.usarColaFocus ? null
+            : eventosRef.current.find(item => item.id === eventoConfigurado?.id) ?? eventoConfigurado
+        const tareaConfigurada = actual.configuracion.tarea
+        const tareaOrigen = actual.configuracion.usarColaFocus ? tarea
+            : tareasRef.current.find(item => item.id === tareaConfigurada?.id) ?? tareaConfigurada
         const registroId = registroRef.current.iniciarConId(
-            tarea?.nombre ?? "Concentración",
-            null,
+            evento?.nombre ?? tareaOrigen?.nombre ?? "",
+            evento,
             new Date(actual.trabajoPendienteInicio),
-            tarea,
+            tareaOrigen,
             { origenFocus: true }
         )
         if (!registroId) {
@@ -484,7 +492,7 @@ export function useSesionFocus(estadoRegistro, tareas = [], accionesTareas = {})
         return resultado
     }
 
-    function iniciar({ nombre, usarColaFocus = false, bloques, colores }) {
+    function iniciar({ nombre, usarColaFocus = false, bloques, colores, evento = null, tarea = null }) {
         if (sesionRef.current) {
             cambiarError("Ya hay una sesión Focus activa.")
             return false
@@ -505,12 +513,20 @@ export function useSesionFocus(estadoRegistro, tareas = [], accionesTareas = {})
             cambiarError("La sesión no puede superar 24 horas para respetar el límite de los registros.")
             return false
         }
+        if (!usarColaFocus && (Boolean(evento) === Boolean(tarea))) {
+            cambiarError("Elegí una plantilla de evento o una tarea para registrar los períodos de concentración.")
+            return false
+        }
+        if (evento && tarea) {
+            cambiarError("Cada período de concentración debe quedar vinculado a un solo evento o tarea.")
+            return false
+        }
         const id = nuevaId()
         if (!id) {
             cambiarError("No se pudo crear una identidad para la sesión Focus.")
             return false
         }
-        const configuracion = crearConfiguracion(nombre, bloques, colores, usarColaFocus)
+        const configuracion = crearConfiguracion(nombre, bloques, colores, usarColaFocus, evento, tarea)
         const ahoraMs = Date.now()
         const ahoraIso = fechaIso(ahoraMs)
         const primera = configuracion.bloques[0]

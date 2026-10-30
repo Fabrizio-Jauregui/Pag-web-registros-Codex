@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 
-import { COLOR_EVENTO_PREDETERMINADO } from "../../domain/eventos/eventos.js"
+import { COLOR_EVENTO_PREDETERMINADO, obtenerCategoriasPlantillaEvento } from "../../domain/eventos/eventos.js"
 import "./BibliotecaEventos.css"
 
 export function BibliotecaEventos({
@@ -16,7 +16,8 @@ export function BibliotecaEventos({
     const [idEditando, cambiarIdEditando] = useState(null)
     const [nombre, cambiarNombre] = useState("")
     const [color, cambiarColor] = useState(COLOR_EVENTO_PREDETERMINADO)
-    const [categoriaId, cambiarCategoriaId] = useState("")
+    const [categoriaIds, cambiarCategoriaIds] = useState([])
+    const [categoriaFiltro, cambiarCategoriaFiltro] = useState("")
     const [error, cambiarError] = useState("")
     const campoNombreRef = useRef(null)
     const botonCrearRef = useRef(null)
@@ -45,7 +46,7 @@ export function BibliotecaEventos({
         cambiarIdEditando(null)
         cambiarNombre("")
         cambiarColor(COLOR_EVENTO_PREDETERMINADO)
-        cambiarCategoriaId("")
+        cambiarCategoriaIds([])
         cambiarError("")
         cambiarFormularioAbierto(true)
     }
@@ -55,7 +56,7 @@ export function BibliotecaEventos({
         cambiarIdEditando(plantilla.id)
         cambiarNombre(plantilla.nombre)
         cambiarColor(plantilla.color)
-        cambiarCategoriaId(plantilla.categoriaId ?? "")
+        cambiarCategoriaIds(obtenerCategoriasPlantillaEvento(plantilla))
         cambiarError("")
         cambiarFormularioAbierto(true)
     }
@@ -77,8 +78,8 @@ export function BibliotecaEventos({
         evento.preventDefault()
 
         const resultado = idEditando === null
-            ? onCrear(nombre, color, categoriaId || null)
-            : onActualizar(idEditando, nombre, color, categoriaId || null)
+            ? onCrear(nombre, color, categoriaIds)
+            : onActualizar(idEditando, nombre, color, categoriaIds)
 
         if (!resultado.ok) {
             cambiarError(resultado.error)
@@ -105,6 +106,20 @@ export function BibliotecaEventos({
             cambiarError("")
         }
     }
+
+    const categoriaFiltroValida = !categoriaFiltro || categoriaFiltro === "__sin_categoria__"
+        || categorias.some(categoria => categoria.id === categoriaFiltro)
+    const filtroCategoria = categoriaFiltroValida ? categoriaFiltro : ""
+    useEffect(() => {
+        if (!categoriaFiltroValida && categoriaFiltro) cambiarCategoriaFiltro("")
+    }, [categoriaFiltro, categoriaFiltroValida])
+
+    const plantillasFiltradas = plantillas.filter(plantilla => {
+        const ids = obtenerCategoriasPlantillaEvento(plantilla)
+        if (!filtroCategoria) return true
+        if (filtroCategoria === "__sin_categoria__") return ids.length === 0
+        return ids.includes(filtroCategoria)
+    })
 
     return (
         <section className="biblioteca-eventos" aria-labelledby="titulo-eventos">
@@ -165,15 +180,24 @@ export function BibliotecaEventos({
                         />
                     </label>
 
-                    <label className="campo-evento">
-                        <span>Categoría</span>
-                        <select value={categoriaId} onChange={evento => cambiarCategoriaId(evento.target.value)}>
-                            <option value="">Sin categoría</option>
-                            {categoriaId && !categorias.some(categoria => categoria.id === categoriaId) && <option value={categoriaId}>Categoría no disponible</option>}
-                            {categorias.map(categoria => <option key={categoria.id} value={categoria.id}>{categoria.nombre}</option>)}
-                        </select>
+                    <fieldset className="campo-evento campo-categorias-evento">
+                        <legend>Categorías</legend>
+                        <p>Podés asignar más de una. Si no elegís ninguna, el evento queda sin categoría.</p>
+                        {categorias.map(categoria => <label key={categoria.id}>
+                            <input
+                                type="checkbox"
+                                aria-label={`Categoría ${categoria.nombre}`}
+                                checked={categoriaIds.includes(categoria.id)}
+                                onChange={evento => cambiarCategoriaIds(actuales => evento.target.checked
+                                    ? [...actuales, categoria.id]
+                                    : actuales.filter(id => id !== categoria.id))}
+                                disabled={Boolean(errorCategorias)}
+                            />
+                            <span>{categoria.nombre}</span>
+                        </label>)}
+                        {categoriaIds.some(id => !categorias.some(categoria => categoria.id === id)) && <small role="status">Hay categorías vinculadas que ya no están disponibles.</small>}
                         {errorCategorias && <small role="status">{errorCategorias}</small>}
-                    </label>
+                    </fieldset>
 
                     {error && (
                         <p id="error-formulario-evento" className="evento-mensaje-error" role="alert">
@@ -192,22 +216,40 @@ export function BibliotecaEventos({
                 </form>
             )}
 
+            {plantillas.length > 0 && <div className="filtro-eventos-categoria">
+                <label>
+                    <span>Filtrar plantillas por categoría</span>
+                    <select aria-label="Filtrar plantillas por categoría" value={filtroCategoria} onChange={evento => cambiarCategoriaFiltro(evento.target.value)}>
+                        <option value="">Todas</option>
+                        {categorias.map(categoria => <option key={categoria.id} value={categoria.id}>{categoria.nombre}</option>)}
+                        <option value="__sin_categoria__">Sin categoría</option>
+                    </select>
+                </label>
+            </div>}
+
             {plantillas.length === 0 ? (
                 <p className="eventos-vacio">
                     {errorCarga
                         ? "No se pueden mostrar los eventos guardados."
                         : "Todavía no hay eventos. Creá una plantilla para empezar."}
                 </p>
+            ) : plantillasFiltradas.length === 0 ? (
+                <p className="eventos-vacio">No hay plantillas de evento en esta categoría.</p>
             ) : (
                 <ul className="lista-eventos">
-                    {plantillas.map(plantilla => (
+                    {plantillasFiltradas.map(plantilla => (
                         <li className="evento-fila" key={plantilla.id}>
                             <span
                                 className="evento-muestra-color"
                                 style={{ backgroundColor: plantilla.color }}
                                 aria-hidden="true"
                             />
-                            <span className="evento-nombre">{plantilla.nombre}{categorias.find(categoria => categoria.id === plantilla.categoriaId)?.nombre && <small className="evento-categoria">{categorias.find(categoria => categoria.id === plantilla.categoriaId).nombre}</small>}</span>
+                            <span className="evento-nombre">{plantilla.nombre}{obtenerCategoriasPlantillaEvento(plantilla).map(id => {
+                                const categoria = categorias.find(item => item.id === id)
+                                return categoria
+                                    ? <small className="evento-categoria" key={id}>{categoria.nombre}</small>
+                                    : <small className="evento-categoria" key={id}>Categoría no disponible</small>
+                            })}</span>
                             <div className="evento-acciones">
                                 <button type="button" onClick={evento => abrirEdicion(plantilla, evento)}>
                                     Editar

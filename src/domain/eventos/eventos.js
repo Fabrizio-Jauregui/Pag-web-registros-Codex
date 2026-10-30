@@ -16,16 +16,45 @@ export function validarPlantillaEvento(nombre, color) {
     return null
 }
 
+export function obtenerCategoriasPlantillaEvento(plantilla) {
+    if (Array.isArray(plantilla?.categoriaIds)) return plantilla.categoriaIds
+    return typeof plantilla?.categoriaId === "string" && plantilla.categoriaId.trim()
+        ? [plantilla.categoriaId]
+        : []
+}
+
+export function normalizarPlantillaEvento(plantilla) {
+    const resto = { ...plantilla }
+    delete resto.categoriaId
+    const categoriaIds = obtenerCategoriasPlantillaEvento(plantilla)
+    return { ...resto, ...(categoriaIds.length ? { categoriaIds: [...categoriaIds] } : {}) }
+}
+
+function normalizarCategorias(categoriaIds) {
+    if (categoriaIds === null || categoriaIds === undefined) return []
+    if (typeof categoriaIds === "string") return categoriaIds.trim() ? [categoriaIds] : []
+    if (!Array.isArray(categoriaIds)) return null
+    return categoriaIds
+}
+
+function validarCategorias(categoriaIds) {
+    return Array.isArray(categoriaIds)
+        && categoriaIds.every(id => typeof id === "string" && id.trim())
+        && new Set(categoriaIds).size === categoriaIds.length
+}
+
 export function crearPlantillaEvento(
     nombre,
     color,
-    categoriaId = null,
+    categoriaIds = [],
     generarId = () => globalThis.crypto.randomUUID()
 ) {
-    if (typeof categoriaId === "function") {
-        generarId = categoriaId
-        categoriaId = null
+    if (typeof categoriaIds === "function") {
+        generarId = categoriaIds
+        categoriaIds = []
     }
+    const categorias = normalizarCategorias(categoriaIds)
+    if (!validarCategorias(categorias)) return { ok: false, error: "Elegí categorías válidas para el evento." }
     const error = validarPlantillaEvento(nombre, color)
 
     if (error !== null) {
@@ -51,7 +80,7 @@ export function crearPlantillaEvento(
             nombre: nombre.trim(),
             color: color.toUpperCase(),
             creadoEn: new Date().toISOString(),
-            ...(categoriaId ? { categoriaId } : {})
+            ...(categorias.length ? { categoriaIds: [...categorias] } : {})
         }
     }
 }
@@ -74,7 +103,7 @@ export function marcarPlantillaEventoUsada(plantillas, id, instante = new Date()
     }
 }
 
-export function actualizarPlantillaEvento(plantillas, id, nombre, color, categoriaId = null) {
+export function actualizarPlantillaEvento(plantillas, id, nombre, color, categoriaIds = []) {
     const indice = plantillas.findIndex(plantilla => plantilla.id === id)
 
     if (indice === -1) {
@@ -87,11 +116,15 @@ export function actualizarPlantillaEvento(plantillas, id, nombre, color, categor
         return { ok: false, error }
     }
 
+    const categorias = normalizarCategorias(categoriaIds)
+    if (!validarCategorias(categorias)) return { ok: false, error: "Elegí categorías válidas para el evento." }
+
     const nuevasPlantillas = plantillas.map(plantilla => {
         if (plantilla.id !== id) return plantilla
         const actualizada = { ...plantilla, nombre: nombre.trim(), color: color.toUpperCase() }
-        if (categoriaId) actualizada.categoriaId = categoriaId
-        else delete actualizada.categoriaId
+        delete actualizada.categoriaId
+        if (categorias.length) actualizada.categoriaIds = [...categorias]
+        else delete actualizada.categoriaIds
         return actualizada
     })
 
