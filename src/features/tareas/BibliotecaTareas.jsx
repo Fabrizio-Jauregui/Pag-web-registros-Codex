@@ -2,6 +2,7 @@ import { useMemo, useState } from "react"
 
 import { descendientesDe, ESTADOS_TAREA, obtenerRutaTarea } from "../../domain/tareas/tareas.js"
 import { calcularTiempoRegistradoEnPeriodo } from "../../domain/tiempo/CalculosDuracion.js"
+import { SelectorUbicacionTarea } from "./SelectorUbicacionTarea.jsx"
 import "./BibliotecaTareas.css"
 
 function formatearTiempo(segundos) {
@@ -13,7 +14,7 @@ function formatearTiempo(segundos) {
 
 function resumirEstados(tareas) {
     const cantidad = estado => tareas.filter(tarea => tarea.estado === estado).length
-    return `${cantidad("Pendiente")} pendientes · ${cantidad("En curso")} en curso · ${cantidad("Completada")} completadas · ${cantidad("Cancelada")} canceladas`
+    return `${cantidad("Boceto")} bocetos · ${cantidad("Pendiente")} pendientes · ${cantidad("En curso")} en curso · ${cantidad("Completada")} completadas · ${cantidad("Cancelada")} canceladas`
 }
 
 function calcularTiempoDe(propios, ahora) {
@@ -28,7 +29,8 @@ function calcularTiempoDe(propios, ahora) {
     return calcularTiempoRegistradoEnPeriodo(propios, new Date(inicioMinimo), new Date(ahora.getTime() + 1), ahora)
 }
 
-export function BibliotecaTareas({ tareas, objetivos = [], registros = [], ahora: ahoraProp = new Date(), errorCarga = "", tareaActivaId = null, sesionFocusActiva = false, onCrear, onCrearObjetivo, onActualizarObjetivo, onActualizar, onEliminar, onCambiarDestino, onReordenar, onReordenarArbol }) {
+export function BibliotecaTareas({ tareas, objetivos = [], registros = [], ahora: ahoraProp = new Date(), errorCarga = "", tareaActivaId = null, sesionFocusActiva = false, onCrear, onCrearObjetivo, onActualizarObjetivo, onActualizar, onEliminar, onCambiarDestino, onReordenar, onReordenarArbol, onOrdenarFocus, onOrdenarBacklog, onMoverBacklog }) {
+    const [vistaTareas, cambiarVistaTareas] = useState("arbol")
     const [formularioAbierto, cambiarFormularioAbierto] = useState(false)
     const [formularioObjetivo, cambiarFormularioObjetivo] = useState(false)
     const [idEditando, cambiarIdEditando] = useState(null)
@@ -36,16 +38,25 @@ export function BibliotecaTareas({ tareas, objetivos = [], registros = [], ahora
     const [estado, cambiarEstado] = useState("Pendiente")
     const [destino, cambiarDestino] = useState("backlog")
     const [padreId, cambiarPadreId] = useState("")
+    const [ubicacionContextual, cambiarUbicacionContextual] = useState(false)
     const [objetivoNombre, cambiarObjetivoNombre] = useState("")
     const [idObjetivoEditando, cambiarIdObjetivoEditando] = useState(null)
     const [confirmacion, cambiarConfirmacion] = useState(null)
-    const [nodosPlegados, cambiarNodosPlegados] = useState(() => new Set())
+    const [nodosPlegados, cambiarNodosPlegados] = useState(() => {
+        const idsConHijas = new Set(tareas.filter(tarea => tareas.some(hija => hija.padreId === tarea.id)).map(tarea => tarea.id))
+        objetivos.forEach(objetivo => { if (tareas.some(tarea => tarea.padreId === objetivo.id)) idsConHijas.add(objetivo.id) })
+        return idsConHijas
+    })
     const [error, cambiarError] = useState("")
     const ahora = useMemo(() => ahoraProp instanceof Date && Number.isFinite(ahoraProp.getTime()) ? ahoraProp : new Date(), [ahoraProp])
     const objetivosPorId = useMemo(() => new Map(objetivos.map(objetivo => [objetivo.id, objetivo])), [objetivos])
     const tareasPorId = useMemo(() => new Map(tareas.map(tarea => [tarea.id, tarea])), [tareas])
     const colaFocus = useMemo(() => tareas.filter(tarea => tarea.destino === "focus" && !["Boceto", "Completada", "Cancelada"].includes(tarea.estado))
         .sort((a, b) => (a.ordenFocus ?? Number.MAX_SAFE_INTEGER) - (b.ordenFocus ?? Number.MAX_SAFE_INTEGER)), [tareas])
+    const tareasBacklog = useMemo(() => tareas.filter(tarea => tarea.destino !== "focus")
+        .sort((a, b) => (a.ordenBacklog ?? Number.MAX_SAFE_INTEGER) - (b.ordenBacklog ?? Number.MAX_SAFE_INTEGER)), [tareas])
+    const focusFueraDeCola = useMemo(() => tareas.filter(tarea => tarea.destino === "focus" && ["Boceto", "Completada", "Cancelada"].includes(tarea.estado)), [tareas])
+    const tareasEnCurso = useMemo(() => tareas.filter(tarea => tarea.estado === "En curso"), [tareas])
     const ordenFocus = useMemo(() => new Map(colaFocus.map((tarea, indice) => [tarea.id, indice])), [colaFocus])
     const registrosPorTarea = useMemo(() => {
         const grupos = new Map()
@@ -76,12 +87,13 @@ export function BibliotecaTareas({ tareas, objetivos = [], registros = [], ahora
         return total
     }, [tareas, tareasPorId, tiemposPropios])
 
-    function abrirNueva(evento) {
+    function abrirNueva(evento, contenedorId = "") {
         cambiarIdEditando(null)
         cambiarNombre("")
         cambiarEstado("Pendiente")
         cambiarDestino("backlog")
-        cambiarPadreId("")
+        cambiarPadreId(contenedorId)
+        cambiarUbicacionContextual(Boolean(contenedorId))
         cambiarError("")
         cambiarFormularioAbierto(true)
         evento?.currentTarget?.blur()
@@ -93,6 +105,7 @@ export function BibliotecaTareas({ tareas, objetivos = [], registros = [], ahora
         cambiarEstado(tarea.estado)
         cambiarDestino(tarea.destino ?? "backlog")
         cambiarPadreId(tarea.padreId ?? tarea.objetivoId ?? "")
+        cambiarUbicacionContextual(false)
         cambiarError("")
         cambiarFormularioAbierto(true)
     }
@@ -114,6 +127,11 @@ export function BibliotecaTareas({ tareas, objetivos = [], registros = [], ahora
             cambiarError(resultado.error)
             return
         }
+        if (idEditando === null && padreId) cambiarNodosPlegados(actual => {
+            const siguiente = new Set(actual)
+            siguiente.delete(padreId)
+            return siguiente
+        })
         cerrarFormulario()
     }
 
@@ -128,6 +146,54 @@ export function BibliotecaTareas({ tareas, objetivos = [], registros = [], ahora
             return
         }
         const resultado = onActualizar(nodo.id, { estado: nuevoEstado }, "solo")
+        cambiarError(resultado.ok ? "" : resultado.error)
+    }
+
+    function cambiarEstadoDesdeTablero(tarea, nuevoEstado) {
+        if (tarea.estado === nuevoEstado || tarea.id === tareaActivaId) return
+        cambiarEstadoNodo(tarea, nuevoEstado)
+    }
+
+    function iniciarArrastre(evento, tarea, carril = null) {
+        if (tarea.id === tareaActivaId) { evento.preventDefault(); return }
+        evento.dataTransfer.effectAllowed = "move"
+        evento.dataTransfer.setData("text/plain", tarea.id)
+        if (carril) evento.dataTransfer.setData("application/x-focus-carril", carril)
+    }
+
+    function soltarEstado(evento, nuevoEstado) {
+        evento.preventDefault()
+        const tarea = tareasPorId.get(evento.dataTransfer.getData("text/plain"))
+        if (tarea) cambiarEstadoDesdeTablero(tarea, nuevoEstado)
+    }
+
+    function soltarCarrilOrden(evento, destino) {
+        evento.preventDefault()
+        const id = evento.dataTransfer.getData("text/plain")
+        const origen = evento.dataTransfer.getData("application/x-focus-carril")
+        const tarea = tareasPorId.get(id)
+        if (!tarea || tarea.id === tareaActivaId) return
+        if (origen !== destino) {
+            if (["Boceto", "Completada", "Cancelada"].includes(tarea.estado)) {
+                cambiarError("Los bocetos, las tareas completadas y las canceladas no se pueden mover entre Backlog y Cola Focus.")
+                return
+            }
+            const resultado = onCambiarDestino(tarea.id, destino)
+            cambiarError(resultado.ok ? "" : resultado.error)
+            return
+        }
+
+        const lista = destino === "focus" ? colaFocus : tareasBacklog
+        const ids = lista.map(item => item.id)
+        const indiceOrigen = ids.indexOf(id)
+        if (indiceOrigen < 0) return
+        const elementoDestino = evento.target.closest?.("[data-tarea-orden-id]")?.dataset.tareaOrdenId
+        let indiceDestino = elementoDestino ? ids.indexOf(elementoDestino) : ids.length
+        if (indiceDestino < 0 || elementoDestino === id) return
+        ids.splice(indiceOrigen, 1)
+        if (elementoDestino && indiceOrigen < indiceDestino) indiceDestino -= 1
+        ids.splice(indiceDestino, 0, id)
+        const resultado = destino === "focus" ? onOrdenarFocus(ids) : onOrdenarBacklog(ids)
         cambiarError(resultado.ok ? "" : resultado.error)
     }
 
@@ -228,6 +294,7 @@ export function BibliotecaTareas({ tareas, objetivos = [], registros = [], ahora
                                 ? <button type="button" onClick={() => onCambiarDestino(tarea.id, "backlog")}>Enviar a Backlog</button>
                                 : <button type="button" onClick={() => onCambiarDestino(tarea.id, "focus")}>Pasar a Cola Focus</button>
                         )}
+                        <button type="button" onClick={() => abrirNueva(null, tarea.id)}>Agregar subtarea</button>
                         <button type="button" onClick={() => abrirEdicion(tarea)}>Editar</button>
                         <button type="button" disabled={activa || hijas.length > 0} onClick={() => eliminar(tarea)}>Eliminar</button>
                     </div>
@@ -235,6 +302,51 @@ export function BibliotecaTareas({ tareas, objetivos = [], registros = [], ahora
                 {hijas.length > 0 && !nodosPlegados.has(tarea.id) && <ul className="tareas-hijas" aria-label={`Subtareas de ${tarea.nombre}`}>{hijas.map(hija => renderTarea(hija, profundidad + 1))}</ul>}
             </li>
         )
+    }
+
+    function renderTarjetaEstado(tarea) {
+        const activa = tarea.id === tareaActivaId
+        const ruta = obtenerRutaTarea(tareas, objetivos, tarea.id)
+        const propios = tiemposPropios.get(tarea.id) ?? 0
+        const total = tiemposTotales.get(tarea.id) ?? propios
+        return <article className={`tarea-tarjeta-estado${activa ? " tarea-tarjeta-activa" : ""}`} key={tarea.id}
+            draggable={!activa} onDragStart={evento => iniciarArrastre(evento, tarea)}>
+            <strong>{tarea.nombre}{activa && " · Activa"}</strong>
+            {ruta && <small className="tarea-tarjeta-ruta">{ruta}</small>}
+            <small>Tiempo propio: {formatearTiempo(propios)} · Total de la rama: {formatearTiempo(total)}</small>
+            <label><span>Mover a estado</span><select aria-label={`Mover ${tarea.nombre} a estado`} value={tarea.estado} disabled={activa}
+                onChange={evento => cambiarEstadoDesdeTablero(tarea, evento.target.value)}>
+                {["Boceto", "Pendiente", "Completada", "Cancelada"].map(estadoColumna => <option key={estadoColumna} value={estadoColumna}>{estadoColumna}</option>)}
+            </select></label>
+        </article>
+    }
+
+    function renderTarjetaOrden(tarea, carril, indice) {
+        const activa = tarea.id === tareaActivaId
+        const ruta = obtenerRutaTarea(tareas, objetivos, tarea.id)
+        const lista = carril === "focus" ? colaFocus : tareasBacklog
+        const estadosFueraDeCola = ["Boceto", "Completada", "Cancelada"].includes(tarea.estado)
+        const indiceActivo = colaFocus.findIndex(item => item.id === tareaActivaId)
+        const primerMovible = sesionFocusActiva && tareaActivaId ? Math.max(1, indiceActivo + 1) : 0
+        const puedeCambiarCarril = !activa && !estadosFueraDeCola
+        return <article className={`tarea-tarjeta-orden${activa ? " tarea-tarjeta-activa" : ""}${estadosFueraDeCola ? " tarea-tarjeta-fuera-cola" : ""}`}
+            key={tarea.id} data-tarea-orden-id={tarea.id} draggable={!activa && (carril === "backlog" || !estadosFueraDeCola)}
+            onDragStart={evento => iniciarArrastre(evento, tarea, carril)}>
+            <div className="tarea-tarjeta-orden-datos"><strong>{tarea.nombre}{activa && " · Activa"}</strong>
+                <small>{tarea.estado}{ruta && ` · ${ruta}`}</small>
+            </div>
+            <div className="tarea-tarjeta-orden-acciones">
+                <button type="button" aria-label={`Subir ${tarea.nombre} en ${carril === "focus" ? "Cola Focus" : "Backlog"}`}
+                    disabled={activa || indice <= (carril === "focus" ? primerMovible : 0)}
+                    onClick={() => carril === "focus" ? onReordenar(tarea.id, -1, tareaActivaId) : onMoverBacklog(tarea.id, -1)}>↑</button>
+                <button type="button" aria-label={`Bajar ${tarea.nombre} en ${carril === "focus" ? "Cola Focus" : "Backlog"}`}
+                    disabled={activa || indice >= lista.length - 1 || carril === "focus" && indice < primerMovible}
+                    onClick={() => carril === "focus" ? onReordenar(tarea.id, 1, tareaActivaId) : onMoverBacklog(tarea.id, 1)}>↓</button>
+                {puedeCambiarCarril && <button type="button" onClick={() => onCambiarDestino(tarea.id, carril === "focus" ? "backlog" : "focus")}>
+                    {carril === "focus" ? "Enviar a Backlog" : "Pasar a Cola Focus"}
+                </button>}
+            </div>
+        </article>
     }
 
     return (
@@ -246,6 +358,12 @@ export function BibliotecaTareas({ tareas, objetivos = [], registros = [], ahora
                     {!formularioAbierto && <button type="button" className="tarea-boton-principal" onClick={abrirNueva} disabled={Boolean(errorCarga)}>Crear tarea</button>}
                 </div>
             </header>
+
+            <div className="selector-vista-tareas" role="group" aria-label="Vistas de tareas">
+                <button type="button" aria-pressed={vistaTareas === "arbol"} onClick={() => cambiarVistaTareas("arbol")}>Árbol</button>
+                <button type="button" aria-pressed={vistaTareas === "estado"} onClick={() => cambiarVistaTareas("estado")}>Por estado</button>
+                <button type="button" aria-pressed={vistaTareas === "orden"} onClick={() => cambiarVistaTareas("orden")}>Por orden</button>
+            </div>
 
             {errorCarga && <p className="tarea-mensaje-error" role="alert">{errorCarga}</p>}
             {error && !formularioAbierto && !formularioObjetivo && <p className="tarea-mensaje-error" role="alert">{error}</p>}
@@ -264,16 +382,12 @@ export function BibliotecaTareas({ tareas, objetivos = [], registros = [], ahora
                     {ESTADOS_TAREA.filter(opcion => opcion !== "En curso" || idEditando === tareaActivaId && idEditando !== null).map(opcion => <option key={opcion} value={opcion}>{opcion}</option>)}
                 </select></label>
                 <label><span>Destino</span><select aria-label="Destino" value={destino} disabled={idEditando !== null && idEditando === tareaActivaId} onChange={evento => cambiarDestino(evento.target.value)}><option value="backlog">Backlog</option><option value="focus">Cola Focus</option></select></label>
-                <label className="tarea-ubicacion"><span>Dentro de</span><select aria-label="Dentro de" value={padreId} disabled={ramaEditandoActiva} onChange={evento => cambiarPadreId(evento.target.value)}>
-                    <option value="">Sin objetivo</option>
-                    {objetivos.filter(objetivo => objetivo.estado === "Activo" || objetivo.id === tareasPorId.get(idEditando)?.objetivoId).map(objetivo => <option key={objetivo.id} value={objetivo.id}>{objetivo.nombre} · objetivo</option>)}
-                    {opcionesPadre.map(tarea => <option key={tarea.id} value={tarea.id}>{obtenerRutaTarea(tareas, objetivos, tarea.id)} · tarea</option>)}
-                </select></label>
+                {(idEditando !== null || !ubicacionContextual) && <label className="tarea-ubicacion"><span>{idEditando === null ? "Ubicación" : "Dentro de"}</span><SelectorUbicacionTarea tareas={opcionesPadre} objetivos={objetivos.filter(objetivo => objetivo.estado === "Activo" || objetivo.id === tareasPorId.get(idEditando)?.objetivoId)} value={padreId} onChange={cambiarPadreId} disabled={ramaEditandoActiva} /></label>}
                 {error && <p className="tarea-mensaje-error" role="alert">{error}</p>}
                 <div className="tarea-acciones-formulario"><button className="tarea-boton-principal" type="submit">{idEditando === null ? "Guardar tarea" : "Guardar cambios"}</button><button type="button" onClick={cerrarFormulario}>Cancelar</button></div>
             </form>}
 
-            {tareas.length === 0 && objetivos.length === 0 ? <p className="tareas-vacio">{errorCarga ? "No se pueden mostrar los datos guardados." : "Todavía no hay objetivos ni tareas. Creá uno para empezar."}</p> : (
+            {vistaTareas === "arbol" && (tareas.length === 0 && objetivos.length === 0 ? <p className="tareas-vacio">{errorCarga ? "No se pueden mostrar los datos guardados." : "Todavía no hay objetivos ni tareas. Creá uno para empezar."}</p> : (
                 <div className="arbol-objetivos">
                     {objetivos.map(objetivo => {
                         const hijos = tareas.filter(tarea => tarea.padreId === objetivo.id).sort((a, b) => (a.ordenArbol ?? 0) - (b.ordenArbol ?? 0))
@@ -282,14 +396,54 @@ export function BibliotecaTareas({ tareas, objetivos = [], registros = [], ahora
                         return <section className="objetivo-grupo" key={objetivo.id} aria-labelledby={`objetivo-${objetivo.id}`}>
                             <header><div><h3 id={`objetivo-${objetivo.id}`}>{objetivo.nombre}</h3><small>{objetivo.estado} · Tiempo total: {formatearTiempo(tiempoObjetivo)}</small><small>Tareas: {resumirEstados(tareasObjetivo)}</small></div>
                                 <button type="button" aria-expanded={!nodosPlegados.has(objetivo.id)} onClick={() => alternarPliegue(objetivo.id)}>{nodosPlegados.has(objetivo.id) ? "Mostrar tareas" : "Ocultar tareas"}</button>
-                                <div className="tarea-acciones"><button type="button" onClick={() => editarObjetivo(objetivo)}>Editar objetivo</button>{objetivo.estado === "Activo" && <><button type="button" onClick={() => cambiarEstadoNodo(objetivo, "Completada")}>Completar objetivo</button><button type="button" onClick={() => cambiarEstadoNodo(objetivo, "Cancelada")}>Cancelar objetivo</button></>}</div>
+                                <div className="tarea-acciones"><button type="button" onClick={() => abrirNueva(null, objetivo.id)} disabled={objetivo.estado !== "Activo"}>Agregar tarea</button><button type="button" onClick={() => editarObjetivo(objetivo)}>Editar objetivo</button>{objetivo.estado === "Activo" && <><button type="button" onClick={() => cambiarEstadoNodo(objetivo, "Completada")}>Completar objetivo</button><button type="button" onClick={() => cambiarEstadoNodo(objetivo, "Cancelada")}>Cancelar objetivo</button></>}</div>
                             </header>
                             {nodosPlegados.has(objetivo.id) ? null : hijos.length ? <ul className="lista-tareas">{hijos.map(tarea => renderTarea(tarea))}</ul> : <p className="tareas-grupo-vacio">Todavía no tiene tareas.</p>}
                         </section>
                     })}
                     {tareas.some(tarea => !tarea.objetivoId && !tarea.padreId) && <section className="objetivo-grupo objetivo-sin-asignar"><h3>Sin objetivo</h3><ul className="lista-tareas">{tareas.filter(tarea => !tarea.objetivoId && !tarea.padreId).sort((a, b) => (a.ordenArbol ?? 0) - (b.ordenArbol ?? 0)).map(tarea => renderTarea(tarea))}</ul></section>}
                 </div>
-            )}
+            ))}
+
+            {vistaTareas === "estado" && <div className="tareas-vista-estado">
+                {tareasEnCurso.length > 0 && <section className="tareas-en-curso" aria-label="Tareas en curso, controladas por Focus">
+                    <div><h3>En curso</h3><p>Focus controla este estado mientras la sesión está activa.</p></div>
+                    <ul>{tareasEnCurso.map(tarea => <li key={tarea.id}><strong>{tarea.nombre}</strong><small>{obtenerRutaTarea(tareas, objetivos, tarea.id)}</small></li>)}</ul>
+                </section>}
+                <div className="tablero-estados-columnas">
+                    {["Boceto", "Pendiente", "Completada", "Cancelada"].map(estadoColumna => {
+                        const tareasColumna = tareas.filter(tarea => tarea.estado === estadoColumna)
+                        return <section className="tablero-estado-columna" key={estadoColumna} aria-label={`Columna ${estadoColumna}`}
+                            onDragOver={evento => evento.preventDefault()} onDrop={evento => soltarEstado(evento, estadoColumna)}>
+                            <header><h3>{estadoColumna}</h3><span>{tareasColumna.length}</span></header>
+                            <div className="tablero-estado-lista">
+                                {tareasColumna.length ? tareasColumna.map(renderTarjetaEstado) : <p className="tareas-grupo-vacio">Soltá tareas aquí.</p>}
+                            </div>
+                        </section>
+                    })}
+                </div>
+                {tareas.length === 0 && <p className="tareas-vacio">Todavía no hay tareas.</p>}
+            </div>}
+
+            {vistaTareas === "orden" && <div className="tareas-vista-orden">
+                <section className="tablero-orden-columna" aria-label="Cola Focus ordenada" onDragOver={evento => evento.preventDefault()} onDrop={evento => soltarCarrilOrden(evento, "focus")}>
+                    <header><div><h3>Cola Focus</h3><p>Orden compartido con la sección Focus.</p></div><span>{colaFocus.length}</span></header>
+                    <div className="tablero-orden-lista">
+                        {colaFocus.length ? colaFocus.map((tarea, indice) => renderTarjetaOrden(tarea, "focus", indice)) : <p className="tareas-grupo-vacio">No hay tareas en Cola Focus.</p>}
+                    </div>
+                    {focusFueraDeCola.length > 0 && <div className="tareas-fuera-cola">
+                        <h4>Fuera de la cola</h4><p>Bocetos, completadas y canceladas conservan su destino, pero no forman parte del orden de Focus.</p>
+                        {focusFueraDeCola.map(tarea => <article key={tarea.id}><strong>{tarea.nombre}</strong><small>{tarea.estado} · {obtenerRutaTarea(tareas, objetivos, tarea.id)}</small></article>)}
+                    </div>}
+                </section>
+                <section className="tablero-orden-columna" aria-label="Backlog ordenado" onDragOver={evento => evento.preventDefault()} onDrop={evento => soltarCarrilOrden(evento, "backlog")}>
+                    <header><div><h3>Backlog</h3><p>Orden propio, independiente de la jerarquía de subtareas.</p></div><span>{tareasBacklog.length}</span></header>
+                    <div className="tablero-orden-lista">
+                        {tareasBacklog.length ? tareasBacklog.map((tarea, indice) => renderTarjetaOrden(tarea, "backlog", indice)) : <p className="tareas-grupo-vacio">No hay tareas en Backlog.</p>}
+                    </div>
+                </section>
+                {tareas.length === 0 && <p className="tareas-vacio">Todavía no hay tareas.</p>}
+            </div>}
 
             {confirmacion && <div className="dialogo-rama-fondo"><section className="dialogo-rama" role="dialog" aria-modal="true" aria-labelledby="titulo-dialogo-rama">
                 <h3 id="titulo-dialogo-rama">{confirmacion.nuevoEstado === "Completada" ? "Completar" : "Cancelar"} {nombreTipo} con subtareas</h3>

@@ -19,12 +19,17 @@ export function validarReglaRecurrencia(regla) {
     if (regla.ordenSeguimiento !== undefined
         && (!Number.isInteger(regla.ordenSeguimiento) || regla.ordenSeguimiento < 0)) return false
     if (regla.idSerie !== undefined && (typeof regla.idSerie !== "string" || !regla.idSerie.trim())) return false
+    if (regla.tipoSerie !== undefined && regla.tipoSerie !== "plantilla") return false
+    if (regla.idActividadPlantilla !== undefined && (typeof regla.idActividadPlantilla !== "string" || !regla.idActividadPlantilla.trim())) return false
+    if (regla.sinDuracion !== undefined && typeof regla.sinDuracion !== "boolean") return false
     if (typeof regla.nombre !== "string" || !regla.nombre.trim() || regla.nombre.length > 80) return false
     if (regla.eventoId !== null && typeof regla.eventoId !== "string") return false
     if (regla.colorEvento !== null && !/^#[\da-fA-F]{6}$/.test(regla.colorEvento)) return false
     if (regla.tareaId !== undefined && (typeof regla.tareaId !== "string" || !regla.tareaId.trim())) return false
     if (regla.tareaNombre !== undefined && (typeof regla.tareaNombre !== "string" || !regla.tareaNombre.trim())) return false
-    if ((typeof regla.eventoId === "string") === (typeof regla.tareaId === "string")) return false
+    const focusCola = regla.tipoPlanificacion === "focus" && regla.configuracionFocus?.usarColaFocus
+    if ((typeof regla.eventoId === "string") === (typeof regla.tareaId === "string") && !focusCola) return false
+    if (regla.tipoSerie === "plantilla" && (!regla.plantillaOrigenId || !regla.idActividadPlantilla)) return false
     const inicio = leerFechaISO(regla.fechaInicio)
     const fin = regla.fechaFin === null ? null : leerFechaISO(regla.fechaFin)
     if (!inicio || (regla.fechaFin !== null && (!fin || fin < inicio))) return false
@@ -34,6 +39,7 @@ export function validarReglaRecurrencia(regla) {
     if (!Number.isInteger(regla.segundosInicio) || regla.segundosInicio < 0 || regla.segundosInicio >= 86400) return false
     if (!Number.isInteger(regla.milisegundosInicio) || regla.milisegundosInicio < 0 || regla.milisegundosInicio > 999) return false
     if (!Number.isFinite(regla.duracionMs) || regla.duracionMs <= 0) return false
+    if (regla.modoAplicacionPlanificacion !== undefined && regla.modoAplicacionPlanificacion !== "cronometro") return false
     if (!regla.excepciones || typeof regla.excepciones !== "object" || Array.isArray(regla.excepciones)) return false
     for (const [fecha, excepcion] of Object.entries(regla.excepciones)) {
         if (!leerFechaISO(fecha)) return false
@@ -60,6 +66,11 @@ export function crearReglaRecurrencia(plan, diasSemana, fechaFin = null, generar
             ? { plantillaOrigenId: plan.plantillaOrigenId } : {}),
         ...(typeof plan.plantillaOrigenNombre === "string" && plan.plantillaOrigenNombre.trim()
             ? { plantillaOrigenNombre: plan.plantillaOrigenNombre } : {}),
+        ...(plan.tipoPlanificacion === "focus" ? { tipoPlanificacion: "focus", configuracionFocus: structuredClone(plan.configuracionFocus) } : {}),
+        ...(plan.modoAplicacionPlanificacion === "cronometro" ? { modoAplicacionPlanificacion: "cronometro" } : {}),
+        ...(plan.modoSeguimientoPlanificacion === "cronometro" ? { modoSeguimientoPlanificacion: "cronometro" } : {}),
+        ...(Number.isInteger(plan.grupoCronometro) ? { grupoCronometro: plan.grupoCronometro } : {}),
+        ...(Number.isInteger(plan.ordenSeguimiento) ? { ordenSeguimiento: plan.ordenSeguimiento } : {}),
         fechaInicio: formatearFechaISO(inicioDia), fechaFin,
         diasSemana: [...new Set(diasSemana)].sort((a, b) => a - b),
         segundosInicio: plan.inicio.getHours() * 3600 + plan.inicio.getMinutes() * 60 + plan.inicio.getSeconds(),
@@ -67,6 +78,40 @@ export function crearReglaRecurrencia(plan, diasSemana, fechaFin = null, generar
     }
     regla.idSerie = regla.id
     return validarReglaRecurrencia(regla) ? { ok: true, regla } : { ok: false, error: "La regla semanal no es válida." }
+}
+
+export function crearReglasRecurrenciaPlantilla(planes, diasSemana, fechaFin = null, generarId = () => globalThis.crypto.randomUUID()) {
+    if (!Array.isArray(planes) || planes.length === 0) return { ok: false, error: "La plantilla no generó actividades para repetir." }
+    let idSerie
+    try { idSerie = generarId() } catch { return { ok: false, error: "No se pudo crear la identidad de la recurrencia." } }
+    if (typeof idSerie !== "string" || !idSerie.trim()) return { ok: false, error: "No se pudo crear la identidad de la recurrencia." }
+    const reglas = []
+    for (const plan of planes) {
+        const sinDuracion = plan.fin === null
+        const planConFin = sinDuracion ? { ...plan, fin: new Date(plan.inicio.getTime() + 1000) } : plan
+        const resultado = crearReglaRecurrencia(planConFin, diasSemana, fechaFin, generarId)
+        if (!resultado.ok) return resultado
+        reglas.push({ ...resultado.regla, idSerie, tipoSerie: "plantilla",
+            idActividadPlantilla: plan.idActividadPlantilla ?? plan.id,
+            ...(sinDuracion ? { sinDuracion: true } : {}) })
+    }
+    return reglas.every(validarReglaRecurrencia)
+        ? { ok: true, idSerie, reglas }
+        : { ok: false, error: "La plantilla contiene una actividad que no se puede repetir." }
+}
+
+function metadatosPlantillaRecurrencia(regla, fecha) {
+    if (regla.tipoSerie !== "plantilla") return {}
+    return {
+        idAplicacionPlantilla: `${idSerie(regla)}-${fecha}`,
+        fechaAplicacion: fecha,
+        idActividadPlantilla: regla.idActividadPlantilla,
+        ...(regla.tipoPlanificacion === "focus" ? { tipoPlanificacion: "focus", configuracionFocus: structuredClone(regla.configuracionFocus) } : {}),
+        ...(regla.modoAplicacionPlanificacion ? { modoAplicacionPlanificacion: regla.modoAplicacionPlanificacion } : {}),
+        ...(regla.modoSeguimientoPlanificacion ? { modoSeguimientoPlanificacion: regla.modoSeguimientoPlanificacion } : {}),
+        ...(Number.isInteger(regla.grupoCronometro) ? { grupoCronometro: regla.grupoCronometro } : {}),
+        ...(Number.isInteger(regla.ordenSeguimiento) ? { ordenSeguimiento: regla.ordenSeguimiento } : {})
+    }
 }
 
 export function generarAparicionesRecurrencia(reglas, inicioRango, finRango) {
@@ -90,6 +135,7 @@ export function generarAparicionesRecurrencia(reglas, inicioRango, finRango) {
                         ? { ordenSeguimiento: excepcion.ordenSeguimiento ?? regla.ordenSeguimiento } : {}),
                     ...(regla.plantillaOrigenId ? { plantillaOrigenId: regla.plantillaOrigenId } : {}),
                     ...(regla.plantillaOrigenNombre ? { plantillaOrigenNombre: regla.plantillaOrigenNombre } : {}),
+                    ...metadatosPlantillaRecurrencia(regla, fecha),
                     idRecurrencia: regla.id, idSerie: regla.idSerie ?? regla.id, fechaRecurrencia: fecha })
             }
         }
@@ -98,13 +144,14 @@ export function generarAparicionesRecurrencia(reglas, inicioRango, finRango) {
             const fecha = formatearFechaISO(cursor)
             if (regla.diasSemana.includes(cursor.getDay()) && !Object.hasOwn(regla.excepciones, fecha)) {
                     const inicio = fechaConHora(cursor, regla.segundosInicio, regla.milisegundosInicio)
-                    const fin = new Date(inicio.getTime() + regla.duracionMs)
+                    const fin = regla.sinDuracion ? null : new Date(inicio.getTime() + regla.duracionMs)
                     visibles.push({ id: `recurrencia-${regla.id}-${fecha}`, nombre: regla.nombre,
                         eventoId: regla.eventoId, colorEvento: regla.colorEvento, inicio, fin,
                         ...(regla.tareaId ? { tareaId: regla.tareaId, tareaNombre: regla.tareaNombre } : {}),
                         ...(Number.isInteger(regla.ordenSeguimiento) ? { ordenSeguimiento: regla.ordenSeguimiento } : {}),
                         ...(regla.plantillaOrigenId ? { plantillaOrigenId: regla.plantillaOrigenId } : {}),
                         ...(regla.plantillaOrigenNombre ? { plantillaOrigenNombre: regla.plantillaOrigenNombre } : {}),
+                        ...metadatosPlantillaRecurrencia(regla, fecha),
                         idRecurrencia: regla.id, idSerie: regla.idSerie ?? regla.id, fechaRecurrencia: fecha })
             }
             cursor.setDate(cursor.getDate() + 1)
@@ -254,7 +301,7 @@ export function cambiarRecurrencia(reglas, id, fecha, cambios, alcance = "solo")
     const regla = reglas.find(item => item.id === id)
     if (!regla) return { ok: false, error: "No se encontró la serie semanal." }
     if (alcance === "toda") return { ok: true, reglas: reglas.map(item => (
-        (item.idSerie ?? item.id) === (regla.idSerie ?? regla.id) ? actualizarBase(item, cambios) : item
+        (regla.tipoSerie === "plantilla" ? item.id === id : (item.idSerie ?? item.id) === (regla.idSerie ?? regla.id)) ? actualizarBase(item, cambios) : item
     )) }
     if (alcance === "solo") {
         const inicio = cambios.inicio.toISOString(); const fin = cambios.fin.toISOString()

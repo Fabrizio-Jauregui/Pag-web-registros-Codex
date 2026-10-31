@@ -150,21 +150,29 @@ function esConfiguracionValida(valor) {
     )
     const tieneEvento = Boolean(valor?.evento)
     const tieneTarea = Boolean(valor?.tarea)
-    const origenValido = Boolean(valor?.usarColaFocus) && !tieneEvento && !tieneTarea
-        || tieneEvento !== tieneTarea && eventoValido && tareaValida
+    const puntual = valor?.actividadPuntual
+    const puntualValido = puntual === undefined || puntual === null || (
+        typeof puntual.nombre === "string" && puntual.nombre.trim() !== "" && puntual.nombre.trim().length <= 80
+        && Array.isArray(puntual.categoriaIds)
+        && puntual.categoriaIds.every(id => typeof id === "string" && id.trim() !== "")
+    )
+    const tienePuntual = Boolean(puntual)
+    const origenValido = Boolean(valor?.usarColaFocus) && !tieneEvento && !tieneTarea && !tienePuntual
+        || Number(tieneEvento) + Number(tieneTarea) + Number(tienePuntual) === 1 && eventoValido && tareaValida && puntualValido
     return valor !== null && typeof valor === "object"
         && typeof valor.nombre === "string" && valor.nombre.trim() !== ""
         && Array.isArray(valor.bloques) && valor.bloques.length > 0 && valor.bloques.every(esBloqueValido)
         && tareaValida
         && colaValida
         && eventoValido
+        && puntualValido
         && origenValido
         && coloresValidos
 }
 
 function detalleInvalidezConfiguracionFocus(configuracion) {
-    if (configuracion && !configuracion.usarColaFocus && Boolean(configuracion.evento) === Boolean(configuracion.tarea)) {
-        return "Debe tener exactamente un origen: una plantilla de evento o una tarea."
+    if (configuracion && !configuracion.usarColaFocus && Number(Boolean(configuracion.evento)) + Number(Boolean(configuracion.tarea)) + Number(Boolean(configuracion.actividadPuntual)) !== 1) {
+        return "Debe tener exactamente un origen: plantilla de evento, tarea o actividad puntual."
     }
     return "La sesión tiene fechas, bloques, colores o relaciones inválidas."
 }

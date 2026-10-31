@@ -2,7 +2,7 @@ import { useState } from "react"
 import { formatearDuracion } from "../../domain/tiempo/CalculosDuracion.js"
 import { useReloj } from "../../app/useReloj.js"
 import { FormularioPlan } from "../calendario/FormularioPlan.jsx"
-import { SelectorOrigenActividad } from "../comun/SelectorOrigenActividad.jsx"
+import { SelectorOrigenRegistro } from "../comun/SelectorOrigenRegistro.jsx"
 import "./SeguimientoPlanificacion.css"
 
 function valorLocal(fecha) {
@@ -131,6 +131,7 @@ export function PanelSeguimientoPlanificacion({
         const grupoAsignado = grupo ?? Math.max(-1, ...estado.secuencia.map(item => item.grupo ?? 0)) + 1
         const eventoId = plan?.eventoId ?? ""
         const tareaId = plan?.tareaId ?? ""
+        const tipoOrigen = plan?.origenPuntual ? "puntual" : eventoId ? "evento" : tareaId ? "tarea" : ""
         const nombrePlantilla = eventos.find(evento => evento.id === eventoId)?.nombre
         const nombreTarea = tareas.find(tarea => tarea.id === tareaId)?.nombre ?? plan?.tareaNombre
         cambiarFormularioCronometro({
@@ -139,31 +140,10 @@ export function PanelSeguimientoPlanificacion({
             indiceInsercion,
             eventoId,
             tareaId,
-            nombre: nombrePlantilla ?? nombreTarea ?? plan?.nombre ?? ""
+            tipoOrigen,
+            categoriaIds: plan?.categoriaIds ?? [],
+            nombre: plan?.origenPuntual ? plan.nombre : nombrePlantilla ?? nombreTarea ?? plan?.nombre ?? ""
         })
-    }
-    function cambiarEventoFormularioCronometro(eventoId) {
-        cambiarFormularioCronometro(actual => {
-            if (!actual) return actual
-            const evento = eventos.find(item => item.id === eventoId)
-            return {
-                ...actual,
-                eventoId,
-                tareaId: eventoId ? "" : actual.tareaId,
-                nombre: evento?.nombre ?? actual.nombre
-            }
-        })
-        cambiarErrorCola("")
-    }
-    function cambiarTareaFormularioCronometro(tareaId) {
-        const tarea = tareas.find(item => item.id === tareaId)
-        cambiarFormularioCronometro(actual => actual ? {
-            ...actual,
-            tareaId,
-            eventoId: tareaId ? "" : actual.eventoId,
-            nombre: tarea?.nombre ?? actual.nombre
-        } : actual)
-        cambiarErrorCola("")
     }
     function guardarEventoCronometro(evento) {
         const indice = Number.isInteger(formularioCronometro.indiceInsercion)
@@ -363,11 +343,9 @@ export function PanelSeguimientoPlanificacion({
                     onCancelar={() => cambiarFormularioPlan(null)}
                 />
             )}
-            {esCronometro && formularioCronometro && <form className="seguimiento-plan-formulario-cronometro" aria-label={formularioCronometro.plan ? "Editar evento pendiente" : "Agregar evento"} onSubmit={evento => { evento.preventDefault(); guardarEventoCronometro({ tipoSecuencial: true, nombre: formularioCronometro.nombre.trim(), eventoId: formularioCronometro.eventoId || null, tareaId: formularioCronometro.tareaId || null, grupoCronometro: formularioCronometro.grupo })}}>
+            {esCronometro && formularioCronometro && <form className="seguimiento-plan-formulario-cronometro" aria-label={formularioCronometro.plan ? "Editar evento pendiente" : "Agregar evento"} onSubmit={evento => { evento.preventDefault(); guardarEventoCronometro({ tipoSecuencial: true, nombre: formularioCronometro.nombre.trim(), eventoId: formularioCronometro.tipoOrigen === "evento" ? formularioCronometro.eventoId || null : null, tareaId: formularioCronometro.tipoOrigen === "tarea" ? formularioCronometro.tareaId || null : null, actividadPuntual: formularioCronometro.tipoOrigen === "puntual" ? { nombre: formularioCronometro.nombre.trim(), categoriaIds: formularioCronometro.categoriaIds ?? [] } : null, grupoCronometro: formularioCronometro.grupo })}}>
                 <h4>{formularioCronometro.plan ? "Editar evento pendiente" : "Agregar evento"}</h4>
-                <SelectorOrigenActividad tipo="evento" etiqueta="Evento" opciones={eventos} categorias={categorias} value={formularioCronometro.eventoId} disabled={Boolean(formularioCronometro.tareaId)} ordenEventos={ordenEventos} cambiarOrdenEventos={cambiarOrdenEventos} onChange={evento => cambiarEventoFormularioCronometro(evento?.id ?? "")} />
-                <SelectorOrigenActividad tipo="tarea" etiqueta="Tarea" opciones={tareas} value={formularioCronometro.tareaId} disabled={Boolean(formularioCronometro.eventoId)} onChange={tarea => cambiarTareaFormularioCronometro(tarea?.id ?? "")} />
-                <label>Nombre<input name="nombre" value={eventos.find(item => item.id === formularioCronometro.eventoId)?.nombre ?? tareas.find(item => item.id === formularioCronometro.tareaId)?.nombre ?? ""} disabled readOnly /></label>
+                <SelectorOrigenRegistro valor={formularioCronometro} onChange={valor => cambiarFormularioCronometro(actual => ({ ...actual, tipoOrigen: valor.tipo, eventoId: valor.eventoId ?? "", tareaId: valor.tareaId ?? "", nombre: valor.nombre ?? actual.nombre, categoriaIds: valor.categoriaIds ?? [] }))} eventos={eventos} tareas={tareas} categorias={categorias} ordenEventos={ordenEventos} cambiarOrdenEventos={cambiarOrdenEventos} etiquetaNombre="Nombre" />
                 <div className="seguimiento-plan-item-acciones"><button type="submit">Guardar</button><button type="button" onClick={() => cambiarFormularioCronometro(null)}>Cancelar</button></div>
             </form>}
         </section>

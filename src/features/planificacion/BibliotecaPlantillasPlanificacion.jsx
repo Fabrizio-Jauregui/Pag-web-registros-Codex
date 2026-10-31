@@ -5,17 +5,13 @@ import { plantillaUsadaEnFecha } from "../../domain/planificacion/persistenciaUs
 import { eliminarRecurrenciasDePlantilla } from "../../domain/planificacion/recurrencias.js"
 import { EditorPlantillaCalendario } from "./EditorPlantillaCalendario.jsx"
 import { SelectorOrigenActividad } from "../comun/SelectorOrigenActividad.jsx"
+import { AccesosInicioRapido } from "../calendario/AccesosInicioRapido.jsx"
 import "./BibliotecaPlantillasPlanificacion.css"
 
 const hora = segundos => `${String(Math.floor(segundos / 3600)).padStart(2, "0")}:${String(Math.floor(segundos % 3600 / 60)).padStart(2, "0")}:${String(segundos % 60).padStart(2, "0")}`
 const segundos = valor => {
     const [h, m, s = "0"] = valor.split(":")
     return Number(h) * 3600 + Number(m) * 60 + Number(s)
-}
-const horaInicial = () => {
-    const ahora = new Date()
-    ahora.setMinutes(ahora.getMinutes() + 1, 0, 0)
-    return ahora.getHours() * 3600 + ahora.getMinutes() * 60
 }
 const campoHora = valor => `${String(Math.floor(valor / 3600)).padStart(2, "0")}:${String(Math.floor(valor % 3600 / 60)).padStart(2, "0")}:${String(valor % 60).padStart(2, "0")}`
 const formatearFechaPreview = new Intl.DateTimeFormat("es-AR", { day: "numeric", month: "short" })
@@ -30,6 +26,19 @@ function rangoFechaHora(inicio, fin) {
     return mismaFecha
         ? `${formatearFechaPreview.format(inicio)} · ${horaInicio}–${horaFin}`
         : `${formatearFechaPreview.format(inicio)} · ${horaInicio}–${formatearFechaPreview.format(fin)} · ${horaFin}`
+}
+
+function fechasInicialesRecurrencia(fechaInicioTexto, diasSemana, fechaFinTexto) {
+    const inicio = leerFechaISO(fechaInicioTexto)
+    const fin = fechaFinTexto ? leerFechaISO(fechaFinTexto) : null
+    if (!inicio || !diasSemana.length || (fechaFinTexto && !fin)) return []
+    const fechas = []
+    const cursor = new Date(inicio)
+    for (let indice = 0; indice < 370 && fechas.length < 3 && (!fin || cursor <= fin); indice += 1) {
+        if (diasSemana.includes(cursor.getDay())) fechas.push(formatearFechaISO(cursor))
+        cursor.setDate(cursor.getDate() + 1)
+    }
+    return fechas
 }
 const nuevaActividad = (inicioSegundos = 0, finAbsoluto = inicioSegundos + 1800) => ({ id: crypto.randomUUID(), nombre: "", eventoId: null, tareaId: null, inicioSegundos, finSegundos: finAbsoluto % 86400, finDia: Math.floor(finAbsoluto / 86400) })
 
@@ -53,19 +62,24 @@ function agruparActividadesPorHorario(actividades) {
     }, [])
 }
 
-export function BibliotecaPlantillasPlanificacion({ plantillas, plantillasFocus = [], eventos, tareas = [], categorias = [], ordenEventos = "ultimo-uso", cambiarOrdenEventos = () => {}, usosPlantillas = [], errorCarga = "", errorUsos = "", planes = [], recurrencias = [], planesEnSeguimiento = [], idsPlanesSeguimiento = [], errorDependencias = "", onCrear, onActualizar, onEliminar, onAplicar }) {
+export function BibliotecaPlantillasPlanificacion({ plantillas, plantillasFocus = [], eventos, tareas = [], categorias = [], ordenEventos = "ultimo-uso", cambiarOrdenEventos = () => {}, usosPlantillas = [], errorCarga = "", errorUsos = "", planes = [], recurrencias = [], planesEnSeguimiento = [], idsPlanesSeguimiento = [], errorDependencias = "", onCrear, onActualizar, onEliminar, onAplicar, onCrearRecurrencia = () => ({ ok: false, error: "No se pudo crear la recurrencia." }) }) {
     const [editando, cambiarEditando] = useState(null)
     const [nombre, cambiarNombre] = useState("")
     const [actividades, cambiarActividades] = useState([])
-    const [fecha, cambiarFecha] = useState(formatearFechaISO(obtenerFechaLocalHoy()))
+    const [inicioAplicacionPredeterminado] = useState(() => new Date(Date.now() + 60_000))
+    const [fecha, cambiarFecha] = useState(() => formatearFechaISO(inicioAplicacionPredeterminado))
     const [horasInicio, cambiarHorasInicio] = useState({})
-    const [horaInicioPredeterminada] = useState(horaInicial)
+    const [horaInicioPredeterminada] = useState(() => inicioAplicacionPredeterminado.getHours() * 3600 + inicioAplicacionPredeterminado.getMinutes() * 60 + inicioAplicacionPredeterminado.getSeconds())
     const [error, cambiarError] = useState("")
     const [editorDiseno, cambiarEditorDiseno] = useState(undefined)
     const [modoEditorInicial, cambiarModoEditorInicial] = useState("secuencias")
     const [confirmacionBorrado, cambiarConfirmacionBorrado] = useState(null)
     const [alcanceBorrado, cambiarAlcanceBorrado] = useState("conservar")
     const [recurrenciasLegadoSeleccionadas, cambiarRecurrenciasLegadoSeleccionadas] = useState([])
+    const [recurrenciaAbiertaId, cambiarRecurrenciaAbiertaId] = useState(null)
+    const [diasRecurrencia, cambiarDiasRecurrencia] = useState([])
+    const [fechaFinRecurrencia, cambiarFechaFinRecurrencia] = useState("")
+    const [errorRecurrencia, cambiarErrorRecurrencia] = useState("")
 
     function abrirEditor(plantilla = null, modoInicial = "secuencias") {
         cambiarEditando(null)
@@ -140,6 +154,28 @@ export function BibliotecaPlantillasPlanificacion({ plantillas, plantillasFocus 
         }
         if (!resultado.ok && !resultado.duplicado) cambiarError(resultado.error)
         else cambiarError("")
+    }
+    function abrirRecurrencia(plantilla) {
+        const diaInicio = leerFechaISO(fecha)?.getDay()
+        cambiarRecurrenciaAbiertaId(plantilla.id)
+        cambiarDiasRecurrencia(Number.isInteger(diaInicio) ? [diaInicio] : [])
+        cambiarFechaFinRecurrencia("")
+        cambiarErrorRecurrencia("")
+    }
+    function guardarRecurrencia(evento, plantilla, horaInicioSegundos) {
+        evento.preventDefault()
+        if (!diasRecurrencia.length) { cambiarErrorRecurrencia("Elegí al menos un día de la semana."); return }
+        if (fechaFinRecurrencia && fechaFinRecurrencia < fecha) { cambiarErrorRecurrencia("La fecha final debe ser igual o posterior al inicio."); return }
+        if (!fechasInicialesRecurrencia(fecha, diasRecurrencia, fechaFinRecurrencia).length) { cambiarErrorRecurrencia("No hay apariciones dentro del período elegido."); return }
+        const resultado = onCrearRecurrencia(plantilla.id, fecha, diasRecurrencia, fechaFinRecurrencia || null, horaInicioSegundos)
+        if (!resultado.ok) { cambiarErrorRecurrencia(resultado.error); return }
+        cambiarRecurrenciaAbiertaId(null)
+        cambiarErrorRecurrencia("")
+        cambiarError("")
+    }
+    function seleccionarInicioRapido(plantillaId, instante) {
+        cambiarFecha(formatearFechaISO(instante))
+        cambiarHorasInicio(actual => ({ ...actual, [plantillaId]: instante.getHours() * 3600 + instante.getMinutes() * 60 + instante.getSeconds() }))
     }
     function abrirConfirmacionBorrado(plantilla) {
         cambiarError("")
@@ -241,7 +277,29 @@ export function BibliotecaPlantillasPlanificacion({ plantillas, plantillasFocus 
                     ? <ol>{previsualizacion.actividades.map((actividad, indice) => <li key={`${actividad.nombre}-${indice}`}><strong>{actividad.nombre}</strong>{actividad.eventoNombre && <small>Evento: {actividad.eventoNombre}</small>}{actividad.tareaNombre && <small>Tarea: {actividad.tareaNombre}</small>}<span>{actividad.sinHorario ? `Etapa ${(actividad.etapa ?? 0) + 1} · duración ${hora(actividad.duracionFocusSegundos)} · se inicia manualmente` : actividad.sinDuracion ? "Sin horario ni duración · se registra con cronómetro" : rangoFechaHora(actividad.inicio, actividad.fin)}</span></li>)}</ol>
                     : <p>No se puede aplicar: {previsualizacion.error}</p>}
             </div>
-            <div className="plantilla-plan-acciones">{(plantilla.modo === "duraciones" || plantilla.modo === "relativo" || plantilla.modo === "secuencias" || plantilla.modo === "cronometro") && <label>Hora de inicio en el calendario<input type="time" step="1" aria-label={`Hora real de inicio ${plantilla.nombre}`} value={campoHora(inicioElegido)} onChange={e => cambiarHorasInicio(actual => ({ ...actual, [plantilla.id]: e.target.value ? segundos(e.target.value) : 0 }))} /></label>}<button type="button" className="plan-plantilla-primario" onClick={() => aplicar(plantilla, plantilla.modo === "duraciones" || plantilla.modo === "relativo" || plantilla.modo === "secuencias" || plantilla.modo === "cronometro" ? inicioElegido : undefined)} disabled={Boolean(errorCarga) || Boolean(uso) || plantilla.actividades.length < 2 || !previsualizacion.ok}>{uso ? "Usada este día" : "Aplicar a fecha"}</button>{plantilla.modo === "horarios" ? <button type="button" onClick={() => editar(plantilla)}>Editar horarios</button> : <button type="button" onClick={() => abrirEditor(plantilla)}>Editar secuencia</button>}<button type="button" onClick={() => abrirConfirmacionBorrado(plantilla)}>Eliminar</button></div>
+            <div className="plantilla-plan-acciones">
+                {(plantilla.modo === "duraciones" || plantilla.modo === "relativo" || plantilla.modo === "secuencias" || plantilla.modo === "cronometro") && <>
+                    <label>Hora de inicio en el calendario<input type="time" step="1" aria-label={`Hora real de inicio ${plantilla.nombre}`} value={campoHora(inicioElegido)} onChange={e => cambiarHorasInicio(actual => ({ ...actual, [plantilla.id]: e.target.value ? segundos(e.target.value) : 0 }))} /></label>
+                    <AccesosInicioRapido onSeleccionar={instante => seleccionarInicioRapido(plantilla.id, instante)} />
+                </>}
+                <button type="button" className="plan-plantilla-primario" onClick={() => aplicar(plantilla, plantilla.modo === "duraciones" || plantilla.modo === "relativo" || plantilla.modo === "secuencias" || plantilla.modo === "cronometro" ? inicioElegido : undefined)} disabled={Boolean(errorCarga) || Boolean(uso) || plantilla.actividades.length < 2 || !previsualizacion.ok}>{uso ? "Usada este día" : "Aplicar a fecha"}</button>
+                <button type="button" onClick={() => recurrenciaAbiertaId === plantilla.id ? cambiarRecurrenciaAbiertaId(null) : abrirRecurrencia(plantilla)} disabled={Boolean(errorCarga) || plantilla.actividades.length < 2 || !previsualizacion.ok}>Crear recurrencia</button>
+                {plantilla.modo === "horarios" ? <button type="button" onClick={() => editar(plantilla)}>Editar horarios</button> : <button type="button" onClick={() => abrirEditor(plantilla)}>Editar secuencia</button>}
+                <button type="button" onClick={() => abrirConfirmacionBorrado(plantilla)}>Eliminar</button>
+            </div>
+            {recurrenciaAbiertaId === plantilla.id && <form className="recurrencia-plantilla" onSubmit={evento => guardarRecurrencia(evento, plantilla, plantilla.modo === "horarios" ? undefined : inicioElegido)}>
+                <h4>Repetir “{plantilla.nombre}”</h4>
+                <p>Desde {new Intl.DateTimeFormat("es-AR", { dateStyle: "long" }).format(leerFechaISO(fecha))}. La recurrencia guardará esta versión de la plantilla.</p>
+                <fieldset><legend>Días de la semana</legend>
+                    <button type="button" onClick={() => cambiarDiasRecurrencia([0, 1, 2, 3, 4, 5, 6])}>Seleccionar toda la semana</button>
+                    {[[0, "Domingo"], [1, "Lunes"], [2, "Martes"], [3, "Miércoles"], [4, "Jueves"], [5, "Viernes"], [6, "Sábado"]].map(([dia, etiqueta]) => <label key={dia}><input type="checkbox" checked={diasRecurrencia.includes(dia)} onChange={evento => cambiarDiasRecurrencia(actual => evento.target.checked ? [...actual, dia].sort((a, b) => a - b) : actual.filter(valor => valor !== dia))} /> {etiqueta}</label>)}
+                </fieldset>
+                <label><span>Hasta (opcional)</span><input type="date" min={fecha} value={fechaFinRecurrencia} onChange={evento => cambiarFechaFinRecurrencia(evento.target.value)} /></label>
+                {plantilla.modo !== "horarios" && <p>Se repetirá a partir de las {campoHora(inicioElegido)}; se conservará la hora de inicio elegida arriba.</p>}
+                <p className="recurrencia-plantilla-preview">Próximas apariciones: {fechasInicialesRecurrencia(fecha, diasRecurrencia, fechaFinRecurrencia).map(dia => new Intl.DateTimeFormat("es-AR", { dateStyle: "medium" }).format(leerFechaISO(dia))).join(", ") || "Elegí uno o más días."}</p>
+                {errorRecurrencia && <p role="alert" className="plan-plantilla-error">{errorRecurrencia}</p>}
+                <div className="plan-plantilla-acciones"><button type="submit" className="plan-plantilla-primario">Guardar recurrencia</button><button type="button" onClick={() => { cambiarRecurrenciaAbiertaId(null); cambiarErrorRecurrencia("") }}>Cancelar</button></div>
+            </form>}
         </li>
         })}</ul>)}
         {confirmacionBorrado && (() => {

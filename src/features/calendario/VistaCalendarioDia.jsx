@@ -1,4 +1,5 @@
 import { useRef, useState } from "react"
+import { useReloj } from "../../app/useReloj.js"
 import { BloqueRegistro } from "./BloqueRegistro.jsx"
 import { BloquePlan } from "./BloquePlan.jsx"
 import { MarcoAplicacionPlanificacion } from "./MarcoAplicacionPlanificacion.jsx"
@@ -24,6 +25,7 @@ export function VistaCalendarioDia({
     planActivoSeguimientoId = null,
     ejeTiempoRelativo = false
 }) {
+    const reloj = useReloj()
     const gestoFranjaRef = useRef(null)
     const [franjaVista, cambiarFranjaVista] = useState(null)
     const [seleccionEnCurso, cambiarSeleccionEnCurso] = useState(false)
@@ -98,6 +100,12 @@ export function VistaCalendarioDia({
                 })}
             </ol>
             <div className="capa-registros-dia" role="group" aria-label={"Registros del " + fechaVisible}>
+                {fechaISO === `${reloj.getFullYear()}-${String(reloj.getMonth() + 1).padStart(2, "0")}-${String(reloj.getDate()).padStart(2, "0")}` && <time
+                    className="linea-hora-actual"
+                    dateTime={reloj.toISOString()}
+                    aria-label={`Hora actual: ${new Intl.DateTimeFormat("es-AR", { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(reloj)}`}
+                    style={{ top: `${((reloj.getHours() * 3600 + reloj.getMinutes() * 60 + reloj.getSeconds()) / 86400) * 100}%` }}
+                ><span>Ahora · {new Intl.DateTimeFormat("es-AR", { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(reloj)}</span></time>}
                 {franjaVisible && <div className="seleccion-franja-zoom" aria-hidden="true" style={{
                     top: `${franjaVisible.inicio / 86400 * 100}%`,
                     height: `${Math.max(1, franjaVisible.fin - franjaVisible.inicio) / 86400 * 100}%`

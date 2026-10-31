@@ -65,6 +65,8 @@ function deserializarRegistros(datos) {
             ...(registro.tareaNombre === undefined ? {} : { tareaNombre: registro.tareaNombre }),
             ...(registro.planId === undefined ? {} : { planId: registro.planId }),
             ...(registro.origenFocus === undefined ? {} : { origenFocus: registro.origenFocus }),
+            ...(registro.origenPuntual === undefined ? {} : { origenPuntual: registro.origenPuntual }),
+            ...(registro.categoriaIds === undefined ? {} : { categoriaIds: registro.categoriaIds }),
             estado: registro.estado,
             motivoCancelacion: registro.motivoCancelacion,
             segmentos
@@ -86,7 +88,7 @@ function analizarRegistros(datos, ahora) {
         if (!registro) detalle = "Faltan datos o hay fechas de segmentos inválidas."
         else if (typeof registro.id !== "string" || !registro.id.trim()) detalle = "El registro no tiene un identificador válido."
         else if (ids.has(registro.id)) detalle = "El identificador del registro está repetido."
-        else if (Boolean(registro.eventoId) === Boolean(registro.tareaId)) detalle = "Debe tener exactamente un origen: una plantilla de evento o una tarea."
+        else if (registro.origenPuntual ? Boolean(registro.eventoId) || Boolean(registro.tareaId) : Boolean(registro.eventoId) === Boolean(registro.tareaId)) detalle = "Debe tener un único origen: plantilla de evento, tarea o actividad puntual."
         else if (!validarColeccionRegistros([registro], ahora, { permitirLimiteExcedido: true })) detalle = "El registro tiene datos inválidos, un estado incorrecto o intervalos inconsistentes."
         if (detalle) problemas.push({ indice, titulo: registro?.nombre || `Registro ${indice + 1}`, detalle, bruto })
         else { registros.push(registro); ids.add(registro.id) }

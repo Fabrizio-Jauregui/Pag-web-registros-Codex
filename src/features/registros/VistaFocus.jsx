@@ -3,7 +3,7 @@ import { useEffect, useState } from "react"
 import { formatearDuracion } from "../../domain/tiempo/CalculosDuracion.js"
 import { crearBloquesFocus, useSesionFocus } from "./usoSesionFocus.js"
 import { ControlesRegistro } from "./ControlesRegistro.jsx"
-import { SelectorOrigenActividad } from "../comun/SelectorOrigenActividad.jsx"
+import { SelectorOrigenRegistro } from "../comun/SelectorOrigenRegistro.jsx"
 import { ListaRegistrosActivos } from "./ListaRegistrosActivos.jsx"
 import "./VistaFocus.css"
 
@@ -31,11 +31,8 @@ function etiquetaEstado(estado) {
 export function VistaFocus({ estadoRegistro, eventos = [], tareas = [], categorias = [], onCrearTarea, onActualizarTarea, onReordenarTarea, onPosponerTarea, onEstadoSesionChange, onRegistrarInicioPlanificado, onPlantillasChange, ordenEventos, cambiarOrdenEventos, vistaActiva = true }) {
     const [nombreSesion, cambiarNombreSesion] = useState("Sesión Focus")
     const [usarColaFocus, cambiarUsarColaFocus] = useState(false)
-    const [eventoSesionId, cambiarEventoSesionId] = useState("")
-    const [tareaSesionId, cambiarTareaSesionId] = useState("")
-    const [nombreActividadIndependiente, cambiarNombreActividadIndependiente] = useState("")
-    const [eventoIndependienteId, cambiarEventoIndependienteId] = useState("")
-    const [tareaIndependienteId, cambiarTareaIndependienteId] = useState("")
+    const [origenSesion, cambiarOrigenSesion] = useState({ tipo: "", eventoId: "", tareaId: "", nombre: "", categoriaIds: [] })
+    const [origenIndependiente, cambiarOrigenIndependiente] = useState({ tipo: "", eventoId: "", tareaId: "", nombre: "", categoriaIds: [] })
     const [pares, cambiarPares] = useState(4)
     const [minutosConcentracion, cambiarMinutosConcentracion] = useState(25)
     const [minutosDescanso, cambiarMinutosDescanso] = useState(5)
@@ -65,7 +62,8 @@ export function VistaFocus({ estadoRegistro, eventos = [], tareas = [], categori
         bloques: configuracion.bloques,
         colores: configuracion.colores,
         evento: configuracion.evento ?? null,
-        tarea: configuracion.tarea ?? null
+        tarea: configuracion.tarea ?? null,
+        actividadPuntual: configuracion.actividadPuntual ?? null
     }))
     const { datos, registrosActivos } = estadoRegistro
     const idsRegistrosGuardados = new Set(estadoRegistro.registros.map(registro => registro.id))
@@ -78,18 +76,17 @@ export function VistaFocus({ estadoRegistro, eventos = [], tareas = [], categori
     const configuracion = sesion?.configuracion
     const independientes = registrosActivos.filter(registro => registro.id !== sesion?.registroId)
     const totalMinutos = bloques.reduce((total, bloque) => total + (Number(bloque.minutos) || 0), 0)
-    const eventoIndependiente = eventos.find(evento => evento.id === eventoIndependienteId) ?? null
-    const tareaIndependiente = tareas.find(tarea => tarea.id === tareaIndependienteId) ?? null
+    const eventoIndependiente = origenIndependiente.tipo === "evento" ? eventos.find(evento => evento.id === origenIndependiente.eventoId) ?? null : null
+    const tareaIndependiente = origenIndependiente.tipo === "tarea" ? tareas.find(tarea => tarea.id === origenIndependiente.tareaId) ?? null : null
     const colaFocus = tareas.filter(tarea => tarea.destino === "focus"
         && !["Boceto", "Completada", "Cancelada"].includes(tarea.estado))
         .sort((a, b) => (a.ordenFocus ?? Number.MAX_SAFE_INTEGER) - (b.ordenFocus ?? Number.MAX_SAFE_INTEGER))
     const tareaFocusActiva = colaFocus.find(tarea => tarea.id === sesion?.tareaActivaId) ?? null
 
     function iniciarActividadIndependiente() {
-        if (estadoRegistro.iniciar(nombreActividadIndependiente, eventoIndependiente, tareaIndependiente)) {
-            cambiarNombreActividadIndependiente("")
-            cambiarEventoIndependienteId("")
-            cambiarTareaIndependienteId("")
+        const actividadPuntual = origenIndependiente.tipo === "puntual" ? { nombre: origenIndependiente.nombre, categoriaIds: origenIndependiente.categoriaIds } : null
+        if (estadoRegistro.iniciar(origenIndependiente.nombre, eventoIndependiente, tareaIndependiente, { actividadPuntual })) {
+            cambiarOrigenIndependiente({ tipo: "", eventoId: "", tareaId: "", nombre: "", categoriaIds: [] })
         }
     }
 
@@ -116,8 +113,7 @@ export function VistaFocus({ estadoRegistro, eventos = [], tareas = [], categori
         const config = plantilla.configuracion
         cambiarNombreSesion(config.nombre)
         cambiarUsarColaFocus(Boolean(config.usarColaFocus))
-        cambiarEventoSesionId(config.evento?.id ?? "")
-        cambiarTareaSesionId(config.tarea?.id ?? "")
+        cambiarOrigenSesion({ tipo: config.actividadPuntual ? "puntual" : config.evento ? "evento" : config.tarea ? "tarea" : "", eventoId: config.evento?.id ?? "", tareaId: config.tarea?.id ?? "", nombre: config.actividadPuntual?.nombre ?? config.evento?.nombre ?? config.tarea?.nombre ?? "", categoriaIds: config.actividadPuntual?.categoriaIds ?? [] })
         cambiarBloques(config.bloques.map(bloque => ({ ...bloque })))
         cambiarPares(Math.max(1, Math.ceil(config.bloques.length / 2)))
         cambiarMinutosConcentracion(config.bloques.find(bloque => bloque.tipo === "concentracion")?.minutos ?? 25)
@@ -128,16 +124,16 @@ export function VistaFocus({ estadoRegistro, eventos = [], tareas = [], categori
     }
 
     function iniciarSesion() {
-        const evento = eventos.find(item => item.id === eventoSesionId) ?? null
-        const tarea = tareas.find(item => item.id === tareaSesionId) ?? null
+        const evento = origenSesion.tipo === "evento" ? eventos.find(item => item.id === origenSesion.eventoId) ?? null : null
+        const tarea = origenSesion.tipo === "tarea" ? tareas.find(item => item.id === origenSesion.tareaId) ?? null : null
         focus.iniciar({
             nombre: nombreSesion,
-            tarea: null,
             usarColaFocus,
             bloques,
             colores,
             evento: usarColaFocus ? null : evento,
-            tarea: usarColaFocus ? null : tarea
+            tarea: usarColaFocus ? null : tarea,
+            actividadPuntual: usarColaFocus || origenSesion.tipo !== "puntual" ? null : { nombre: origenSesion.nombre, categoriaIds: origenSesion.categoriaIds }
         })
     }
 
@@ -145,8 +141,9 @@ export function VistaFocus({ estadoRegistro, eventos = [], tareas = [], categori
         const config = {
             nombre: nombreSesion.trim() || "Sesión Focus",
             usarColaFocus,
-            evento: usarColaFocus ? null : eventos.find(item => item.id === eventoSesionId) ?? null,
-            tarea: usarColaFocus ? null : tareas.find(item => item.id === tareaSesionId) ?? null,
+            evento: usarColaFocus || origenSesion.tipo !== "evento" ? null : eventos.find(item => item.id === origenSesion.eventoId) ?? null,
+            tarea: usarColaFocus || origenSesion.tipo !== "tarea" ? null : tareas.find(item => item.id === origenSesion.tareaId) ?? null,
+            actividadPuntual: usarColaFocus || origenSesion.tipo !== "puntual" ? null : { nombre: origenSesion.nombre, categoriaIds: origenSesion.categoriaIds },
             bloques: bloques.map(bloque => ({ ...bloque })),
             colores
         }
@@ -189,25 +186,11 @@ export function VistaFocus({ estadoRegistro, eventos = [], tareas = [], categori
                     <p>Este registro corre por separado y no cambia los bloques ni los controles de la sesión Focus.</p>
                 </div>
                 <ControlesRegistro
-                    nombre={nombreActividadIndependiente}
-                    cambiarNombre={cambiarNombreActividadIndependiente}
+                    origen={origenIndependiente}
+                    cambiarOrigen={cambiarOrigenIndependiente}
                     eventos={eventos}
                     tareas={tareas}
                     categorias={categorias}
-                    eventoId={eventoIndependienteId}
-                    cambiarEventoId={nuevoId => {
-                        cambiarEventoIndependienteId(nuevoId)
-                        if (nuevoId) cambiarTareaIndependienteId("")
-                        const seleccionado = eventos.find(evento => evento.id === nuevoId)
-                        cambiarNombreActividadIndependiente(seleccionado?.nombre ?? "")
-                    }}
-                    tareaId={tareaIndependienteId}
-                    cambiarTareaId={nuevoId => {
-                        cambiarTareaIndependienteId(nuevoId)
-                        if (nuevoId) cambiarEventoIndependienteId("")
-                        const seleccionada = tareas.find(tarea => tarea.id === nuevoId)
-                        cambiarNombreActividadIndependiente(seleccionada?.nombre ?? "")
-                    }}
                     estado="Inactivo"
                     manejarPlay={iniciarActividadIndependiente}
                     manejarPause={() => {}}
@@ -328,10 +311,7 @@ export function VistaFocus({ estadoRegistro, eventos = [], tareas = [], categori
                             <input type="checkbox" checked={usarColaFocus} onChange={evento => cambiarUsarColaFocus(evento.target.checked)} />
                             Usar Cola Focus para asignar las tareas de cada concentración
                         </label>
-                        {!usarColaFocus && <>
-                            <SelectorOrigenActividad tipo="evento" etiqueta="Plantilla de evento" opciones={eventos} categorias={categorias} value={eventoSesionId} disabled={Boolean(tareaSesionId)} ordenEventos={ordenEventos} cambiarOrdenEventos={cambiarOrdenEventos} onChange={opcion => { cambiarEventoSesionId(opcion?.id ?? ""); if (opcion) cambiarTareaSesionId("") }} />
-                            <SelectorOrigenActividad tipo="tarea" etiqueta="Tarea" opciones={tareas} value={tareaSesionId} disabled={Boolean(eventoSesionId)} onChange={opcion => { cambiarTareaSesionId(opcion?.id ?? ""); if (opcion) cambiarEventoSesionId("") }} />
-                        </>}
+                        {!usarColaFocus && <SelectorOrigenRegistro valor={origenSesion} onChange={cambiarOrigenSesion} eventos={eventos} tareas={tareas} categorias={categorias} ordenEventos={ordenEventos} cambiarOrdenEventos={cambiarOrdenEventos} />}
                         <label>Pares de bloques
                             <select value={pares} onChange={evento => cambiarPares(Number(evento.target.value))}>
                                 {Array.from({ length: 8 }, (_, indice) => <option key={indice + 1} value={indice + 1}>{indice + 1}</option>)}
@@ -386,8 +366,8 @@ export function VistaFocus({ estadoRegistro, eventos = [], tareas = [], categori
                                     <label>Nombre para guardar plantilla
                                         <input value={nombrePlantilla} onChange={evento => cambiarNombrePlantilla(evento.target.value)} placeholder="Ej.: Lectura y pausas" maxLength={80} />
                                     </label>
-                                    <button type="button" className="focus-boton-secundario" onClick={guardarPlantilla} disabled={!nombrePlantilla.trim()}>Guardar plantilla</button>
-                                    <button type="button" className="focus-accion-principal" onClick={iniciarSesion} disabled={!datos.ok || totalMinutos > 1440 || (!usarColaFocus && Boolean(eventoSesionId) === Boolean(tareaSesionId)) || (usarColaFocus && colaFocus.length === 0)}>Iniciar sesión Focus</button>
+                                    <button type="button" className="focus-boton-secundario" onClick={guardarPlantilla} disabled={!nombrePlantilla.trim() || origenSesion.tipo === "puntual"}>Guardar plantilla</button>
+                                    <button type="button" className="focus-accion-principal" onClick={iniciarSesion} disabled={!datos.ok || totalMinutos > 1440 || (!usarColaFocus && (!origenSesion.tipo || (origenSesion.tipo === "puntual" ? !origenSesion.nombre.trim() : origenSesion.tipo === "evento" ? !origenSesion.eventoId : !origenSesion.tareaId))) || (usarColaFocus && colaFocus.length === 0)}>Iniciar sesión Focus</button>
                                 </div>
                             )}
                         </div>

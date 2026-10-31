@@ -260,7 +260,6 @@ export function EditorPlantillaCalendario({ plantilla = null, eventos, tareas = 
 }
 
 function EditorPlantillaCronometro({ plantilla, eventos, tareas = [], categorias = [], ordenEventos = "ultimo-uso", cambiarOrdenEventos = () => {}, plantillasFocus = [], onGuardar, onCancelar }) {
-    const crearGrupo = (actividades = []) => Math.max(-1, ...actividades.map(item => item.grupoCronometro ?? -1)) + 1
     const [nombre, cambiarNombre] = useState(plantilla?.nombre ?? "")
     const [actividades, cambiarActividades] = useState(() => {
         if (plantilla?.modo === "cronometro") return plantilla.actividades.map(item => ({ ...item }))
@@ -287,24 +286,31 @@ function EditorPlantillaCronometro({ plantilla, eventos, tareas = [], categorias
     function agregarSiguiente(id) {
         const seleccionado = actividades.find(item => item.id === id)
         if (!seleccionado) return
-        cambiarActividades(actuales => [...actuales, { id: globalThis.crypto.randomUUID(), nombre: "", eventoId: null, tareaId: null, grupoCronometro: crearGrupo(actuales) }])
+        cambiarActividades(actuales => {
+            const gruposActuales = [...new Set(actuales.map(item => item.grupoCronometro))].sort((a, b) => a - b)
+            const indiceSeleccionado = gruposActuales.indexOf(seleccionado.grupoCronometro)
+            if (indiceSeleccionado < 0) return actuales
+            const gruposNormalizados = new Map(gruposActuales.map((grupo, indice) => [grupo, indice]))
+            return [
+                ...actuales.map(item => {
+                    const indice = gruposNormalizados.get(item.grupoCronometro)
+                    return { ...item, grupoCronometro: indice > indiceSeleccionado ? indice + 1 : indice }
+                }),
+                { id: globalThis.crypto.randomUUID(), nombre: "", eventoId: null, tareaId: null, grupoCronometro: indiceSeleccionado + 1 }
+            ]
+        })
     }
     function agregarParalelo(grupo) {
         cambiarActividades(actuales => [...actuales, { id: globalThis.crypto.randomUUID(), nombre: "", eventoId: null, tareaId: null, grupoCronometro: grupo }])
     }
-    function mover(id, delta) {
-        const ordenados = [...actividades]
-        const indice = ordenados.findIndex(item => item.id === id)
+    function moverGrupo(grupo, delta) {
+        const gruposActuales = [...new Set(actividades.map(item => item.grupoCronometro))].sort((a, b) => a - b)
+        const indice = gruposActuales.indexOf(grupo)
         const destino = indice + delta
-        if (destino < 0 || destino >= ordenados.length) return
-        ;[ordenados[indice], ordenados[destino]] = [ordenados[destino], ordenados[indice]]
-        const mapa = new Map()
-        let siguiente = 0
-        const normalizados = ordenados.map(item => {
-            if (!mapa.has(item.grupoCronometro)) mapa.set(item.grupoCronometro, siguiente++)
-            return { ...item, grupoCronometro: mapa.get(item.grupoCronometro) }
-        })
-        cambiarActividades(normalizados)
+        if (indice < 0 || destino < 0 || destino >= gruposActuales.length) return
+        ;[gruposActuales[indice], gruposActuales[destino]] = [gruposActuales[destino], gruposActuales[indice]]
+        const indices = new Map(gruposActuales.map((valor, orden) => [valor, orden]))
+        cambiarActividades(actuales => actuales.map(item => ({ ...item, grupoCronometro: indices.get(item.grupoCronometro) })))
     }
     function quitar(id) {
         const restantes = actividades.filter(item => item.id !== id)
@@ -336,7 +342,14 @@ function EditorPlantillaCronometro({ plantilla, eventos, tareas = [], categorias
         <div className="editor-secuencias-acciones"><p>Agregá eventos a la misma etapa para iniciarlos juntos o por separado; la etapa siguiente se puede iniciar aunque estos sigan activos.</p></div>
         <div className="editor-secuencias" aria-label="Eventos secuenciales">
             {grupos.map((grupo, indiceGrupo) => <section className="editor-secuencia" key={grupo} aria-label={`Etapa ${indiceGrupo + 1}`}>
-                <h4>Etapa {indiceGrupo + 1}{actividades.filter(item => item.grupoCronometro === grupo).length > 1 ? " · eventos paralelos" : ""}</h4>
+                <header className="editor-cronometro-etapa-header">
+                    <h4>Etapa {indiceGrupo + 1}{actividades.filter(item => item.grupoCronometro === grupo).length > 1 ? " · eventos paralelos" : ""}</h4>
+                    <div className="editor-secuencia-reordenar">
+                        <button type="button" onClick={() => moverGrupo(grupo, -1)} disabled={indiceGrupo === 0}>Subir etapa</button>
+                        <button type="button" onClick={() => moverGrupo(grupo, 1)} disabled={indiceGrupo === grupos.length - 1}>Bajar etapa</button>
+                        <button type="button" onClick={() => agregarSiguiente(actividades.find(item => item.grupoCronometro === grupo)?.id)}>Agregar etapa siguiente</button>
+                    </div>
+                </header>
                 <div className="editor-cronometro-eventos">
                 {actividades.filter(item => item.grupoCronometro === grupo).map((actividad, indice) => <fieldset className="editor-plantilla-actividad" key={actividad.id}>
                     <legend>Evento {indice + 1}</legend>
@@ -347,7 +360,7 @@ function EditorPlantillaCronometro({ plantilla, eventos, tareas = [], categorias
                     <SelectorOrigenActividad tipo="tarea" etiqueta="Tarea" opciones={tareas} value={actividad.tareaId ?? ""} missingName={actividad.tareaNombre ?? actividad.nombre} disabled={Boolean(actividad.eventoId)} onChange={opcion => actualizar(actividad.id, { tareaId: opcion?.id ?? null, tareaNombre: opcion?.nombre, eventoId: opcion ? null : actividad.eventoId, ...(opcion ? { nombre: opcion.nombre } : {}) })} />
                     {actividad.tipoActividad !== "focus" && <label>Nombre<input aria-label="Nombre" value={eventos.find(item => item.id === actividad.eventoId)?.nombre ?? tareas.find(item => item.id === actividad.tareaId)?.nombre ?? ""} placeholder="Se completa al elegir el origen" disabled readOnly /></label>}
                     </>}
-                    <div className="editor-secuencia-reordenar"><button type="button" onClick={() => mover(actividad.id, -1)} disabled={actividades[0]?.id === actividad.id}>Subir</button><button type="button" onClick={() => mover(actividad.id, 1)} disabled={actividades.at(-1)?.id === actividad.id}>Bajar</button><button type="button" onClick={() => agregarSiguiente(actividad.id)}>Agregar etapa siguiente</button><button type="button" onClick={() => agregarParalelo(grupo)}>Agregar en paralelo</button><button type="button" disabled={actividades.length <= 2} onClick={() => quitar(actividad.id)}>Quitar evento</button></div>
+                    <div className="editor-secuencia-reordenar"><button type="button" onClick={() => agregarParalelo(grupo)}>Agregar en paralelo</button><button type="button" disabled={actividades.length <= 2} onClick={() => quitar(actividad.id)}>Quitar evento</button></div>
                 </fieldset>)}
                 </div>
             </section>)}

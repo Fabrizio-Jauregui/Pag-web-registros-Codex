@@ -110,7 +110,7 @@ export function HistorialRegistros({
             ) : datosDisponibles && (
                 <ol className="lista-historial">
                     {registrosOrdenados.map(registro => (
-                        <FilaHistorial key={registro.id} registro={registro} ahora={ahora} tareas={tareas} onEditar={cambiarRegistroEditando} onEliminar={eliminar} />
+                        <FilaHistorial key={registro.id} registro={registro} ahora={ahora} tareas={tareas} categorias={categorias} onEditar={cambiarRegistroEditando} onEliminar={eliminar} />
                     ))}
                 </ol>
             )}

@@ -7,8 +7,12 @@ export function ProveedorReloj({ activo, children }) {
     useEffect(() => {
         if (!activo) return undefined
 
+        const refresco = setTimeout(() => cambiarAhora(new Date()), 0)
         const intervalo = setInterval(() => cambiarAhora(new Date()), 1000)
-        return () => clearInterval(intervalo)
+        return () => {
+            clearTimeout(refresco)
+            clearInterval(intervalo)
+        }
     }, [activo])
 
     return <ContextoReloj.Provider value={ahora}>{children}</ContextoReloj.Provider>

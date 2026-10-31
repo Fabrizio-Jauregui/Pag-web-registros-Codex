@@ -1,12 +1,12 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { actualizarTarea, cambiarDestinoTarea, cambiarEstadoRama, crearObjetivo, crearTarea, descendientesDe, eliminarTarea, ESTADOS_TAREA, moverTareaEnArbol, moverTareaEnCola, obtenerRutaTarea, posponerTareaEnCola, sincronizarEstadoTareasFocus, validarTarea } from "./tareas.js"
+import { actualizarTarea, cambiarDestinoTarea, cambiarEstadoRama, crearObjetivo, crearTarea, descendientesDe, eliminarTarea, ESTADOS_TAREA, moverTareaEnArbol, moverTareaEnCola, moverTareaEnBacklog, obtenerRutaTarea, ordenarTareasBacklog, ordenarTareasFocus, posponerTareaEnCola, sincronizarEstadoTareasFocus, validarTarea } from "./tareas.js"
 
 const fecha = () => new Date("2026-10-18T12:00:00.000Z")
 
-test("crea una tarea normalizada con estado e identidad", () => {
+test("crea una tarea normalizada con estado, destino e identidad", () => {
     const resultado = crearTarea(" Leer ", "Pendiente", () => "tarea-1", fecha)
-    assert.deepEqual(resultado, { ok: true, tarea: { id: "tarea-1", tipo: "tarea", nombre: "Leer", estado: "Pendiente", destino: "backlog", ordenFocus: null, objetivoId: null, padreId: null, ordenArbol: 1, creadaEn: "2026-10-18T12:00:00.000Z", actualizadaEn: "2026-10-18T12:00:00.000Z" } })
+    assert.deepEqual(resultado, { ok: true, tarea: { id: "tarea-1", tipo: "tarea", nombre: "Leer", estado: "Pendiente", destino: "backlog", ordenFocus: null, ordenBacklog: 1, objetivoId: null, padreId: null, ordenArbol: 1, creadaEn: "2026-10-18T12:00:00.000Z", actualizadaEn: "2026-10-18T12:00:00.000Z" } })
 })
 
 test("valida nombre y estados permitidos", () => {
@@ -99,4 +99,22 @@ test("reordena tareas entre hermanas sin cambiar la cola Focus", () => {
     const resultado = moverTareaEnArbol(tareas, "b", -1)
     assert.deepEqual(resultado.tareas.filter(item => item.tipo !== "objetivo").sort((a, b) => a.ordenArbol - b.ordenArbol).map(item => item.id), ["b", "a"])
     assert.deepEqual(resultado.tareas.filter(item => item.tipo !== "objetivo").sort((a, b) => a.ordenFocus - b.ordenFocus).map(item => item.id), ["a", "b"])
+})
+
+test("ordena Backlog de forma independiente del árbol y agrega al final al cambiar de destino", () => {
+    const primera = crearTarea("A", "Pendiente", () => "a", fecha).tarea
+    const segunda = crearTarea("B", "Pendiente", () => "b", fecha, "backlog", null, { ordenBacklog: 2 }).tarea
+    const tercera = crearTarea("C", "Pendiente", () => "c", fecha, "focus", 1).tarea
+    const reordenadas = moverTareaEnBacklog([primera, segunda, tercera], "b", -1)
+    assert.deepEqual(reordenadas.tareas.filter(item => item.destino === "backlog").sort((a, b) => a.ordenBacklog - b.ordenBacklog).map(item => item.id), ["b", "a"])
+    assert.deepEqual(reordenadas.tareas.filter(item => item.destino === "backlog").sort((a, b) => a.ordenArbol - b.ordenArbol).map(item => item.id), ["a", "b"])
+    const aBacklog = cambiarDestinoTarea(reordenadas.tareas, "c", "backlog")
+    assert.equal(aBacklog.tareas.find(item => item.id === "c").ordenBacklog, 3)
+    assert.equal(ordenarTareasBacklog(aBacklog.tareas, ["c", "b", "a"]).ok, true)
+})
+
+test("la ordenación completa de Focus mantiene fija la tarea activa", () => {
+    const tareas = ["a", "b", "c"].map((id, indice) => crearTarea(id, "Pendiente", () => id, fecha, "focus", indice + 1).tarea)
+    assert.equal(ordenarTareasFocus(tareas, ["a", "c", "b"], "a").ok, true)
+    assert.equal(ordenarTareasFocus(tareas, ["b", "a", "c"], "a").ok, false)
 })

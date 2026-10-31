@@ -40,7 +40,7 @@ export function AnaliticaRegistros({ registros = [], eventos = [], categorias = 
     const grupos = agruparPor === "categoria"
         ? analitica.porCategoria
         : agruparPor === "tarea" ? analitica.porTarea : analitica.porEvento
-    const etiquetaAgrupamiento = agruparPor === "categoria" ? "categoría" : agruparPor === "tarea" ? "tarea" : "evento"
+    const etiquetaAgrupamiento = agruparPor === "categoria" ? "categoría" : agruparPor === "tarea" ? "tarea" : "actividad"
     const mayorDuracion = Math.max(0, ...grupos.map(grupo => grupo.segundos))
     const fechaVisible = !rango
         ? ""
@@ -92,7 +92,7 @@ export function AnaliticaRegistros({ registros = [], eventos = [], categorias = 
             <label className="analitica-selector-agrupamiento">
                 <span>Mostrar tiempo por</span>
                 <select value={agruparPor} onChange={evento => cambiarAgrupamiento(evento.target.value)}>
-                    <option value="evento">Evento</option>
+                    <option value="evento">Actividad</option>
                     <option value="tarea">Tarea</option>
                     <option value="categoria" disabled={!categoriasDisponibles}>Categoría</option>
                 </select>
@@ -134,7 +134,7 @@ export function AnaliticaRegistros({ registros = [], eventos = [], categorias = 
                                         const proporcion = (grupo.segundos / mayorDuracion) * 100
                                         const idGrupo = agruparPor === "categoria"
                                             ? grupo.categoriaId ?? "sin-categoria"
-                                            : agruparPor === "tarea" ? grupo.tareaId ?? "sin-tarea" : grupo.eventoId ?? "sin-evento"
+                                            : agruparPor === "tarea" ? grupo.tareaId ?? "sin-tarea" : grupo.key ?? grupo.eventoId ?? "sin-evento"
                                         return (
                                             <li className="analitica-fila-evento" key={idGrupo}>
                                                 <div className="analitica-evento-etiqueta">

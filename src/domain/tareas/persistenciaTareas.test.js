@@ -7,7 +7,7 @@ function crearAlmacen(datos = {}) {
 }
 
 const tarea = { id: "tarea-1", nombre: "Leer", estado: "Pendiente", creadaEn: "2026-10-18T12:00:00.000Z", actualizadaEn: "2026-10-18T12:00:00.000Z" }
-const normalizada = { ...tarea, tipo: "tarea", objetivoId: null, padreId: null, ordenArbol: 1, destino: "backlog", ordenFocus: null }
+const normalizada = { ...tarea, tipo: "tarea", objetivoId: null, padreId: null, ordenArbol: 1, destino: "backlog", ordenFocus: null, ordenBacklog: 1 }
 
 test("carga una lista vacía y guarda y recupera tareas", () => {
     const almacen = crearAlmacen()

@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { useReloj } from "../../app/useReloj.js"
 import { formatearFechaISO } from "../../domain/tiempo/FechaCalendario.js"
 import { BloqueRegistro } from "./BloqueRegistro.jsx"
 import { BloquePlan } from "./BloquePlan.jsx"
@@ -27,6 +28,7 @@ export function VistaCalendarioSemana({
     idAplicacionArmada = null,
     planActivoSeguimientoId = null
 }) {
+    const reloj = useReloj()
     const [formatoMovil, cambiarFormatoMovil] = useState("agenda")
     const actividadesPorDia = fragmentosSemana.map(columna => {
         const actividades = [
@@ -130,6 +132,12 @@ export function VistaCalendarioSemana({
                             data-fecha={columna.fecha}
                             key={columna.fecha}
                         >
+                            {columna.fecha === `${reloj.getFullYear()}-${String(reloj.getMonth() + 1).padStart(2, "0")}-${String(reloj.getDate()).padStart(2, "0")}` && <time
+                                className="linea-hora-actual"
+                                dateTime={reloj.toISOString()}
+                                aria-label={`Hora actual: ${formatoHora.format(reloj)}`}
+                                style={{ top: `${((reloj.getHours() * 3600 + reloj.getMinutes() * 60 + reloj.getSeconds()) / 86400) * 100}%` }}
+                            ><span>Ahora · {formatoHora.format(reloj)}</span></time>}
                             {columna.fragmentos.map(fragmento => (
                                 <BloqueRegistro
                                     key={fragmento.id}

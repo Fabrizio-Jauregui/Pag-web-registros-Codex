@@ -33,6 +33,12 @@
 .tarea-estado-control{display:grid;gap:4px;color:#64748b;font-size:.78rem}
 .tarea-acciones{justify-content:flex-end}.tarea-boton-pliegue{white-space:nowrap}
 .dialogo-rama-fondo{position:fixed;z-index:1000;inset:0;display:grid;place-items:center;padding:20px;background:rgb(15 23 42 / 55%)}
+.selector-ubicacion-tarea{width:100%;text-align:left}
+.selector-ubicacion-fondo{position:fixed;z-index:1700;inset:0;display:grid;place-items:center;padding:18px;background:rgb(15 23 42 / 58%)}
+.selector-ubicacion-dialogo{display:flex;flex-direction:column;gap:12px;width:min(100%,560px);max-height:88dvh;padding:18px;border:1px solid #cbd5e1;border-radius:16px;background:#fff;box-shadow:0 24px 80px rgb(15 23 42 / 30%)}
+.selector-ubicacion-dialogo header,.selector-ubicacion-ruta,.selector-ubicacion-fila{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.selector-ubicacion-dialogo header h3{margin:0}.selector-ubicacion-dialogo label{display:grid;gap:5px}.selector-ubicacion-dialogo input{width:100%}
+.selector-ubicacion-ruta{justify-content:flex-start;color:#475569}.selector-ubicacion-lista{display:grid;gap:7px;min-height:0;overflow:auto;overscroll-behavior:contain}.selector-ubicacion-fila>button{min-height:44px}.selector-ubicacion-fila .selector-ubicacion-elegir{display:grid;flex:1;text-align:left}.selector-ubicacion-elegir small{color:#64748b}.selector-ubicacion-dialogo footer{padding-top:8px;border-top:1px solid #e2e8f0}
 .dialogo-rama{width:min(100%,520px);padding:22px;border:1px solid #cbd5e1;border-radius:16px;background:#fff;box-shadow:0 24px 80px rgb(15 23 42 / 25%)}
 .dialogo-rama h3{margin:0 0 10px}.dialogo-rama p{color:#475569;line-height:1.5}.dialogo-rama .tarea-acciones-formulario{margin-top:18px}
 html[data-tema="oscuro"] .biblioteca-tareas{border-color:#344158;background:#151d2e}
@@ -45,5 +51,47 @@ html[data-tema="oscuro"] .tarea-fila{border-color:#46536c;background:#202d43}
 html[data-tema="oscuro"] .tareas-hijas{border-color:#46536c}
 html[data-tema="oscuro"] .dialogo-rama{border-color:#46536c;background:#1b263a}
 html[data-tema="oscuro"] .dialogo-rama p{color:#cbd5e1}
+html[data-tema="oscuro"] .selector-ubicacion-dialogo{border-color:#46536c;background:#1b263a;color:#edf2fb}html[data-tema="oscuro"] .selector-ubicacion-elegir small,html[data-tema="oscuro"] .selector-ubicacion-ruta{color:#b6c2d4}
+.selector-vista-tareas{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 18px;padding:4px;border:1px solid #cbd5e1;border-radius:11px;background:#f1f5f9;width:max-content;max-width:100%}
+.selector-vista-tareas button{min-height:36px;border-color:transparent;background:transparent}
+.selector-vista-tareas button[aria-pressed="true"]{border-color:#cbd5e1;background:#fff;box-shadow:0 1px 3px rgb(15 23 42 / 10%);font-weight:650}
+.tareas-vista-estado,.tareas-vista-orden{display:grid;gap:16px;min-width:0}
+.tablero-estados-columnas{display:grid;grid-template-columns:repeat(4,minmax(210px,1fr));gap:12px;overflow-x:auto;padding-bottom:6px}
+.tablero-estado-columna,.tablero-orden-columna{display:grid;align-content:start;gap:10px;min-width:0;min-height:220px;padding:12px;border:1px solid #cbd5e1;border-radius:12px;background:#f8fafc}
+.tablero-estado-columna>header,.tablero-orden-columna>header{display:flex;align-items:center;justify-content:space-between;gap:8px;padding-bottom:8px;border-bottom:1px solid #dbe3ee}
+.tablero-estado-columna>header h3,.tablero-orden-columna>header h3{font-size:1rem}
+.tablero-estado-columna>header span,.tablero-orden-columna>header>span{display:grid;place-items:center;min-width:27px;height:27px;padding:0 6px;border-radius:999px;background:#e2e8f0;color:#334155;font-size:.8rem;font-weight:700}
+.tablero-estado-lista,.tablero-orden-lista{display:grid;align-content:start;gap:8px;min-height:150px}
+.tarea-tarjeta-estado,.tarea-tarjeta-orden,.tareas-en-curso li,.tareas-fuera-cola article{display:grid;gap:7px;min-width:0;padding:11px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;color:#172033}
+.tarea-tarjeta-estado,.tarea-tarjeta-orden{cursor:grab}
+.tarea-tarjeta-estado:active,.tarea-tarjeta-orden:active{cursor:grabbing}
+.tarea-tarjeta-activa{border-color:#4f46e5;box-shadow:0 0 0 2px rgb(79 70 229 / 12%);cursor:not-allowed}
+.tarea-tarjeta-estado strong,.tarea-tarjeta-orden strong,.tareas-en-curso strong,.tareas-fuera-cola strong{overflow-wrap:anywhere}
+.tarea-tarjeta-estado small,.tarea-tarjeta-orden small,.tareas-en-curso small,.tareas-fuera-cola small{color:#64748b;font-size:.8rem;overflow-wrap:anywhere}
+.tarea-tarjeta-ruta{line-height:1.4}
+.tarea-tarjeta-estado label{display:grid;gap:4px;color:#64748b;font-size:.8rem}
+.tarea-tarjeta-estado select{min-height:36px;padding:5px 8px}
+.tareas-en-curso{display:grid;grid-template-columns:minmax(150px,.4fr) minmax(0,1fr);align-items:center;gap:12px;padding:12px 14px;border:1px solid #a5b4fc;border-radius:12px;background:#eef2ff}
+.tareas-en-curso h3{font-size:1rem}.tareas-en-curso p{margin:4px 0 0;color:#475569;font-size:.85rem}
+.tareas-en-curso ul{display:flex;flex-wrap:wrap;gap:8px;margin:0;padding:0;list-style:none}
+.tareas-en-curso li{min-width:min(100%,200px);padding:8px 10px}
+.tareas-en-curso li small,.tareas-fuera-cola article small{display:block;margin-top:3px}
+.tareas-vista-orden{grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}
+.tablero-orden-columna>header>div{min-width:0}.tablero-orden-columna>header p{margin:4px 0 0;color:#64748b;font-size:.82rem;line-height:1.4}
+.tarea-tarjeta-orden{grid-template-columns:minmax(0,1fr) auto;align-items:center}
+.tarea-tarjeta-orden-datos{display:grid;gap:4px;min-width:0}
+.tarea-tarjeta-orden-acciones{display:flex;align-items:center;flex-wrap:wrap;justify-content:flex-end;gap:4px}
+.tarea-tarjeta-orden-acciones button{min-height:34px;padding:4px 8px}
+.tareas-fuera-cola{display:grid;gap:7px;margin-top:4px;padding-top:10px;border-top:1px solid #cbd5e1}
+.tareas-fuera-cola h4,.tareas-fuera-cola p{margin:0}.tareas-fuera-cola h4{font-size:.9rem}.tareas-fuera-cola p{color:#64748b;font-size:.8rem;line-height:1.4}
+html[data-tema="oscuro"] .selector-vista-tareas{border-color:#46536c;background:#202b40}
+html[data-tema="oscuro"] .selector-vista-tareas button[aria-pressed="true"]{border-color:#46536c;background:#151d2e}
+html[data-tema="oscuro"] .tablero-estado-columna,html[data-tema="oscuro"] .tablero-orden-columna{border-color:#46536c;background:#1b263a}
+html[data-tema="oscuro"] .tablero-estado-columna>header,html[data-tema="oscuro"] .tablero-orden-columna>header,html[data-tema="oscuro"] .tareas-fuera-cola{border-color:#46536c}
+html[data-tema="oscuro"] .tablero-estado-columna>header span,html[data-tema="oscuro"] .tablero-orden-columna>header>span{background:#334155;color:#e2e8f0}
+html[data-tema="oscuro"] .tarea-tarjeta-estado,html[data-tema="oscuro"] .tarea-tarjeta-orden,html[data-tema="oscuro"] .tareas-en-curso li,html[data-tema="oscuro"] .tareas-fuera-cola article{border-color:#46536c;background:#202d43;color:#edf2fb}
+html[data-tema="oscuro"] .tarea-tarjeta-estado small,html[data-tema="oscuro"] .tarea-tarjeta-orden small,html[data-tema="oscuro"] .tareas-en-curso small,html[data-tema="oscuro"] .tareas-fuera-cola small,html[data-tema="oscuro"] .tablero-orden-columna>header p,html[data-tema="oscuro"] .tareas-fuera-cola p{color:#b6c2d4}
+html[data-tema="oscuro"] .tareas-en-curso{border-color:#4f46e5;background:#202b40}
+html[data-tema="oscuro"] .tareas-en-curso p{color:#cbd5e1}
 @media(max-width:900px){.tarea-fila{grid-template-columns:minmax(0,1fr) minmax(120px,160px)}.tarea-acciones{grid-column:1/-1;justify-content:flex-start}}
-@media(max-width:700px){.biblioteca-tareas{padding:18px 14px}.biblioteca-tareas-header{align-items:stretch;flex-direction:column}.tareas-acciones-cabecera{display:grid;grid-template-columns:1fr 1fr}.formulario-tarea{grid-template-columns:1fr;padding:14px}.tarea-fila{grid-template-columns:minmax(0,1fr);gap:10px}.tarea-acciones{grid-column:auto;justify-content:flex-start}.tarea-estado-control{max-width:none}.tareas-hijas{margin-left:10px;padding-left:8px}.dialogo-rama .tarea-acciones-formulario{display:grid}.dialogo-rama .tarea-acciones-formulario button{width:100%}}
+@media(max-width:700px){.biblioteca-tareas{padding:18px 14px}.biblioteca-tareas-header{align-items:stretch;flex-direction:column}.tareas-acciones-cabecera{display:grid;grid-template-columns:1fr 1fr}.formulario-tarea{grid-template-columns:1fr;padding:14px}.tarea-fila{grid-template-columns:minmax(0,1fr);gap:10px}.tarea-acciones{grid-column:auto;justify-content:flex-start}.tarea-estado-control{max-width:none}.tareas-hijas{margin-left:10px;padding-left:8px}.dialogo-rama .tarea-acciones-formulario{display:grid}.dialogo-rama .tarea-acciones-formulario button{width:100%}.selector-ubicacion-fondo{align-items:end;padding:0}.selector-ubicacion-dialogo{width:100%;max-height:92dvh;padding:16px 14px calc(14px + env(safe-area-inset-bottom));border-radius:18px 18px 0 0}.selector-vista-tareas{width:100%;display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}.selector-vista-tareas button{padding:6px}.tablero-estados-columnas{grid-auto-flow:column;grid-auto-columns:minmax(78vw,1fr);grid-template-columns:none;scroll-snap-type:x mandatory;overscroll-behavior-x:contain}.tablero-estado-columna{scroll-snap-align:start}.tareas-vista-orden{grid-template-columns:minmax(0,1fr)}.tareas-en-curso{grid-template-columns:1fr}.tarea-tarjeta-orden{grid-template-columns:minmax(0,1fr)}.tarea-tarjeta-orden-acciones{justify-content:flex-start}}

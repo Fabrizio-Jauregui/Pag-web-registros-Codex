@@ -10,7 +10,7 @@ function formatearHora(instante) {
     })
 }
 
-function FilaHistorialContenido({ registro, ahora, tareas = [], onEditar, onEliminar }) {
+function FilaHistorialContenido({ registro, ahora, tareas = [], categorias = [], onEditar, onEliminar }) {
     const [expandido, cambiarExpandido] = useState(false)
     const inicio = registro.segmentos[0].inicio
     const fin = registro.segmentos.at(-1).fin
@@ -47,6 +47,7 @@ function FilaHistorialContenido({ registro, ahora, tareas = [], onEditar, onElim
                         <div><dt>Tiempo transcurrido</dt><dd>{formatearDuracion(resumen.transcurrido)}</dd></div>
                     </dl>
                     {registro.tareaId && <p className="historial-tarea">Tarea: <strong>{tarea?.rutaNombre ?? tarea?.nombre ?? registro.tareaNombre ?? "Tarea no disponible"}</strong></p>}
+                    {registro.origenPuntual === true && <p className="historial-tarea">Actividad puntual{registro.categoriaIds?.length ? <> · Categorías: <strong>{registro.categoriaIds.map(id => categorias.find(item => item.id === id)?.nombre).filter(Boolean).join(", ") || "Sin categoría disponible"}</strong></> : " · Sin categorías"}</p>}
                     <h4>Segmentos</h4>
                     <ol className="lista-segmentos">
                         {registro.segmentos.flatMap((segmento, indice) => {
@@ -84,13 +85,13 @@ function FilaHistorialContenido({ registro, ahora, tareas = [], onEditar, onElim
     )
 }
 
-function FilaHistorialEnVivo({ registro, tareas }) {
+function FilaHistorialEnVivo({ registro, tareas, categorias }) {
     const ahora = useReloj()
-    return <FilaHistorialContenido registro={registro} ahora={ahora} tareas={tareas} />
+    return <FilaHistorialContenido registro={registro} ahora={ahora} tareas={tareas} categorias={categorias} />
 }
 
-export function FilaHistorial({ registro, ahora, tareas = [], onEditar, onEliminar }) {
+export function FilaHistorial({ registro, ahora, tareas = [], categorias = [], onEditar, onEliminar }) {
     return registro.segmentos.at(-1).fin === null
-        ? <FilaHistorialEnVivo registro={registro} tareas={tareas} />
-        : <FilaHistorialContenido registro={registro} ahora={ahora} tareas={tareas} onEditar={onEditar} onEliminar={onEliminar} />
+        ? <FilaHistorialEnVivo registro={registro} tareas={tareas} categorias={categorias} />
+        : <FilaHistorialContenido registro={registro} ahora={ahora} tareas={tareas} categorias={categorias} onEditar={onEditar} onEliminar={onEliminar} />
 }

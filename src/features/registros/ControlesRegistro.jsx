@@ -1,68 +1,28 @@
-import { SelectorOrigenActividad } from "../comun/SelectorOrigenActividad.jsx"
+import { SelectorOrigenRegistro } from "../comun/SelectorOrigenRegistro.jsx"
 
 export function ControlesRegistro({
-    nombre,
-    cambiarNombre,
+    origen = {},
+    cambiarOrigen = () => {},
     eventos = [],
     categorias = [],
     tareas = [],
-    tareaId = "",
-    cambiarTareaId = () => {},
-    eventoId = "",
-    cambiarEventoId = () => {},
     estado,
     manejarPlay,
     manejarPause,
     manejarStop,
     puedeDetener,
     bloqueado = false,
-    idPrefix = "",
     ordenEventos = "ultimo-uso",
     cambiarOrdenEventos = () => {}
 }) {
-    const idNombre = idPrefix ? `${idPrefix}-nombre-registro` : "nombre-registro"
-    const sinOrigen = !eventoId && !tareaId
-    const eventoSeleccionado = eventos.find(item => item.id === eventoId)
-    const tareaSeleccionada = tareas.find(item => item.id === tareaId)
+    const sinOrigen = !origen.tipo || ((origen.tipo === "evento" && !origen.eventoId) || (origen.tipo === "tarea" && !origen.tareaId) || (origen.tipo === "puntual" && !origen.nombre?.trim()))
     return (
         <div className="controles-temporizador">
-            <label htmlFor={idNombre}>
-                <span>Nombre del registro</span>
-                <input
-                    id={idNombre}
-                    type="text"
-                    value={eventoSeleccionado?.nombre ?? tareaSeleccionada?.nombre ?? nombre}
-                    disabled
-                    onChange={e => cambiarNombre(e.target.value)}
-                />
-            </label>
-
-            <SelectorOrigenActividad
-                tipo="tarea"
-                etiqueta="Tarea"
-                opciones={tareas}
-                value={tareaId}
-                emptyLabel="Sin tarea"
-                disabled={estado !== "Inactivo" || bloqueado || Boolean(eventoId)}
-                onChange={opcion => cambiarTareaId(opcion?.id ?? "")}
-            />
-
-            <SelectorOrigenActividad
-                tipo="evento"
-                etiqueta="Plantilla de evento"
-                opciones={eventos}
-                categorias={categorias}
-                value={eventoId}
-                emptyLabel="Sin plantilla"
-                ordenEventos={ordenEventos}
-                cambiarOrdenEventos={cambiarOrdenEventos}
-                disabled={estado !== "Inactivo" || bloqueado || Boolean(tareaId)}
-                onChange={opcion => cambiarEventoId(opcion?.id ?? "")}
-            />
+            <SelectorOrigenRegistro valor={origen} onChange={cambiarOrigen} eventos={eventos} tareas={tareas} categorias={categorias} ordenEventos={ordenEventos} cambiarOrdenEventos={cambiarOrdenEventos} disabled={estado !== "Inactivo" || bloqueado} />
 
             {sinOrigen
-                ? <p className="ayuda-temporizador" role="status">Elegí una tarea o una plantilla de evento para iniciar el registro.</p>
-                : <p className="ayuda-temporizador" role="status">El registro se guardará con el nombre de la {eventoId ? "plantilla de evento" : "tarea"} seleccionada.</p>}
+                ? <p className="ayuda-temporizador" role="status">Elegí una plantilla, una tarea o nombrá una actividad puntual.</p>
+                : <p className="ayuda-temporizador" role="status">El registro conservará el nombre de la actividad elegida.</p>}
 
             <p className={`estado-temporizador estado-temporizador-${estado.toLowerCase().replaceAll(" ", "-")}`}>
                 Estado actual: <strong>{estado}</strong>

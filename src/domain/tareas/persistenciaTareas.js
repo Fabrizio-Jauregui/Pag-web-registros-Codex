@@ -18,6 +18,8 @@ function validarColeccion(tareas) {
             || (tarea.destino !== undefined && !DESTINOS_TAREA.includes(tarea.destino))
             || (tarea.ordenFocus !== undefined && tarea.ordenFocus !== null
                 && (!Number.isInteger(tarea.ordenFocus) || tarea.ordenFocus < 1))
+            || (tarea.ordenBacklog !== undefined && tarea.ordenBacklog !== null
+                && (!Number.isInteger(tarea.ordenBacklog) || tarea.ordenBacklog < 1))
             || (tarea.ordenArbol !== undefined && (!Number.isInteger(tarea.ordenArbol) || tarea.ordenArbol < 1))
             || (tarea.objetivoId !== undefined && tarea.objetivoId !== null && typeof tarea.objetivoId !== "string")
             || (tarea.padreId !== undefined && tarea.padreId !== null && typeof tarea.padreId !== "string")) return false
@@ -66,13 +68,18 @@ export function cargarTareas(almacenamiento = null) {
                 ordenArbol: tarea.ordenArbol ?? indice + 1,
                 destino: tarea.destino ?? "backlog",
                 estado: (tarea.destino ?? "backlog") === "backlog" && tarea.estado === "En curso" ? "Pendiente" : tarea.estado,
-                ordenFocus: tarea.destino === "focus" ? tarea.ordenFocus ?? null : null
+                ordenFocus: tarea.destino === "focus" ? tarea.ordenFocus ?? null : null,
+                ordenBacklog: (tarea.destino ?? "backlog") === "backlog" ? tarea.ordenBacklog ?? null : null
             })
         let siguienteOrden = 1
         const cola = normalizadas.filter(tarea => tarea.tipo !== "objetivo" && tarea.destino === "focus"
             && !["Completada", "Cancelada", "Boceto"].includes(tarea.estado))
             .sort((a, b) => (a.ordenFocus ?? Number.MAX_SAFE_INTEGER) - (b.ordenFocus ?? Number.MAX_SAFE_INTEGER))
         for (const tarea of cola) tarea.ordenFocus = siguienteOrden++
+        let siguienteOrdenBacklog = 1
+        const backlog = normalizadas.filter(tarea => tarea.tipo !== "objetivo" && tarea.destino === "backlog")
+            .sort((a, b) => (a.ordenBacklog ?? Number.MAX_SAFE_INTEGER) - (b.ordenBacklog ?? Number.MAX_SAFE_INTEGER))
+        for (const tarea of backlog) tarea.ordenBacklog = siguienteOrdenBacklog++
         return { ok: true, tareas: normalizadas }
     } catch { return { ok: false, error: "No se pudieron leer las tareas guardadas en este navegador." } }
 }

@@ -3,7 +3,7 @@ import { formatearInstante } from "../../domain/tiempo/historial.js"
 
 const opciones = { dateStyle: "full", timeStyle: "short" }
 
-export function DetallePlan({ plan, evento, onEditar, onEliminar, onEliminarAplicacion, onEliminarRecurrencia, onCerrar, onMoverAplicacion, onSeguirPlan, onIniciarSesionFocus, seguimientoActivo = false, planActivoSeguimiento = false }) {
+export function DetallePlan({ plan, evento, categorias = [], onEditar, onEliminar, onEliminarAplicacion, onEliminarRecurrencia, onCerrar, onMoverAplicacion, onSeguirPlan, onIniciarSesionFocus, seguimientoActivo = false, planActivoSeguimiento = false }) {
     const [mostrarOpcionesSeguimiento, cambiarMostrarOpcionesSeguimiento] = useState(false)
     const [errorSeguimiento, cambiarErrorSeguimiento] = useState("")
     const [errorFocus, cambiarErrorFocus] = useState("")
@@ -24,8 +24,9 @@ export function DetallePlan({ plan, evento, onEditar, onEliminar, onEliminarApli
             <header>
                 <div>
                     <h3 id="titulo-detalle-plan">Plan: {nombre}</h3>
-                    <p>{plan.tipoPlanificacion === "focus" ? "Sesión Focus planificada" : `Actividad planificada${evento ? ` · Evento: ${evento.nombre}` : plan.tareaId ? ` · Tarea: ${plan.tareaNombre ?? plan.nombre}` : ""}`}</p>
-                    {plan.tipoPlanificacion === "focus" && (plan.eventoId || plan.tareaId) && <p>Los períodos de concentración se registrarán como {evento?.nombre ?? plan.tareaNombre ?? plan.nombre}.</p>}
+                    <p>{plan.tipoPlanificacion === "focus" ? "Sesión Focus planificada" : `Actividad planificada${plan.origenPuntual ? " · Actividad puntual" : evento ? ` · Evento: ${evento.nombre}` : plan.tareaId ? ` · Tarea: ${plan.tareaNombre ?? plan.nombre}` : ""}`}</p>
+                    {plan.origenPuntual && <p>Categorías: {plan.categoriaIds?.length ? plan.categoriaIds.map(id => categorias.find(item => item.id === id)?.nombre).filter(Boolean).join(", ") || "Sin categoría disponible" : "Sin categorías"}</p>}
+                    {plan.tipoPlanificacion === "focus" && (plan.origenPuntual || plan.eventoId || plan.tareaId) && <p>Los períodos de concentración se registrarán como {plan.origenPuntual ? plan.nombre : evento?.nombre ?? plan.tareaNombre ?? plan.nombre}.</p>}
                 </div>
                 <button type="button" aria-label="Cerrar detalle del plan" onClick={onCerrar}>Cerrar</button>
             </header>

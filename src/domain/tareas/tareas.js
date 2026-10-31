@@ -128,7 +128,7 @@ export function crearTarea(nombre, estado = "Pendiente", generarId = () => globa
     if (!marcaTiempo) return { ok: false, error: "No se pudo registrar la fecha de creación de la tarea." }
     const objetivoId = ubicacion.objetivoId ?? null
     const padreId = ubicacion.padreId ?? objetivoId
-    return { ok: true, tarea: { id, tipo: "tarea", nombre: nombre.trim(), estado, destino, ordenFocus: destino === "focus" ? ordenFocus : null, objetivoId, padreId, ordenArbol: ubicacion.ordenArbol ?? 1, creadaEn: marcaTiempo, actualizadaEn: marcaTiempo } }
+    return { ok: true, tarea: { id, tipo: "tarea", nombre: nombre.trim(), estado, destino, ordenFocus: destino === "focus" ? ordenFocus : null, ordenBacklog: destino === "backlog" ? ubicacion.ordenBacklog ?? 1 : null, objetivoId, padreId, ordenArbol: ubicacion.ordenArbol ?? 1, creadaEn: marcaTiempo, actualizadaEn: marcaTiempo } }
 }
 
 export function actualizarTarea(tareas, id, cambios, ahora = () => new Date()) {
@@ -139,6 +139,7 @@ export function actualizarTarea(tareas, id, cambios, ahora = () => new Date()) {
     const error = validarTarea(nombre, estado)
     if (error) return { ok: false, error }
     const destino = cambios?.destino ?? tareas[indice].destino ?? "backlog"
+    const destinoAnterior = tareas[indice].destino ?? "backlog"
     const padreId = cambios?.padreId === undefined ? tareas[indice].padreId ?? tareas[indice].objetivoId ?? null : cambios.padreId
     const ubicacionValida = puedeAsignarPadre(tareas, id, padreId)
     if (!ubicacionValida.ok) return ubicacionValida
@@ -168,11 +169,16 @@ export function actualizarTarea(tareas, id, cambios, ahora = () => new Date()) {
     const ordenFocus = destino === "focus"
         ? mantieneOrden ? tareas[indice].ordenFocus ?? siguienteOrdenFocus(cola) : siguienteOrdenFocus(cola)
         : null
+    const backlog = tareas.filter(tarea => tarea.tipo !== "objetivo" && (tarea.destino ?? "backlog") === "backlog" && tarea.id !== id)
+    const ordenBacklog = destino === "backlog"
+        ? destinoAnterior === "backlog" ? tareas[indice].ordenBacklog ?? Math.max(0, ...backlog.map(tarea => tarea.ordenBacklog ?? 0)) + 1
+            : Math.max(0, ...backlog.map(tarea => tarea.ordenBacklog ?? 0)) + 1
+        : null
     const actualizadaEn = obtenerMarcaTiempo(ahora)
     if (!actualizadaEn) return { ok: false, error: "No se pudo registrar la fecha de actualización de la tarea." }
     const nuevasTareas = tareas.map(tarea => {
         if (!idsRama.has(tarea.id)) return tarea
-        if (tarea.id === id) return { ...tarea, nombre: nombre.trim(), estado, destino, ordenFocus, objetivoId, padreId, ordenArbol, actualizadaEn }
+        if (tarea.id === id) return { ...tarea, nombre: nombre.trim(), estado, destino, ordenFocus, ordenBacklog, objetivoId, padreId, ordenArbol, actualizadaEn }
         return tarea.tipo === "objetivo" ? tarea : { ...tarea, objetivoId }
     })
     return { ok: true, tareas: nuevasTareas }
@@ -218,7 +224,7 @@ export function eliminarTarea(tareas, id) {
     return { ok: true, tareas: tareas.filter(tarea => tarea.id !== id) }
 }
 
-export function ordenarTareasFocus(tareas, idsOrdenados) {
+export function ordenarTareasFocus(tareas, idsOrdenados, tareaActivaId = null) {
     if (!Array.isArray(idsOrdenados)) return { ok: false, error: "El orden de Cola Focus no es válido." }
     const focus = tareas.filter(tarea => tarea.destino === "focus" && !["Completada", "Cancelada", "Boceto"].includes(tarea.estado))
     const idsEsperados = new Set(focus.map(tarea => tarea.id))
@@ -226,11 +232,40 @@ export function ordenarTareasFocus(tareas, idsOrdenados) {
         || new Set(idsOrdenados).size !== idsOrdenados.length) {
         return { ok: false, error: "La lista reordenada no coincide con las tareas de Cola Focus." }
     }
+    if (tareaActivaId) {
+        const ordenActual = [...focus].sort((a, b) => (a.ordenFocus ?? Number.MAX_SAFE_INTEGER) - (b.ordenFocus ?? Number.MAX_SAFE_INTEGER))
+        if (ordenActual.findIndex(tarea => tarea.id === tareaActivaId) !== idsOrdenados.indexOf(tareaActivaId)) {
+            return { ok: false, error: "La tarea activa debe conservar su posición en Cola Focus." }
+        }
+    }
     const ordenes = new Map(idsOrdenados.map((id, indice) => [id, indice + 1]))
     return {
         ok: true,
         tareas: tareas.map(tarea => ordenes.has(tarea.id) ? { ...tarea, ordenFocus: ordenes.get(tarea.id) } : tarea)
     }
+}
+
+export function ordenarTareasBacklog(tareas, idsOrdenados) {
+    if (!Array.isArray(idsOrdenados)) return { ok: false, error: "El orden de Backlog no es válido." }
+    const backlog = tareas.filter(tarea => tarea.tipo !== "objetivo" && (tarea.destino ?? "backlog") === "backlog")
+    const idsEsperados = new Set(backlog.map(tarea => tarea.id))
+    if (idsOrdenados.length !== idsEsperados.size || idsOrdenados.some(id => !idsEsperados.has(id))
+        || new Set(idsOrdenados).size !== idsOrdenados.length) {
+        return { ok: false, error: "La lista reordenada no coincide con las tareas de Backlog." }
+    }
+    const ordenes = new Map(idsOrdenados.map((id, indice) => [id, indice + 1]))
+    return { ok: true, tareas: tareas.map(tarea => ordenes.has(tarea.id) ? { ...tarea, ordenBacklog: ordenes.get(tarea.id) } : tarea) }
+}
+
+export function moverTareaEnBacklog(tareas, id, direccion) {
+    if (![-1, 1].includes(direccion)) return { ok: false, error: "La dirección para reordenar Backlog no es válida." }
+    const backlog = tareas.filter(tarea => tarea.tipo !== "objetivo" && (tarea.destino ?? "backlog") === "backlog")
+        .sort((a, b) => (a.ordenBacklog ?? Number.MAX_SAFE_INTEGER) - (b.ordenBacklog ?? Number.MAX_SAFE_INTEGER))
+    const indice = backlog.findIndex(tarea => tarea.id === id)
+    const destinoIndice = indice + direccion
+    if (indice < 0 || destinoIndice < 0 || destinoIndice >= backlog.length) return { ok: false, error: "La tarea ya está en ese extremo de Backlog." }
+    ;[backlog[indice], backlog[destinoIndice]] = [backlog[destinoIndice], backlog[indice]]
+    return ordenarTareasBacklog(tareas, backlog.map(tarea => tarea.id))
 }
 
 export function cambiarDestinoTarea(tareas, id, destino) {
@@ -241,9 +276,11 @@ export function cambiarDestinoTarea(tareas, id, destino) {
     if (tarea.estado === "En curso" && destino !== "focus") return { ok: false, error: "Una tarea En curso debe permanecer en Cola Focus." }
     const focus = tareas.filter(item => item.destino === "focus" && !["Completada", "Cancelada", "Boceto"].includes(item.estado))
     const ordenFocus = destino === "focus" ? siguienteOrdenFocus(focus) : null
+    const backlog = tareas.filter(item => item.tipo !== "objetivo" && (item.destino ?? "backlog") === "backlog")
+    const ordenBacklog = destino === "backlog" ? Math.max(0, ...backlog.map(item => item.ordenBacklog ?? 0)) + 1 : null
     return {
         ok: true,
-        tareas: tareas.map(item => item.id === id ? { ...item, destino, ordenFocus } : item)
+        tareas: tareas.map(item => item.id === id ? { ...item, destino, ordenFocus, ordenBacklog } : item)
     }
 }
 

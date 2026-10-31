@@ -20,8 +20,13 @@ export function validarPlan(plan) {
     if (plan.tareaNombre !== undefined && (typeof plan.tareaNombre !== "string" || !plan.tareaNombre.trim())) return "El nombre de la tarea vinculada al plan no es válido."
     const tieneEvento = typeof plan.eventoId === "string" && plan.eventoId.trim() !== ""
     const tieneTarea = typeof plan.tareaId === "string" && plan.tareaId.trim() !== ""
-    if (tieneEvento === tieneTarea && (plan.tipoPlanificacion !== "focus" || !plan.configuracionFocus?.usarColaFocus)) {
-        return "El plan debe tener una plantilla de evento o una tarea como origen."
+    const puntual = plan.origenPuntual === true
+    if (puntual && (tieneEvento || tieneTarea || !Array.isArray(plan.categoriaIds)
+        || plan.categoriaIds.some(id => typeof id !== "string" || !id.trim()))) {
+        return "La actividad puntual del plan no tiene datos válidos."
+    }
+    if (!puntual && tieneEvento === tieneTarea && (plan.tipoPlanificacion !== "focus" || !plan.configuracionFocus?.usarColaFocus)) {
+        return "El plan debe tener una plantilla de evento, una tarea o una actividad puntual como origen."
     }
     if (plan.ordenSeguimiento !== undefined
         && (!Number.isInteger(plan.ordenSeguimiento) || plan.ordenSeguimiento < 0)) {
@@ -95,14 +100,18 @@ export function validarCompatibilidadPlanesFocus(planes, idsModificados) {
     return null
 }
 
-export function crearPlan({ nombre, evento = null, tarea = null, inicio, fin, ordenSeguimiento, tipoPlanificacion, configuracionFocus }, generarId = () => globalThis.crypto.randomUUID()) {
+export function crearPlan({ nombre, evento = null, tarea = null, actividadPuntual = null, inicio, fin, ordenSeguimiento, tipoPlanificacion, configuracionFocus }, generarId = () => globalThis.crypto.randomUUID()) {
+    const configuracionFocusFinal = tipoPlanificacion === "focus" && (evento || tarea || actividadPuntual)
+        ? { ...configuracionFocus, usarColaFocus: false, evento, tarea, actividadPuntual }
+        : configuracionFocus
     const plan = {
         id: "pendiente",
-        nombre: tipoPlanificacion === "focus" ? nombre : evento?.nombre ?? tarea?.nombre ?? nombre,
+        nombre: tipoPlanificacion === "focus" ? nombre : evento?.nombre ?? tarea?.nombre ?? actividadPuntual?.nombre ?? nombre,
         eventoId: evento?.id ?? null,
-        colorEvento: evento?.color ?? COLOR_PLAN_PREDETERMINADO,
+        colorEvento: evento?.color ?? (actividadPuntual ? null : COLOR_PLAN_PREDETERMINADO),
         ...(tarea ? { tareaId: tarea.id, tareaNombre: tarea.nombre } : {}),
-        ...(tipoPlanificacion === "focus" ? { tipoPlanificacion, configuracionFocus } : {}),
+        ...(actividadPuntual ? { origenPuntual: true, categoriaIds: [...new Set(actividadPuntual.categoriaIds ?? [])] } : {}),
+        ...(tipoPlanificacion === "focus" ? { tipoPlanificacion, configuracionFocus: configuracionFocusFinal } : {}),
         inicio,
         fin,
         ...(Number.isInteger(ordenSeguimiento) ? { ordenSeguimiento } : {})
@@ -137,24 +146,36 @@ export function compararPlanesPorSeguimiento(a, b) {
 export function actualizarPlan(planes, id, cambios) {
     const actual = planes.find(plan => plan.id === id)
     if (!actual) return { ok: false, error: "No se encontró el plan que querés editar." }
+    const actividadPuntual = Object.hasOwn(cambios, "actividadPuntual")
+        ? cambios.actividadPuntual
+        : actual.origenPuntual === true ? { nombre: actual.nombre, categoriaIds: actual.categoriaIds ?? [] } : null
     const inicio = cambios.inicio
     const duracionFocus = actual.tipoPlanificacion === "focus"
         ? actual.configuracionFocus.bloques.reduce((total, bloque) => total + bloque.minutos * 60 * 1000, 0)
         : null
     const plan = {
         ...actual,
-        nombre: actual.tipoPlanificacion === "focus" ? cambios.nombre : cambios.evento?.nombre ?? cambios.tarea?.nombre ?? cambios.nombre,
+        nombre: actual.tipoPlanificacion === "focus" ? cambios.nombre : cambios.evento?.nombre ?? cambios.tarea?.nombre ?? actividadPuntual?.nombre ?? cambios.nombre,
         eventoId: cambios.evento?.id ?? null,
-        colorEvento: cambios.evento?.color ?? COLOR_PLAN_PREDETERMINADO,
+        colorEvento: cambios.evento?.color ?? (actividadPuntual ? null : COLOR_PLAN_PREDETERMINADO),
         ...(cambios.tarea ? { tareaId: cambios.tarea.id, tareaNombre: cambios.tarea.nombre } : {}),
+        ...(actividadPuntual ? { origenPuntual: true, categoriaIds: [...new Set(actividadPuntual.categoriaIds ?? [])] } : {}),
         inicio,
         fin: duracionFocus === null ? cambios.fin : new Date(inicio.getTime() + duracionFocus),
-        ...(actual.tipoPlanificacion === "focus" ? { configuracionFocus: { ...actual.configuracionFocus, nombre: cambios.nombre?.trim() } } : {})
+        ...(actual.tipoPlanificacion === "focus" ? { configuracionFocus: {
+            ...actual.configuracionFocus,
+            nombre: cambios.nombre?.trim(),
+            usarColaFocus: actividadPuntual || cambios.evento || cambios.tarea ? false : actual.configuracionFocus.usarColaFocus,
+            evento: cambios.evento ?? null,
+            tarea: cambios.tarea ?? null,
+            actividadPuntual
+        } } : {})
     }
     if (!cambios.tarea || cambios.evento) {
         delete plan.tareaId
         delete plan.tareaNombre
     }
+    if (!actividadPuntual) { delete plan.origenPuntual; delete plan.categoriaIds }
     const error = validarPlan(plan)
     if (error) return { ok: false, error }
     return {

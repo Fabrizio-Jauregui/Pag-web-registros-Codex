@@ -7,7 +7,7 @@ function hora(instante) {
     return formatearInstante(instante, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
 }
 
-function DetalleRegistroContenido({ registro, ahora, tareas = [], onEditar, onEliminar, onCerrar }) {
+function DetalleRegistroContenido({ registro, ahora, tareas = [], categorias = [], onEditar, onEliminar, onCerrar }) {
     const resumen = obtenerResumenRegistro(registro, ahora)
     const tarea = tareas.find(item => item.id === registro.tareaId)
 
@@ -20,6 +20,7 @@ function DetalleRegistroContenido({ registro, ahora, tareas = [], onEditar, onEl
                         {formatearInstante(registro.segmentos[0].inicio, { dateStyle: "full" })}
                         {registro.eventoId && " · Vinculado a una plantilla de evento"}
                         {registro.tareaId && ` · Tarea: ${tarea?.rutaNombre ?? tarea?.nombre ?? registro.tareaNombre ?? "Tarea no disponible"}`}
+                        {registro.origenPuntual === true && ` · Actividad puntual${registro.categoriaIds?.length ? ` · Categorías: ${registro.categoriaIds.map(id => categorias.find(item => item.id === id)?.nombre).filter(Boolean).join(", ") || "Sin categoría disponible"}` : " · Sin categorías"}`}
                     </p>
                 </div>
                 <button type="button" onClick={onCerrar} aria-label="Cerrar detalle">Cerrar</button>
@@ -70,8 +71,8 @@ function DetalleRegistroEnVivo(props) {
     return <DetalleRegistroContenido {...props} ahora={ahora} />
 }
 
-export function DetalleRegistro({ registro, tareas = [], onEditar, onEliminar, onCerrar }) {
-    const props = { registro, tareas, onEditar, onEliminar, onCerrar }
+export function DetalleRegistro({ registro, tareas = [], categorias = [], onEditar, onEliminar, onCerrar }) {
+    const props = { registro, tareas, categorias, onEditar, onEliminar, onCerrar }
     return registro.segmentos.at(-1).fin === null
         ? <DetalleRegistroEnVivo {...props} />
         : <DetalleRegistroContenido {...props} ahora={new Date()} />

@@ -21,6 +21,15 @@
 .selector-origen-busqueda input,.selector-origen-orden select{width:100%;min-height:44px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:9px;background:#fff;color:#172033;font:inherit}
 .selector-origen-limpiar{min-height:42px;padding:8px 11px;border:1px dashed #94a3b8;border-radius:9px;background:#f8fafc;color:#334155;text-align:left;font:inherit;cursor:pointer}
 .selector-origen-lista{display:grid;flex:1;gap:7px;overflow:auto;overscroll-behavior:contain;min-height:0;padding:2px}
+.selector-origen-ruta{display:flex;align-items:center;gap:8px;min-height:38px;color:#475569;font-size:.86rem}
+.selector-origen-ruta button{min-height:36px;padding:5px 9px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:inherit;font:inherit;cursor:pointer;white-space:nowrap}
+.selector-origen-ruta button:disabled{opacity:.5;cursor:default}
+.selector-origen-opcion-rama{display:flex;align-items:stretch;gap:6px}
+.selector-origen-opcion-rama>.selector-origen-opcion{flex:1;width:auto}
+.selector-origen-opcion-rama>button{flex:0 0 48px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;color:#334155;font-size:1.5rem;cursor:pointer}
+.selector-origen-opcion-rama>button small{font-size:.68rem;vertical-align:middle}
+.selector-origen-opcion-objetivo>span{display:grid;align-content:center;gap:4px;min-width:0;flex:1;padding:9px 11px;border:1px solid #cbd5e1;border-radius:10px;background:#f8fafc;overflow-wrap:anywhere}
+.selector-origen-opcion-objetivo small{color:#64748b;font-size:.78rem}
 .selector-origen-opcion{display:flex;align-items:center;gap:11px;width:100%;min-height:58px;padding:9px 11px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;color:#172033;text-align:left;font:inherit;cursor:pointer}
 .selector-origen-opcion:hover,.selector-origen-opcion.activa{border-color:#6366f1;background:#eef2ff}
 .selector-origen-opcion-contenido{display:grid;gap:5px;min-width:0;flex:1}
@@ -32,6 +41,7 @@
 html[data-tema="oscuro"] .selector-origen-trigger,html[data-tema="oscuro"] .selector-origen-dialogo,html[data-tema="oscuro"] .selector-origen-cerrar,html[data-tema="oscuro"] .selector-origen-opcion,html[data-tema="oscuro"] .selector-origen-busqueda input,html[data-tema="oscuro"] .selector-origen-orden select{border-color:#3a465d;background:#1a2437;color:#e8edf5}
 html[data-tema="oscuro"] .selector-origen-trigger:hover:not(:disabled),html[data-tema="oscuro"] .selector-origen-opcion:hover,html[data-tema="oscuro"] .selector-origen-opcion.activa{border-color:#818cf8;background:#26304a}
 html[data-tema="oscuro"] .selector-origen-trigger-texto small,html[data-tema="oscuro"] .selector-origen-header p,html[data-tema="oscuro"] .selector-origen-vacio{color:#aab7ca}
+html[data-tema="oscuro"] .selector-origen-ruta button,html[data-tema="oscuro"] .selector-origen-opcion-rama>button{border-color:#3a465d;background:#1a2437;color:#e8edf5}html[data-tema="oscuro"] .selector-origen-opcion-objetivo>span{border-color:#3a465d;background:#202d43}html[data-tema="oscuro"] .selector-origen-opcion-objetivo small{color:#aab7ca}
 html[data-tema="oscuro"] .selector-origen-icono-tarea{border-color:#475569;background:#334155;color:#e2e8f0}
 html[data-tema="oscuro"] .selector-origen-limpiar{border-color:#475569;background:#111827;color:#d4dce8}
 html[data-tema="oscuro"] .selector-origen-categorias small,html[data-tema="oscuro"] .selector-origen-detalles-tarea small{background:#253148;color:#cbd5e1}

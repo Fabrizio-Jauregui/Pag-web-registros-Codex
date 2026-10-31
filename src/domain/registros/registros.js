@@ -20,6 +20,7 @@ function esFechaValida(fecha) {
 function validarRegistro(registro, ahora, permitirLimiteExcedido) {
     const tieneEvento = typeof registro?.eventoId === "string" && registro.eventoId.trim() !== ""
     const tieneTarea = typeof registro?.tareaId === "string" && registro.tareaId.trim() !== ""
+    const puntual = registro?.origenPuntual === true
     if (
         registro === null
         || typeof registro !== "object"
@@ -36,7 +37,13 @@ function validarRegistro(registro, ahora, permitirLimiteExcedido) {
         ))
         || (registro.eventoId === null && registro.colorEvento !== null)
         || (registro.eventoId !== null && registro.colorEvento === null)
-        || tieneEvento === tieneTarea
+        || (puntual
+            ? tieneEvento || tieneTarea
+                || typeof registro.nombre !== "string" || !registro.nombre.trim()
+                || !Array.isArray(registro.categoriaIds)
+                || registro.categoriaIds.some(id => typeof id !== "string" || !id.trim())
+            : tieneEvento === tieneTarea)
+        || (!puntual && registro.origenPuntual !== undefined)
         || (registro.tareaId !== undefined && registro.tareaId !== null
             && (typeof registro.tareaId !== "string" || registro.tareaId.trim() === ""))
         || (registro.tareaNombre !== undefined && registro.tareaNombre !== null
@@ -210,13 +217,20 @@ function datosDeTarea(tarea) {
     }
 }
 
-function obtenerNombre(evento, tarea) {
-    return evento?.nombre.trim() ?? tarea.nombre.trim()
+function obtenerNombre(evento, tarea, actividadPuntual = null, nombre = "") {
+    return evento?.nombre.trim() ?? tarea?.nombre.trim() ?? actividadPuntual?.nombre?.trim() ?? nombre.trim()
 }
 
-function validarOrigen(evento, tarea) {
-    if ((evento === null) === (tarea === null)) {
-        return "Elegí una plantilla de evento o una tarea para el registro."
+function validarOrigen(evento, tarea, actividadPuntual = null) {
+    const tienePuntual = actividadPuntual !== null
+    if (Number(Boolean(evento)) + Number(Boolean(tarea)) + Number(tienePuntual) !== 1) {
+        return "Elegí una plantilla de evento, una tarea o una actividad puntual."
+    }
+    if (tienePuntual && (typeof actividadPuntual.nombre !== "string" || !actividadPuntual.nombre.trim()
+        || actividadPuntual.nombre.trim().length > 80
+        || !Array.isArray(actividadPuntual.categoriaIds)
+        || actividadPuntual.categoriaIds.some(id => typeof id !== "string" || !id.trim()))) {
+        return "Ingresá un nombre válido para la actividad puntual."
     }
     return null
 }
@@ -258,7 +272,8 @@ export function iniciarRegistro(
 
     if (!validarTarea(tarea)) return { ok: false, error: "La tarea seleccionada no es válida." }
 
-    const errorOrigen = validarOrigen(evento, tarea)
+    const puntual = opciones.actividadPuntual ?? null
+    const errorOrigen = validarOrigen(evento, tarea, puntual)
     if (errorOrigen) return { ok: false, error: errorOrigen }
 
     if (planId !== null && (typeof planId !== "string" || planId.trim() === "")) {
@@ -281,11 +296,12 @@ export function iniciarRegistro(
 
     const registro = {
         id: identidad.id,
-        nombre: obtenerNombre(evento, tarea),
+        nombre: obtenerNombre(evento, tarea, puntual, nombre),
         ...datosDeEvento(evento),
         ...datosDeTarea(tarea),
         ...(planId ? { planId } : {}),
         ...(opciones.origenFocus ? { origenFocus: true } : {}),
+        ...(puntual ? { origenPuntual: true, categoriaIds: [...new Set(puntual.categoriaIds)] } : {}),
         estado: ESTADO_REGISTRO_EN_CURSO,
         motivoCancelacion: null,
         segmentos: [{ tipo: ESTADO_REGISTRO_EN_CURSO, inicio: instante, fin: null }]
@@ -342,7 +358,7 @@ export function validarExclusividadConcentracion(registros, opciones = {}) {
 
 export function crearRegistroManual(
     registros,
-    { nombre, evento = null, tarea = null, inicio, fin, segmentos: segmentosEntrada = null },
+    { nombre, evento = null, tarea = null, actividadPuntual = null, inicio, fin, segmentos: segmentosEntrada = null },
     generarId = () => globalThis.crypto.randomUUID(),
     ahora = new Date()
 ) {
@@ -421,7 +437,7 @@ export function crearRegistroManual(
 
     if (!validarTarea(tarea)) return { ok: false, error: "La tarea seleccionada no es válida." }
 
-    const errorOrigen = validarOrigen(evento, tarea)
+    const errorOrigen = validarOrigen(evento, tarea, actividadPuntual)
     if (errorOrigen) return { ok: false, error: errorOrigen }
 
     const identidad = crearIdUnico(registros, generarId)
@@ -432,9 +448,10 @@ export function crearRegistroManual(
 
     const registro = {
         id: identidad.id,
-        nombre: obtenerNombre(evento, tarea),
+        nombre: obtenerNombre(evento, tarea, actividadPuntual, nombre),
         ...datosDeEvento(evento),
         ...datosDeTarea(tarea),
+        ...(actividadPuntual ? { origenPuntual: true, categoriaIds: [...new Set(actividadPuntual.categoriaIds)] } : {}),
         estado: ESTADO_REGISTRO_FINALIZADO,
         motivoCancelacion: null,
         segmentos: segmentos.map(segmento => ({ ...segmento }))
@@ -465,6 +482,11 @@ export function editarRegistroFinalizado(registros, id, cambios, ahora = new Dat
     const tarea = cambios && Object.hasOwn(cambios, "tarea") ? cambios.tarea : (
         registro.tareaId ? { id: registro.tareaId, nombre: registro.tareaNombre } : null
     )
+    const actividadPuntual = cambios && Object.hasOwn(cambios, "actividadPuntual")
+        ? cambios.actividadPuntual
+        : registro.origenPuntual === true
+            ? { nombre: registro.nombre, categoriaIds: registro.categoriaIds ?? [] }
+            : null
     const segmentos = cambios?.segmentos
 
     if (!validarEvento(evento)) {
@@ -473,7 +495,7 @@ export function editarRegistroFinalizado(registros, id, cambios, ahora = new Dat
 
     if (!validarTarea(tarea)) return { ok: false, error: "La tarea seleccionada no es válida." }
 
-    const errorOrigen = validarOrigen(evento, tarea)
+    const errorOrigen = validarOrigen(evento, tarea, actividadPuntual)
     if (errorOrigen) return { ok: false, error: errorOrigen }
 
     if (!Array.isArray(segmentos) || segmentos.length === 0) {
@@ -482,7 +504,7 @@ export function editarRegistroFinalizado(registros, id, cambios, ahora = new Dat
 
     const actualizado = {
         ...registro,
-        nombre: obtenerNombre(evento, tarea),
+        nombre: obtenerNombre(evento, tarea, actividadPuntual, cambios?.nombre ?? ""),
         ...datosDeEvento(evento),
         ...datosDeTarea(tarea),
         segmentos: segmentos.map(segmento => ({ ...segmento }))
@@ -490,6 +512,13 @@ export function editarRegistroFinalizado(registros, id, cambios, ahora = new Dat
     if (tarea === null) {
         delete actualizado.tareaId
         delete actualizado.tareaNombre
+    }
+    if (actividadPuntual) {
+        actualizado.origenPuntual = true
+        actualizado.categoriaIds = [...new Set(actividadPuntual.categoriaIds)]
+    } else {
+        delete actualizado.origenPuntual
+        delete actualizado.categoriaIds
     }
 
     const exclusividad = validarExclusividadConcentracion(registros, { candidato: actualizado })

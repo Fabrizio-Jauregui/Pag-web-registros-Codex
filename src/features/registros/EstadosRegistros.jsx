@@ -10,9 +10,7 @@ import { ResumenDuracion } from "./ResumenDuracion"
 import { ListaRegistrosActivos } from "./ListaRegistrosActivos.jsx"
 
 export function EstadosRegistros({ estadoRegistro, eventos = [], tareas = [], categorias = [], ordenEventos, cambiarOrdenEventos }) {
-    const [nombre, cambiarNombre] = useState("")
-    const [eventoId, cambiarEventoId] = useState("")
-    const [tareaId, cambiarTareaId] = useState("")
+    const [origen, cambiarOrigen] = useState({ tipo: "", eventoId: "", tareaId: "", nombre: "", categoriaIds: [] })
     const { datos, registros, registrosActivos, ahora, error, mensaje } = estadoRegistro
     const registroResumen = registrosActivos.at(-1) ?? registros.at(-1) ?? null
     const segmentos = registroResumen?.segmentos ?? []
@@ -20,28 +18,12 @@ export function EstadosRegistros({ estadoRegistro, eventos = [], tareas = [], ca
     const tiempoPausado = registroResumen ? calcularTiempoPausado(segmentos, ahora) : null
     const tiempoTranscurrido = registroResumen ? calcularTiempoTranscurrido(segmentos, ahora) : null
 
-    function cambiarEventoSeleccionado(nuevoId) {
-        cambiarEventoId(nuevoId)
-        if (nuevoId) cambiarTareaId("")
-        const evento = eventos.find(plantilla => plantilla.id === nuevoId)
-        cambiarNombre(evento?.nombre ?? "")
-    }
-
-    function cambiarTareaSeleccionada(nuevoId) {
-        cambiarTareaId(nuevoId)
-        if (nuevoId) cambiarEventoId("")
-        const tarea = tareas.find(elemento => elemento.id === nuevoId)
-        cambiarNombre(tarea?.nombre ?? "")
-    }
-
     function manejarPlay() {
-        const evento = eventos.find(plantilla => plantilla.id === eventoId) ?? null
-        const tarea = tareas.find(elemento => elemento.id === tareaId) ?? null
-
-        if (estadoRegistro.iniciar(nombre, evento, tarea)) {
-            cambiarNombre("")
-            cambiarEventoId("")
-            cambiarTareaId("")
+        const evento = origen.tipo === "evento" ? eventos.find(plantilla => plantilla.id === origen.eventoId) ?? null : null
+        const tarea = origen.tipo === "tarea" ? tareas.find(elemento => elemento.id === origen.tareaId) ?? null : null
+        const actividadPuntual = origen.tipo === "puntual" ? { nombre: origen.nombre, categoriaIds: origen.categoriaIds } : null
+        if (estadoRegistro.iniciar(origen.nombre, evento, tarea, { actividadPuntual })) {
+            cambiarOrigen({ tipo: "", eventoId: "", tareaId: "", nombre: "", categoriaIds: [] })
         }
     }
 
@@ -58,15 +40,11 @@ export function EstadosRegistros({ estadoRegistro, eventos = [], tareas = [], ca
             {mensaje && <p role="status">{mensaje}</p>}
 
             <ControlesRegistro
-                nombre={nombre}
-                cambiarNombre={cambiarNombre}
+                origen={origen}
+                cambiarOrigen={cambiarOrigen}
                 eventos={eventos}
                 tareas={tareas}
                 categorias={categorias}
-                eventoId={eventoId}
-                cambiarEventoId={cambiarEventoSeleccionado}
-                tareaId={tareaId}
-                cambiarTareaId={cambiarTareaSeleccionada}
                 estado="Inactivo"
                 manejarPlay={manejarPlay}
                 manejarPause={() => {}}

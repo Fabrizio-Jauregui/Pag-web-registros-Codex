@@ -83,7 +83,7 @@ export function useSeguimientoPlanificacion(estadoRegistro, tareas = []) {
             elemento.evento,
             new Date(instante),
             tarea,
-            { planId: elemento.planId }
+            { planId: elemento.planId, ...(elemento.actividadPuntual ? { actividadPuntual: elemento.actividadPuntual } : {}) }
         )
     }
 

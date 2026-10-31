@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import { formatearDuracion } from "../../domain/tiempo/CalculosDuracion.js"
-import { SelectorOrigenActividad } from "../comun/SelectorOrigenActividad.jsx"
+import { SelectorOrigenRegistro } from "../comun/SelectorOrigenRegistro.jsx"
 
 import {
     leerValorFechaHoraLocal,
@@ -56,38 +56,25 @@ export function FormularioRegistro({
     onEditar,
     onCancelar
 }) {
-    const [nombre, cambiarNombre] = useState(registro?.nombre ?? "")
-    const [eventoId, cambiarEventoId] = useState(registro?.eventoId ?? "")
-    const [tareaId, cambiarTareaId] = useState(registro?.tareaId ?? "")
+    const [origen, cambiarOrigen] = useState(() => ({ tipo: registro?.origenPuntual ? "puntual" : registro?.eventoId ? "evento" : registro?.tareaId ? "tarea" : "", nombre: registro?.nombre ?? "", eventoId: registro?.eventoId ?? "", tareaId: registro?.tareaId ?? "", categoriaIds: registro?.categoriaIds ?? [] }))
     const [segmentos, cambiarSegmentos] = useState(() => (
         crearSegmentosIniciales(registro, fechaSeleccionada)
     ))
     const [error, cambiarError] = useState("")
-    const plantillaRef = useRef(null)
-    const tareaRef = useRef(null)
-    const nombreRef = useRef(null)
     const inicioRef = useRef(null)
     const finRef = useRef(null)
-    const eventoSeleccionado = eventos.find(evento => evento.id === eventoId)
-    const tareaSeleccionada = tareas.find(tarea => tarea.id === tareaId)
+    const eventoSeleccionado = origen.tipo === "evento" ? eventos.find(evento => evento.id === origen.eventoId) : null
+    const tareaSeleccionada = origen.tipo === "tarea" ? tareas.find(tarea => tarea.id === origen.tareaId) : null
+    const actividadPuntual = origen.tipo === "puntual" ? { nombre: origen.nombre, categoriaIds: origen.categoriaIds } : null
 
     useEffect(() => {
-        const primerCampo = nombreRef.current?.disabled
-            ? inicioRef.current
-            : nombreRef.current
-        primerCampo?.focus()
+        inicioRef.current?.focus()
     }, [])
 
     function enfocarCampoDelError(mensaje) {
         const detalle = mensaje.toLocaleLowerCase()
 
-        if (detalle.includes("nombre")) {
-            nombreRef.current?.focus()
-        } else if (detalle.includes("plantilla")) {
-            plantillaRef.current?.focus()
-        } else if (detalle.includes("tarea")) {
-            tareaRef.current?.focus()
-        } else if (detalle.includes("inicio")) {
+        if (detalle.includes("inicio")) {
             inicioRef.current?.focus()
         } else if (
             detalle.includes("fin")
@@ -100,7 +87,7 @@ export function FormularioRegistro({
         ) {
             finRef.current?.focus()
         } else {
-            nombreRef.current?.focus()
+            inicioRef.current?.focus()
         }
     }
 
@@ -183,24 +170,21 @@ export function FormularioRegistro({
     function guardar(evento) {
         evento.preventDefault()
 
-        if (Boolean(eventoId) === Boolean(tareaId)) {
-            const mensaje = "Elegí una plantilla de evento o una tarea para el registro."
+        if (!origen.tipo || (origen.tipo === "puntual" ? !origen.nombre.trim() : origen.tipo === "evento" ? !origen.eventoId : !origen.tareaId)) {
+            const mensaje = "Elegí una plantilla, una tarea o completá el nombre de la actividad puntual."
             cambiarError(mensaje)
-            plantillaRef.current?.focus()
             return
         }
 
-        if (eventoId && !eventoSeleccionado) {
+        if (origen.tipo === "evento" && !eventoSeleccionado) {
             const mensaje = "La plantilla seleccionada ya no está disponible. Elegí otra o quitá la selección."
             cambiarError(mensaje)
-            plantillaRef.current?.focus()
             return
         }
 
-        if (tareaId && !tareaSeleccionada) {
+        if (origen.tipo === "tarea" && !tareaSeleccionada) {
             const mensaje = "La tarea seleccionada ya no está disponible. Elegí otra o quitá la selección."
             cambiarError(mensaje)
-            tareaRef.current?.focus()
             return
         }
 
@@ -214,16 +198,18 @@ export function FormularioRegistro({
 
         if (registro) {
             resultado = onEditar(registro.id, {
-                nombre,
+                nombre: origen.nombre,
                 evento: eventoSeleccionado ?? null,
                 tarea: tareaSeleccionada ?? null,
+                actividadPuntual,
                 segmentos: segmentosConvertidos
             })
         } else {
             resultado = onCrear({
-                nombre,
+                nombre: origen.nombre,
                 evento: eventoSeleccionado ?? null,
                 tarea: tareaSeleccionada ?? null,
+                actividadPuntual,
                 inicio: segmentosConvertidos[0].inicio,
                 fin: segmentosConvertidos.at(-1).fin,
                 segmentos: segmentosConvertidos
@@ -256,57 +242,7 @@ export function FormularioRegistro({
                 onSubmit={guardar}
                 onKeyDown={manejarTeclaFormulario}
             >
-                <SelectorOrigenActividad
-                    tipo="evento"
-                    etiqueta="Plantilla de evento"
-                    opciones={eventos}
-                    categorias={categorias}
-                    value={eventoId}
-                    missingName={registro?.nombre}
-                    ref={plantillaRef}
-                    disabled={Boolean(tareaId)}
-                    ordenEventos={ordenEventos}
-                    cambiarOrdenEventos={cambiarOrdenEventos}
-                    onChange={opcion => {
-                        const nuevoId = opcion?.id ?? ""
-                        const eventoPrevio = eventos.find(evento => evento.id === eventoId)
-                        cambiarEventoId(nuevoId)
-                        if (nuevoId) cambiarTareaId("")
-                        cambiarNombre(opcion?.nombre ?? (nuevoId ? "" : eventoPrevio?.nombre ?? ""))
-                        cambiarError("")
-                    }}
-                />
-
-                <SelectorOrigenActividad
-                    tipo="tarea"
-                    etiqueta="Tarea"
-                    opciones={tareas}
-                    value={tareaId}
-                    missingName={registro?.tareaNombre}
-                    ref={tareaRef}
-                    disabled={Boolean(eventoId)}
-                    emptyLabel="Elegí una tarea"
-                    onChange={opcion => {
-                        const nuevoId = opcion?.id ?? ""
-                        cambiarTareaId(nuevoId)
-                        if (nuevoId) cambiarEventoId("")
-                        cambiarNombre(opcion?.nombre ?? "")
-                        cambiarError("")
-                    }}
-                />
-
-                <label>
-                    <span>Nombre del registro</span>
-                    <input
-                        type="text"
-                        ref={nombreRef}
-                        value={eventoSeleccionado?.nombre ?? tareaSeleccionada?.nombre ?? nombre}
-                        placeholder="Se completa al elegir un evento o una tarea"
-                        readOnly
-                        disabled={!eventoSeleccionado && !tareaSeleccionada}
-                        maxLength={80}
-                    />
-                </label>
+                <SelectorOrigenRegistro valor={origen} onChange={valor => { cambiarOrigen(valor); cambiarError("") }} eventos={eventos} tareas={tareas} categorias={categorias} ordenEventos={ordenEventos} cambiarOrdenEventos={cambiarOrdenEventos} etiquetaNombre="Nombre del registro" />
 
                 {segmentos.map((segmento, indice) => (
                     <div className="grupo-segmento-registro" key={`${registro?.id ?? "nuevo"}-${indice}`}>

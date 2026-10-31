@@ -25,8 +25,17 @@
 .actividad-plantilla-acciones{display:flex;flex-wrap:wrap;gap:7px;grid-column:1/-1}
 .plan-plantilla-acciones,.plantilla-plan-acciones{display:flex;flex-wrap:wrap;gap:8px}
 .plantilla-plan-acciones{grid-column:1/-1;justify-content:flex-end}
+.accesos-inicio-rapido{display:flex;align-items:center;flex-wrap:wrap;gap:5px;color:#475569;font-size:.84rem}
+.accesos-inicio-rapido button{min-height:32px;padding:4px 8px;font-size:.82rem}
+.campos-horario-plan+.accesos-inicio-rapido{margin-top:-4px}
 .plantilla-plan-acciones label{display:grid;gap:5px;align-content:start;color:#475569;font-size:.9rem}
 .plantilla-plan-acciones input{min-height:38px;padding:6px 8px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#172033;font:inherit}
+.recurrencia-plantilla{display:grid;grid-column:1/-1;gap:12px;padding:14px;border:1px solid #a5b4fc;border-radius:12px;background:#f8faff}
+.recurrencia-plantilla h4,.recurrencia-plantilla p{margin:0}.recurrencia-plantilla>p{color:#475569;line-height:1.45}
+.recurrencia-plantilla>label{display:grid;gap:6px}.recurrencia-plantilla input[type=date]{min-height:40px;padding:7px 9px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#172033}
+.recurrencia-plantilla fieldset{display:flex;flex-wrap:wrap;align-items:center;gap:8px;border:1px solid #cbd5e1;border-radius:9px;padding:10px}
+.recurrencia-plantilla fieldset legend{padding:0 5px;font-weight:650}.recurrencia-plantilla fieldset label{display:flex;align-items:center;gap:5px;padding:5px 8px;border:1px solid #e2e8f0;border-radius:8px;background:#fff}.recurrencia-plantilla fieldset input{min-height:auto}
+.recurrencia-plantilla-preview{font-size:.9rem}
 .plan-plantilla-fecha{display:flex;align-items:center;gap:10px;margin-bottom:16px;font-weight:600}
 .plan-plantilla-error{margin:0;color:#b91c1c}
 .lista-plantillas-plan{display:grid;gap:10px;margin:0;padding:0;list-style:none}
@@ -55,6 +64,7 @@ html[data-tema="oscuro"] .plantilla-plan-previsualizacion ol,html[data-tema="osc
 html[data-tema="oscuro"] .plantilla-plan-previsualizacion li small{color:#aab7ca}
 html[data-tema="oscuro"] .plantilla-plan-previsualizacion>p{color:#fca5a5}
 html[data-tema="oscuro"] .plantilla-plan-uso{background:#12342f;color:#a7f3d0;border-color:#2dd4bf}
+html[data-tema="oscuro"] .recurrencia-plantilla{border-color:#4f46e5;background:#1a2437}html[data-tema="oscuro"] .recurrencia-plantilla>p{color:#b6c2d4}html[data-tema="oscuro"] .recurrencia-plantilla input[type=date],html[data-tema="oscuro"] .recurrencia-plantilla fieldset label{border-color:#46536c;background:#202b40;color:#edf2fb}html[data-tema="oscuro"] .recurrencia-plantilla fieldset{border-color:#46536c}
 html[data-tema="oscuro"] .biblioteca-plantillas-plan button:not(.plan-plantilla-primario){background:#1a2437;color:#e8edf5;border-color:#3a465d}
 html[data-tema="oscuro"] .formulario-plantilla-plan input,html[data-tema="oscuro"] .formulario-plantilla-plan select,html[data-tema="oscuro"] .plan-plantilla-fecha input{background:#1a2437;color:#e8edf5;border-color:#3a465d}
 @media(min-width:901px){.panel-herramientas .biblioteca-plantillas-plan{padding:18px 14px}.panel-herramientas .biblioteca-plantillas-plan-header{align-items:stretch;flex-direction:column;gap:10px}.panel-herramientas .acciones-crear-plantilla{align-items:stretch;flex-direction:column}.panel-herramientas .lista-plantillas-plan>li{grid-template-columns:minmax(0,1fr);gap:12px}.panel-herramientas .plantilla-plan-previsualizacion{padding:12px 0 0;border-top:1px solid #cbd5e1;border-left:0}.panel-herramientas .plantilla-plan-acciones{grid-column:auto;justify-content:flex-start}.panel-herramientas .actividad-plantilla-plan{grid-template-columns:minmax(0,1fr)}}
@@ -84,6 +94,8 @@ html[data-tema="oscuro"] .formulario-plantilla-plan input,html[data-tema="oscuro
 .editor-plantilla-cronometro .editor-secuencia{width:100%;min-width:0;max-width:none;flex:none}
 .editor-cronometro-eventos{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,360px),1fr));align-items:start;gap:12px}
 .editor-secuencia h4{min-height:1.5em;color:#0f766e}
+.editor-cronometro-etapa-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.editor-cronometro-etapa-header h4{margin:0}
 .editor-secuencia-desplazamiento{display:flex;align-items:center;flex-wrap:wrap;gap:5px;color:#475569;font-size:.86rem}
 .editor-secuencia-desplazamiento select,.editor-secuencia-desplazamiento input{min-height:34px;max-width:130px;padding:4px 6px;border:1px solid #cbd5e1;border-radius:6px;background:#fff;color:#172033}
 .editor-secuencia-ajuste{display:grid;gap:6px}

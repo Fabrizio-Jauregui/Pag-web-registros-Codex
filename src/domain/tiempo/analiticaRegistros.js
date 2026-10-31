@@ -23,8 +23,9 @@ export function agruparTiempoPorEvento(registros, eventos, inicio, fin, ahora = 
         // "sin evento" en la distribución por eventos.
         if (registro.tareaId && !(registro.eventoId ?? null)) continue
         const eventoId = registro.eventoId ?? null
-        const clave = eventoId ?? "__sin_evento__"
-        if (!grupos.has(clave)) grupos.set(clave, { eventoId, registros: [] })
+        const nombrePuntual = registro.origenPuntual === true ? registro.nombre : null
+        const clave = nombrePuntual ? `puntual:${nombrePuntual.trim().toLocaleLowerCase("es")}` : eventoId ?? "__sin_evento__"
+        if (!grupos.has(clave)) grupos.set(clave, { eventoId, nombrePuntual, registros: [] })
         grupos.get(clave).registros.push(registro)
     }
 
@@ -35,9 +36,10 @@ export function agruparTiempoPorEvento(registros, eventos, inicio, fin, ahora = 
         const registroConEvento = grupo.registros.find(registro => registro.eventoId === grupo.eventoId)
         return {
             eventoId: grupo.eventoId,
-            nombre: grupo.eventoId === null
+            key: grupo.nombrePuntual ? `puntual:${grupo.nombrePuntual}` : grupo.eventoId ?? "sin-evento",
+            nombre: grupo.nombrePuntual ?? (grupo.eventoId === null
                 ? "Sin evento vinculado"
-                : evento?.nombre ?? registroConEvento?.nombre ?? "Evento no disponible",
+                : evento?.nombre ?? registroConEvento?.nombre ?? "Evento no disponible"),
             color: evento?.color ?? registroConEvento?.colorEvento ?? null,
             segundos: calcularTiempoRegistradoEnPeriodo(grupo.registros, inicio, fin, ahora)
         }
@@ -75,12 +77,19 @@ function categoriasValidasDeEvento(evento, categorias) {
     return [...new Set(categoriaIds)].filter(id => categorias.some(categoria => categoria.id === id))
 }
 
+function categoriasValidasDeRegistro(registro, evento, categorias) {
+    if (registro?.origenPuntual === true) {
+        return [...new Set(registro.categoriaIds ?? [])].filter(id => categorias.some(categoria => categoria.id === id))
+    }
+    return categoriasValidasDeEvento(evento, categorias)
+}
+
 export function agruparTiempoPorCategoria(registros, eventos, categorias, inicio, fin, ahora = new Date()) {
     if (!Array.isArray(registros) || !Array.isArray(eventos) || !Array.isArray(categorias)) return []
     const grupos = new Map()
     for (const registro of registros) {
         const evento = eventos.find(elemento => elemento.id === registro.eventoId)
-        const categoriaIds = categoriasValidasDeEvento(evento, categorias)
+        const categoriaIds = categoriasValidasDeRegistro(registro, evento, categorias)
         if (categoriaIds.length === 0) categoriaIds.push(null)
         for (const categoriaId of categoriaIds) {
             const clave = categoriaId ?? "__sin_categoria__"
@@ -106,7 +115,7 @@ export function calcularAnaliticaRegistros(registros, eventos, inicio, fin, ahor
     const categoriaSeleccionada = opciones.categoriaId
     const registrosFiltrados = categoriaSeleccionada
         ? registros.filter(registro => {
-            const categoriaIds = categoriasValidasDeEvento(eventoPorId.get(registro.eventoId), categorias)
+            const categoriaIds = categoriasValidasDeRegistro(registro, eventoPorId.get(registro.eventoId), categorias)
             return categoriaSeleccionada === "__sin_categoria__"
                 ? categoriaIds.length === 0
                 : categoriaIds.includes(categoriaSeleccionada)

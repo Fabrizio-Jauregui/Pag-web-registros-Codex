@@ -1,0 +1,7 @@
+.selector-origen-registro { display: grid; gap: .75rem; min-width: 0; border: 1px solid var(--borde, #d1d5db); border-radius: .75rem; padding: .85rem; }
+.selector-origen-registro > legend, .selector-origen-registro-categorias > legend { padding: 0 .3rem; font-weight: 650; }
+.selector-origen-registro-opciones { display: flex; flex-wrap: wrap; gap: .5rem 1rem; }
+.selector-origen-registro-opciones label, .selector-origen-registro-categorias label { display: inline-flex; align-items: center; gap: .45rem; }
+.selector-origen-registro-categorias { display: flex; flex-wrap: wrap; gap: .6rem 1rem; border: 1px solid var(--borde, #d1d5db); border-radius: .5rem; padding: .65rem; }
+.selector-origen-registro-color { width: .8rem; height: .8rem; border-radius: 50%; border: 1px solid #0002; }
+@media (max-width: 600px) { .selector-origen-registro-opciones { display: grid; grid-template-columns: 1fr; } }

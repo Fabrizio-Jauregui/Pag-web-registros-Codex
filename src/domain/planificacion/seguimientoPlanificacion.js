@@ -71,6 +71,7 @@ export function crearSecuenciaSeguimiento(planes, idPlanSeleccionado, eventos = 
             nombre: evento?.nombre ?? tarea?.nombre ?? plan.nombre,
             evento: evento ? { id: evento.id, nombre: evento.nombre, color: evento.color } : null,
             tarea,
+            ...(plan.origenPuntual === true ? { actividadPuntual: { nombre: plan.nombre, categoriaIds: plan.categoriaIds ?? [] } } : {}),
             inicioPrevisto: plan.inicio.toISOString(),
             finPrevisto: esCronometro ? null : plan.fin.toISOString(),
             duracionMs: esCronometro ? null : plan.fin.getTime() - plan.inicio.getTime(),

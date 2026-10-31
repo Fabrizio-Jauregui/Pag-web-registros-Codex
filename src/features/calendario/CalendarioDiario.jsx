@@ -869,6 +869,7 @@ export const CalendarioDiario = forwardRef(function CalendarioDiario({
                 <DetalleRegistro
                     registro={registroSeleccionado}
                     tareas={tareas}
+                    categorias={categorias}
                     onEditar={editarRegistro}
                     onEliminar={eliminarDesdeDetalle}
                     onCerrar={() => cambiarRegistroSeleccionado(null)}
@@ -878,6 +879,7 @@ export const CalendarioDiario = forwardRef(function CalendarioDiario({
                 <DetallePlan
                     plan={planSeleccionado}
                     evento={eventos.find(evento => evento.id === planSeleccionado.eventoId)}
+                    categorias={categorias}
                     onEditar={evento => {
                         focoPlanRef.current = evento.currentTarget
                         cambiarFormularioPlan({ tipo: "editar", plan: planSeleccionado })

@@ -28,8 +28,8 @@ import { crearCategoria, actualizarCategoria, eliminarCategoria } from "../domai
 import { cargarCategorias, guardarCategorias } from "../domain/categorias/persistenciaCategorias.js"
 import { crearPlan, actualizarPlan, eliminarAplicacionPlan, eliminarPlan, eliminarPlanesDePlantilla, compararPlanesPorSeguimiento, validarCompatibilidadPlanesFocus } from "../domain/planificacion/planes.js"
 import { cargarPlanes, guardarPlanes, eliminarPlanInvalido, CLAVE_PLANES } from "../domain/planificacion/persistenciaPlanes.js"
-import { formatearFechaISO } from "../domain/tiempo/FechaCalendario.js"
-import { cargarRecurrencias, guardarRecurrencias, crearReglaRecurrencia, cambiarRecurrencia, eliminarRecurrencia, eliminarRecurrenciasDePlantilla, generarAparicionesRecurrencia, eliminarRecurrenciaInvalida, CLAVE_RECURRENCIAS } from "../domain/planificacion/recurrencias.js"
+import { formatearFechaISO, leerFechaISO } from "../domain/tiempo/FechaCalendario.js"
+import { cargarRecurrencias, guardarRecurrencias, crearReglaRecurrencia, crearReglasRecurrenciaPlantilla, cambiarRecurrencia, eliminarRecurrencia, eliminarRecurrenciasDePlantilla, generarAparicionesRecurrencia, eliminarRecurrenciaInvalida, CLAVE_RECURRENCIAS } from "../domain/planificacion/recurrencias.js"
 import {
     aplicarPlantillaPlanificacion,
     actualizarPlantillaPlanificacion,
@@ -51,7 +51,7 @@ import { BibliotecaPlantillasPlanificacion } from "../features/planificacion/Bib
 import { useSeguimientoPlanificacion } from "../features/planificacion/usoSeguimientoPlanificacion.js"
 import { PanelSeguimientoPlanificacion } from "../features/planificacion/SeguimientoPlanificacion.jsx"
 import { BibliotecaTareas } from "../features/tareas/BibliotecaTareas.jsx"
-import { crearTarea, crearObjetivo, actualizarObjetivo, cambiarEstadoRama, descendientesDe, obtenerRutaTarea, actualizarTarea, cambiarDestinoTarea, eliminarTarea, moverTareaEnArbol, moverTareaEnCola, posponerTareaEnCola, sincronizarEstadoTareasFocus } from "../domain/tareas/tareas.js"
+import { crearTarea, crearObjetivo, actualizarObjetivo, cambiarEstadoRama, descendientesDe, obtenerRutaTarea, actualizarTarea, cambiarDestinoTarea, eliminarTarea, moverTareaEnArbol, moverTareaEnCola, ordenarTareasFocus, ordenarTareasBacklog, moverTareaEnBacklog, posponerTareaEnCola, sincronizarEstadoTareasFocus } from "../domain/tareas/tareas.js"
 import { cargarTareas, guardarTareas } from "../domain/tareas/persistenciaTareas.js"
 import { cargarPlantillasFocus, cargarHistorialFocus, cargarSesionActivaFocus, eliminarSesionFocusInvalida, eliminarPlantillaFocusInvalida, CLAVE_HISTORIAL_FOCUS, CLAVE_SESION_ACTIVA_FOCUS, CLAVE_PLANTILLAS_FOCUS } from "../domain/focus/persistenciaFocus.js"
 import {
@@ -182,7 +182,8 @@ export function App() {
         if (typeof inicioFocusPlanificadoRef.current !== "function") return { ok: false, error: "Focus todavía no está disponible para iniciar la sesión." }
         const evento = plantillas.find(item => item.id === plan.eventoId) ?? null
         const tarea = estadoTareas.ok ? estadoTareas.tareas.find(item => item.id === plan.tareaId) ?? (plan.tareaId ? { id: plan.tareaId, nombre: plan.tareaNombre } : null) : null
-        const inicio = registrarUsoPlantillaPlan(plan, () => inicioFocusPlanificadoRef.current({ ...plan.configuracionFocus, evento, tarea })
+        const actividadPuntual = plan.origenPuntual ? { nombre: plan.nombre, categoriaIds: plan.categoriaIds ?? [] } : null
+        const inicio = registrarUsoPlantillaPlan(plan, () => inicioFocusPlanificadoRef.current({ ...plan.configuracionFocus, evento, tarea, actividadPuntual })
             ? { ok: true }
             : { ok: false, error: "No se pudo iniciar la sesión Focus. Revisá si ya hay otra sesión activa." })
         if (!inicio.ok) return inicio
@@ -465,7 +466,7 @@ export function App() {
         if (sesion.tipoSeguimiento === "cronometro" && cambios.tipoSecuencial) {
             const evento = cambios.eventoId ? plantillas.find(item => item.id === cambios.eventoId) : null
             const tarea = cambios.tareaId && estadoTareas.ok ? estadoTareas.tareas.find(item => item.id === cambios.tareaId) : null
-            const creado = crearPlan({ nombre: evento?.nombre ?? tarea?.nombre ?? cambios.nombre, evento, tarea, inicio: fecha, fin: new Date(fecha.getTime() + 1000) })
+            const creado = crearPlan({ nombre: evento?.nombre ?? tarea?.nombre ?? cambios.actividadPuntual?.nombre ?? cambios.nombre, evento, tarea, actividadPuntual: cambios.actividadPuntual, inicio: fecha, fin: new Date(fecha.getTime() + 1000) })
             if (!creado.ok) return creado
             const planCreado = { ...creado.plan, fin: null, plantillaOrigenId: sesion.secuencia[0].plantillaOrigenId,
                 plantillaOrigenNombre: sesion.secuencia[0].plantillaOrigenNombre, idAplicacionPlantilla: sesion.idAplicacionPlantilla,
@@ -545,7 +546,7 @@ export function App() {
             const evento = cambios.eventoId ? plantillas.find(item => item.id === cambios.eventoId) : null
             const tarea = cambios.tareaId && estadoTareas.ok ? estadoTareas.tareas.find(item => item.id === cambios.tareaId) : null
             const resultadoSecuencial = actualizarPlan(estadoPlanes.planes, plan.id, {
-                nombre: evento?.nombre ?? tarea?.nombre ?? cambios.nombre, evento, tarea, inicio: plan.inicio, fin: plan.fin
+                nombre: evento?.nombre ?? tarea?.nombre ?? cambios.actividadPuntual?.nombre ?? cambios.nombre, evento, tarea, actividadPuntual: cambios.actividadPuntual, inicio: plan.inicio, fin: plan.fin
             })
             if (!resultadoSecuencial.ok) return resultadoSecuencial
             const nuevos = resultadoSecuencial.planes.map(item => item.id === plan.id ? { ...item, grupoCronometro: cambios.grupoCronometro } : item)
@@ -596,10 +597,14 @@ export function App() {
             ? estadoTareas.tareas.filter(tarea => tarea.destino === "focus" && !["Completada", "Cancelada", "Boceto"].includes(tarea.estado))
                 .reduce((maximo, tarea) => Math.max(maximo, tarea.ordenFocus ?? 0), 0) + 1
             : null
+        const ordenBacklog = destino === "backlog"
+            ? estadoTareas.tareas.filter(tarea => tarea.tipo !== "objetivo" && (tarea.destino ?? "backlog") === "backlog")
+                .reduce((maximo, tarea) => Math.max(maximo, tarea.ordenBacklog ?? 0), 0) + 1
+            : null
         const padreId = ubicacion.padreId ?? ubicacion.objetivoId ?? null
         const ordenArbol = estadoTareas.tareas.filter(tarea => tarea.tipo !== "objetivo" && (tarea.padreId ?? tarea.objetivoId ?? null) === padreId)
             .reduce((maximo, tarea) => Math.max(maximo, tarea.ordenArbol ?? 0), 0) + 1
-        const resultado = crearTarea(nombre, estado, undefined, undefined, destino, ordenFocus, { ...ubicacion, padreId, ordenArbol })
+        const resultado = crearTarea(nombre, estado, undefined, undefined, destino, ordenFocus, { ...ubicacion, padreId, ordenArbol, ordenBacklog })
         if (!resultado.ok) return resultado
         const tareas = [...estadoTareas.tareas, resultado.tarea]
         const guardado = confirmarTareas(tareas)
@@ -656,6 +661,30 @@ export function App() {
     function reordenarTareaArbol(id, direccion) {
         if (!estadoTareas.ok) return { ok: false, error: estadoTareas.error }
         const resultado = moverTareaEnArbol(estadoTareas.tareas, id, direccion)
+        if (!resultado.ok) return resultado
+        const guardado = confirmarTareas(resultado.tareas)
+        return guardado.ok ? { ok: true, tareas: resultado.tareas } : guardado
+    }
+
+    function guardarOrdenColaFocus(idsOrdenados) {
+        if (!estadoTareas.ok) return { ok: false, error: estadoTareas.error }
+        const resultado = ordenarTareasFocus(estadoTareas.tareas, idsOrdenados, estadoFocusTareas.activa ? estadoFocusTareas.tareaActivaId : null)
+        if (!resultado.ok) return resultado
+        const guardado = confirmarTareas(resultado.tareas)
+        return guardado.ok ? { ok: true, tareas: resultado.tareas } : guardado
+    }
+
+    function guardarOrdenBacklog(idsOrdenados) {
+        if (!estadoTareas.ok) return { ok: false, error: estadoTareas.error }
+        const resultado = ordenarTareasBacklog(estadoTareas.tareas, idsOrdenados)
+        if (!resultado.ok) return resultado
+        const guardado = confirmarTareas(resultado.tareas)
+        return guardado.ok ? { ok: true, tareas: resultado.tareas } : guardado
+    }
+
+    function moverTareaBacklog(id, direccion) {
+        if (!estadoTareas.ok) return { ok: false, error: estadoTareas.error }
+        const resultado = moverTareaEnBacklog(estadoTareas.tareas, id, direccion)
         if (!resultado.ok) return resultado
         const guardado = confirmarTareas(resultado.tareas)
         return guardado.ok ? { ok: true, tareas: resultado.tareas } : guardado
@@ -812,6 +841,21 @@ export function App() {
         const resultado = crearReglaRecurrencia(planConOrigen, cambios.diasSemana, cambios.fechaFin)
         if (!resultado.ok) return resultado
         return confirmarRecurrencias([...estadoRecurrencias.reglas, resultado.regla])
+    }
+
+    function crearRecurrenciaPlantillaPlanificacion(id, fechaTexto, diasSemana, fechaFin, horaInicioSegundos) {
+        if (!estadoRecurrencias.ok || !estadoPlantillasPlan.ok || !estadoPlanes.ok) return { ok: false, error: "No se pudieron cargar las plantillas o recurrencias." }
+        const plantilla = estadoPlantillasPlan.plantillas.find(item => item.id === id)
+        const fecha = leerFechaISO(fechaTexto)
+        if (!plantilla || !fecha) return { ok: false, error: "No se encontró la plantilla o la fecha de inicio no es válida." }
+        const aplicacion = aplicarPlantillaPlanificacion(plantilla, fecha, plantillas, {
+            ahora: new Date(), horaInicioSegundos, tareas: estadoTareas.ok ? tareasDeTrabajo : []
+        })
+        if (!aplicacion.ok) return aplicacion
+        const resultado = crearReglasRecurrenciaPlantilla(aplicacion.planes, diasSemana, fechaFin)
+        if (!resultado.ok) return resultado
+        const guardado = confirmarRecurrencias([...estadoRecurrencias.reglas, ...resultado.reglas])
+        return guardado.ok ? { ok: true, idSerie: resultado.idSerie } : guardado
     }
 
     function actualizarPlanificacion(id, cambios) {
@@ -1063,7 +1107,7 @@ export function App() {
     }
 
     return (
-        <ProveedorReloj activo={estadoRegistro.registrosActivos.length > 0}>
+        <ProveedorReloj activo={vistaPrincipal === "calendario" || vistaPrincipal === "plantillas-plan" || estadoRegistro.registrosActivos.length > 0}>
         <main className="app-shell">
             <header className="app-header">
                 <div className="app-brand-group">
@@ -1285,6 +1329,7 @@ export function App() {
                                 onActualizar={actualizarPlantillaPlan}
                                 onEliminar={eliminarPlantillaPlan}
                                 onAplicar={aplicarPlantillaPlan}
+                                onCrearRecurrencia={crearRecurrenciaPlantillaPlanificacion}
                             />
                         </div>
                         <div hidden={vistaPrincipal !== "analitica"}>
@@ -1337,6 +1382,9 @@ export function App() {
                                 onCambiarDestino={cambiarDestinoTareaExistente}
                                 onReordenar={(id, direccion, tareaActivaId) => reordenarTareaFocus(id, direccion, tareaActivaId)}
                                 onReordenarArbol={reordenarTareaArbol}
+                                onOrdenarFocus={guardarOrdenColaFocus}
+                                onOrdenarBacklog={guardarOrdenBacklog}
+                                onMoverBacklog={moverTareaBacklog}
                             />
                         </div>
                     </div>

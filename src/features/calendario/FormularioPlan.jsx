@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import { leerValorFechaHoraLocal, obtenerValorFechaHoraLocal } from "./segmentosCalendario.js"
-import { SelectorOrigenActividad } from "../comun/SelectorOrigenActividad.jsx"
+import { SelectorOrigenRegistro } from "../comun/SelectorOrigenRegistro.jsx"
+import { AccesosInicioRapido } from "./AccesosInicioRapido.jsx"
 
 function valorFechaHora(fecha) {
     return obtenerValorFechaHoraLocal(fecha).slice(0, 19)
@@ -11,6 +12,8 @@ function crearValoresIniciales(plan, fechaSeleccionada, valoresIniciales = null)
         nombre: plan.nombre,
         eventoId: plan.eventoId ?? "",
         tareaId: plan.tareaId ?? "",
+        tipoOrigen: plan.origenPuntual ? "puntual" : plan.eventoId ? "evento" : plan.tareaId ? "tarea" : "",
+        categoriaIds: plan.categoriaIds ?? [],
         inicio: valorFechaHora(plan.inicio),
         fin: valorFechaHora(plan.fin)
     }
@@ -19,7 +22,7 @@ function crearValoresIniciales(plan, fechaSeleccionada, valoresIniciales = null)
     inicio.setHours(9, 0, 0, 0)
     const fin = new Date(inicio)
     fin.setMinutes(fin.getMinutes() + 30)
-    return { nombre: "", eventoId: "", tareaId: "", inicio: valorFechaHora(inicio), fin: valorFechaHora(fin) }
+    return { nombre: "", eventoId: "", tareaId: "", tipoOrigen: "", categoriaIds: [], inicio: valorFechaHora(inicio), fin: valorFechaHora(fin) }
 }
 
 export function FormularioPlan({ plan = null, fechaSeleccionada, eventos, tareas = [], categorias = [], ordenEventos = "ultimo-uso", cambiarOrdenEventos = () => {}, onGuardar, onCrearRecurrencia, onCancelar, valoresIniciales = null }) {
@@ -35,8 +38,10 @@ export function FormularioPlan({ plan = null, fechaSeleccionada, eventos, tareas
     const tareaRef = useRef(null)
     const inicioRef = useRef(null)
     const finRef = useRef(null)
-    const eventoSeleccionado = eventos.find(evento => evento.id === valores.eventoId)
-    const tareaSeleccionada = tareas.find(tarea => tarea.id === valores.tareaId)
+    const tipoOrigen = valores.tipoOrigen ?? (valores.eventoId ? "evento" : valores.tareaId ? "tarea" : "")
+    const eventoSeleccionado = tipoOrigen === "evento" ? eventos.find(evento => evento.id === valores.eventoId) : null
+    const tareaSeleccionada = tipoOrigen === "tarea" ? tareas.find(tarea => tarea.id === valores.tareaId) : null
+    const actividadPuntual = tipoOrigen === "puntual" ? { nombre: valores.nombre, categoriaIds: valores.categoriaIds ?? [] } : null
 
     useEffect(() => {
         eventoRef.current?.focus()
@@ -44,6 +49,14 @@ export function FormularioPlan({ plan = null, fechaSeleccionada, eventos, tareas
 
     function cambiar(campo, valor) {
         cambiarValores(actuales => ({ ...actuales, [campo]: valor }))
+        cambiarError("")
+    }
+
+    function seleccionarInicioRapido(inicio) {
+        const inicioAnterior = leerValorFechaHoraLocal(valores.inicio)
+        const finAnterior = leerValorFechaHoraLocal(valores.fin)
+        const duracion = inicioAnterior && finAnterior ? Math.max(60_000, finAnterior.getTime() - inicioAnterior.getTime()) : 30 * 60_000
+        cambiarValores(actuales => ({ ...actuales, inicio: valorFechaHora(inicio), fin: valorFechaHora(new Date(inicio.getTime() + duracion)) }))
         cambiarError("")
     }
 
@@ -63,21 +76,21 @@ export function FormularioPlan({ plan = null, fechaSeleccionada, eventos, tareas
             finRef.current?.focus()
             return
         }
-        if (valores.eventoId && !eventoSeleccionado) {
+        if (tipoOrigen === "evento" && !eventoSeleccionado) {
             const mensaje = "La plantilla seleccionada ya no está disponible. Elegí otra o quitá la selección."
             cambiarError(mensaje)
             eventoRef.current?.focus()
             return
         }
-        if (valores.tareaId && !tareaSeleccionada) {
+        if (tipoOrigen === "tarea" && !tareaSeleccionada) {
             const mensaje = "La tarea seleccionada ya no está disponible. Elegí otra tarea."
             cambiarError(mensaje)
             tareaRef.current?.focus()
             return
         }
         if (!esSesionFocus || !plan?.configuracionFocus?.usarColaFocus) {
-            if (Boolean(eventoSeleccionado) === Boolean(tareaSeleccionada)) {
-                const mensaje = "Elegí una plantilla de evento o una tarea como origen."
+            if (!tipoOrigen || (tipoOrigen === "puntual" ? !valores.nombre.trim() : Boolean(eventoSeleccionado) === Boolean(tareaSeleccionada))) {
+                const mensaje = "Elegí una plantilla, una tarea o completá el nombre de la actividad puntual."
                 cambiarError(mensaje)
                 eventoRef.current?.focus()
                 return
@@ -90,13 +103,14 @@ export function FormularioPlan({ plan = null, fechaSeleccionada, eventos, tareas
             nombre: valores.nombre,
             evento: eventoSeleccionado ?? null,
             tarea: tareaSeleccionada ?? null,
+            actividadPuntual,
             inicio,
             fin,
             alcance
         }
         const resultado = plan?.idRecurrencia
             ? onGuardar({ ...cambios, idRecurrencia: plan.idRecurrencia, fechaRecurrencia: plan.fechaRecurrencia })
-            : repetirSemanalmente
+            : repetirSemanalmente && !actividadPuntual
                 ? onCrearRecurrencia({ ...cambios, diasSemana, fechaFin: fechaFinSerie || null })
                 : onGuardar(cambios)
         if (!resultado.ok) {
@@ -116,50 +130,15 @@ export function FormularioPlan({ plan = null, fechaSeleccionada, eventos, tareas
             <form aria-labelledby="titulo-formulario-plan" onSubmit={guardar} onKeyDown={evento => {
                 if (evento.key === "Escape") { evento.preventDefault(); onCancelar() }
             }}>
-                <SelectorOrigenActividad
-                    tipo="evento"
-                    etiqueta="Plantilla de evento"
-                    opciones={eventos}
-                    categorias={categorias}
-                    value={valores.eventoId}
-                    missingName={plan?.nombre}
-                    ref={eventoRef}
-                    disabled={Boolean(valores.tareaId)}
-                    ordenEventos={ordenEventos}
-                    cambiarOrdenEventos={cambiarOrdenEventos}
-                    onChange={opcion => {
-                        const id = opcion?.id ?? ""
-                        cambiarValores(actuales => ({
-                            ...actuales,
-                            eventoId: id,
-                            tareaId: id ? "" : actuales.tareaId,
-                            nombre: opcion?.nombre ?? actuales.nombre
-                        }))
-                        cambiarError("")
-                    }}
-                />
-                <SelectorOrigenActividad
-                    tipo="tarea"
-                    etiqueta="Tarea"
-                    opciones={tareas}
-                    value={valores.tareaId ?? ""}
-                    missingName={plan?.tareaNombre ?? plan?.nombre}
-                    ref={tareaRef}
-                    disabled={Boolean(valores.eventoId)}
-                    onChange={opcion => {
-                        const id = opcion?.id ?? ""
-                        cambiarValores(actuales => ({ ...actuales, tareaId: id, eventoId: id ? "" : actuales.eventoId, nombre: opcion?.nombre ?? actuales.nombre }))
-                        cambiarError("")
-                    }}
-                />
-                {!esSesionFocus && <label>
+                <SelectorOrigenRegistro valor={{ ...valores, tipo: tipoOrigen }} onChange={valor => cambiarValores(actuales => ({ ...actuales, tipoOrigen: valor.tipo, eventoId: valor.eventoId ?? "", tareaId: valor.tareaId ?? "", nombre: valor.nombre ?? actuales.nombre, categoriaIds: valor.categoriaIds ?? [] }))} eventos={eventos} tareas={tareas} categorias={categorias} ordenEventos={ordenEventos} cambiarOrdenEventos={cambiarOrdenEventos} etiquetaNombre="Nombre de la actividad" />
+                {!esSesionFocus && !actividadPuntual && <label>
                     <span>Nombre de la actividad</span>
                     <input
                         ref={nombreRef}
-                        value={eventoSeleccionado?.nombre ?? tareaSeleccionada?.nombre ?? valores.nombre}
+                        value={actividadPuntual?.nombre ?? eventoSeleccionado?.nombre ?? tareaSeleccionada?.nombre ?? valores.nombre}
                         readOnly
                         maxLength={80}
-                        disabled={!eventoSeleccionado && !tareaSeleccionada}
+                        disabled={!actividadPuntual && !eventoSeleccionado && !tareaSeleccionada}
                         required
                     />
                 </label>}
@@ -180,10 +159,12 @@ export function FormularioPlan({ plan = null, fechaSeleccionada, eventos, tareas
                             onChange={evento => cambiar("fin", evento.target.value)} required />
                     </label>}
                 </div>
+                <AccesosInicioRapido onSeleccionar={seleccionarInicioRapido}
+                    minimo={valoresIniciales?.inicio ? leerValorFechaHoraLocal(valoresIniciales.inicio) : null} />
                 {esSesionFocus
                     ? <p className="ayuda-horario-plan">Duración: {plan.configuracionFocus.bloques.reduce((total, bloque) => total + bloque.minutos, 0)} minutos. El horario de fin se ajustará automáticamente.</p>
                     : <p className="ayuda-horario-plan">Si termina otro día, elegí explícitamente la fecha de ese día.</p>}
-                {!esSesionFocus && !plan && <fieldset className="recurrencia-plan-campos">
+                {!esSesionFocus && !plan && !actividadPuntual && <fieldset className="recurrencia-plan-campos">
                     <legend>Repetición</legend>
                     <label><input type="checkbox" checked={repetirSemanalmente} onChange={evento => cambiarRepetirSemanalmente(evento.target.checked)} /> Repetir semanalmente</label>
                     {repetirSemanalmente && <>

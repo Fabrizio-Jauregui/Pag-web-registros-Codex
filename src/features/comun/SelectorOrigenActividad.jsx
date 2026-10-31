@@ -33,10 +33,35 @@ export function SelectorOrigenActividad({
     const dialogRef = useRef(null)
     const [abierto, cambiarAbierto] = useState(false)
     const [busqueda, cambiarBusqueda] = useState("")
+    const [ramaId, cambiarRamaId] = useState(null)
     const opcionesOrdenadas = useMemo(() => esEvento
         ? ordenarPlantillasEventos(opciones, ordenEventos)
         : opciones, [esEvento, opciones, ordenEventos])
     const seleccionado = opciones.find(opcion => opcion.id === value)
+    const tareasPorId = useMemo(() => new Map(opciones.map(opcion => [opcion.id, opcion])), [opciones])
+    const objetivosDeTareas = useMemo(() => {
+        const grupos = new Map()
+        opciones.filter(opcion => opcion.objetivoId).forEach(opcion => {
+            if (!grupos.has(opcion.objetivoId)) grupos.set(opcion.objetivoId, {
+                id: opcion.objetivoId,
+                nombre: (opcion.rutaNombre ?? "").split(" › ")[0] || "Objetivo",
+                cantidad: 0
+            })
+            if (!tareasPorId.has(opcion.padreId)) grupos.get(opcion.objetivoId).cantidad += 1
+        })
+        return [...grupos.values()]
+    }, [opciones, tareasPorId])
+    const rutaRama = useMemo(() => {
+        const ruta = []
+        const vistos = new Set()
+        let actual = tareasPorId.get(ramaId)
+        while (actual && !vistos.has(actual.id)) {
+            vistos.add(actual.id)
+            ruta.unshift(actual)
+            actual = tareasPorId.get(actual.padreId)
+        }
+        return ruta
+    }, [ramaId, tareasPorId])
     const resultados = useMemo(() => {
         const consulta = normalizarBusqueda(busqueda.trim())
         if (!consulta) return opcionesOrdenadas
@@ -58,6 +83,7 @@ export function SelectorOrigenActividad({
     function cerrar() {
         cambiarAbierto(false)
         cambiarBusqueda("")
+        cambiarRamaId(null)
         requestAnimationFrame(() => triggerRef.current?.focus())
     }
 
@@ -126,19 +152,33 @@ export function SelectorOrigenActividad({
                     </select>
                 </label>}
                 {value && <button type="button" className="selector-origen-limpiar" onClick={() => elegir(null)}>{emptyLabel ?? (esEvento ? "Sin plantilla" : "Sin tarea")}</button>}
-                <div className="selector-origen-lista" role="listbox" aria-label={esEvento ? "Plantillas de evento disponibles" : "Tareas disponibles"}>
-                    {resultados.map(opcion => {
+                {!esEvento && !busqueda.trim() && <div className="selector-origen-ruta">
+                    <button type="button" disabled={!ramaId} onClick={() => cambiarRamaId(ramaId?.startsWith("objetivo:") ? null : rutaRama.length > 1 ? rutaRama.at(-2).id : null)}>← Tareas principales</button>
+                    <span>{ramaId?.startsWith("objetivo:") ? objetivosDeTareas.find(objetivo => `objetivo:${objetivo.id}` === ramaId)?.nombre ?? "Objetivo" : rutaRama.length ? [objetivosDeTareas.find(objetivo => objetivo.id === rutaRama[0].objetivoId)?.nombre, ...rutaRama.map(tarea => tarea.nombre)].filter(Boolean).join(" › ") : "Objetivos y tareas principales"}</span>
+                </div>}
+                <div className="selector-origen-lista" role={esEvento ? "listbox" : "group"} aria-label={esEvento ? "Plantillas de evento disponibles" : busqueda.trim() ? "Resultados de tareas" : "Tareas de esta rama"}>
+                    {(esEvento ? resultados.map(opcion => ({ tipo: "opcion", opcion })) : busqueda.trim()
+                        ? resultados.map(opcion => ({ tipo: "opcion", opcion }))
+                        : ramaId?.startsWith("objetivo:")
+                            ? opcionesOrdenadas.filter(opcion => opcion.objetivoId === ramaId.slice("objetivo:".length) && !tareasPorId.has(opcion.padreId)).map(opcion => ({ tipo: "opcion", opcion }))
+                            : ramaId
+                                ? opcionesOrdenadas.filter(opcion => opcion.padreId === ramaId).map(opcion => ({ tipo: "opcion", opcion }))
+                                : [
+                                    ...objetivosDeTareas.map(objetivo => ({ tipo: "objetivo", objetivo })),
+                                    ...opcionesOrdenadas.filter(opcion => !opcion.objetivoId && !tareasPorId.has(opcion.padreId)).map(opcion => ({ tipo: "opcion", opcion }))
+                                ]).map(item => {
+                        if (item.tipo === "objetivo") return <div className="selector-origen-opcion-rama selector-origen-opcion-objetivo" key={item.objetivo.id}>
+                            <span><strong>{item.objetivo.nombre}</strong><small>{item.objetivo.cantidad} tarea(s) principal(es)</small></span>
+                            <button type="button" aria-label={`Ver tareas del objetivo ${item.objetivo.nombre}`} onClick={() => cambiarRamaId(`objetivo:${item.objetivo.id}`)}>›</button>
+                        </div>
+                        const opcion = item.opcion
                         const categoriasEvento = esEvento
                             ? obtenerCategoriasPlantillaEvento(opcion).map(id => categorias.find(categoria => categoria.id === id)?.nombre ?? "Categoría no disponible")
                             : []
-                        return <button
-                            type="button"
-                            role="option"
-                            aria-selected={opcion.id === value}
+                        const opcionTarea = <button
+                            type="button" role={esEvento ? "option" : undefined} aria-selected={esEvento ? opcion.id === value : undefined} aria-pressed={!esEvento ? opcion.id === value : undefined}
                             className={`selector-origen-opcion${opcion.id === value ? " activa" : ""}`}
-                            key={opcion.id}
-                            onClick={() => elegir(opcion)}
-                        >
+                            key={opcion.id} onClick={() => elegir(opcion)}>
                             {esEvento
                                 ? <span className="selector-origen-muestra-color" style={{ backgroundColor: opcion.color }} aria-hidden="true" />
                                 : <span className="selector-origen-icono-tarea" aria-hidden="true">T</span>}
@@ -152,10 +192,19 @@ export function SelectorOrigenActividad({
                             </span>
                             {opcion.id === value && <span className="selector-origen-check" aria-hidden="true">✓</span>}
                         </button>
+                        if (esEvento || busqueda.trim() || !opciones.some(tarea => tarea.padreId === opcion.id)) return opcionTarea
+                        const cantidadHijas = opciones.filter(tarea => tarea.padreId === opcion.id).length
+                        return <div className="selector-origen-opcion-rama" key={opcion.id}>
+                            {opcionTarea}
+                            <button type="button" aria-label={`Ver ${cantidadHijas} subtareas de ${opcion.nombre}`} onClick={() => cambiarRamaId(opcion.id)}>› <small>{cantidadHijas}</small></button>
+                        </div>
                     })}
-                    {resultados.length === 0 && <p className="selector-origen-vacio">{opciones.length
-                        ? `No hay ${esEvento ? "plantillas" : "tareas"} que coincidan con “${busqueda}”.`
-                        : `Todavía no hay ${esEvento ? "plantillas de evento" : "tareas"} para elegir.`}</p>}
+                    {(esEvento ? resultados.length === 0 : (busqueda.trim() ? resultados.length : ramaId?.startsWith("objetivo:")
+                        ? opcionesOrdenadas.filter(opcion => opcion.objetivoId === ramaId.slice("objetivo:".length) && !tareasPorId.has(opcion.padreId)).length
+                        : ramaId ? opcionesOrdenadas.filter(opcion => opcion.padreId === ramaId).length
+                            : objetivosDeTareas.length + opcionesOrdenadas.filter(opcion => !opcion.objetivoId && !tareasPorId.has(opcion.padreId)).length) === 0) && <p className="selector-origen-vacio">{esEvento
+                        ? opciones.length ? `No hay plantillas que coincidan con “${busqueda}”.` : "Todavía no hay plantillas de evento para elegir."
+                        : busqueda.trim() ? `No hay tareas que coincidan con “${busqueda}”.` : ramaId ? "Esta tarea todavía no tiene subtareas." : opciones.length ? "No hay tareas principales para elegir." : "Todavía no hay tareas para elegir."}</p>}
                 </div>
             </section>
         </div>, document.body)}
