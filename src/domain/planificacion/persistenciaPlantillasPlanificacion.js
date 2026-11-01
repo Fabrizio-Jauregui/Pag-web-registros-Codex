@@ -37,7 +37,7 @@ export function guardarPlantillasPlanificacion(plantillas, almacenamiento = null
             const vistos = new Set()
             const idsValidosActuales = new Set()
             invalidas = actuales.filter(plantilla => {
-                if (!validarPlantillaPlanificacion(plantilla) || vistos.has(plantilla?.id)) return true
+                if (validarPlantillaPlanificacion(plantilla) || vistos.has(plantilla?.id)) return true
                 vistos.add(plantilla.id)
                 idsValidosActuales.add(plantilla.id)
                 return false
