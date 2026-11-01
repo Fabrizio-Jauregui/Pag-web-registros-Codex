@@ -35,10 +35,16 @@ export function guardarPlantillasPlanificacion(plantillas, almacenamiento = null
             const actuales = JSON.parse(almacen.getItem(CLAVE_PLANTILLAS_PLANIFICACION) ?? "[]")
             if (!Array.isArray(actuales)) return { ok: false, error: "La colección de plantillas está corrupta; eliminála desde la revisión de datos antes de continuar." }
             const vistos = new Set()
+            const idsValidosActuales = new Set()
             invalidas = actuales.filter(plantilla => {
                 if (!validarPlantillaPlanificacion(plantilla) || vistos.has(plantilla?.id)) return true
-                vistos.add(plantilla.id); return false
+                vistos.add(plantilla.id)
+                idsValidosActuales.add(plantilla.id)
+                return false
             })
+            const idsNuevos = new Set(plantillas.map(plantilla => plantilla.id))
+            const idsEliminados = new Set([...idsValidosActuales].filter(id => !idsNuevos.has(id)))
+            invalidas = invalidas.filter(plantilla => !idsEliminados.has(plantilla?.id))
         } catch { return { ok: false, error: "La colección de plantillas está corrupta; eliminála desde la revisión de datos antes de continuar." }
         }
         almacen.setItem(CLAVE_PLANTILLAS_PLANIFICACION, JSON.stringify([...plantillas, ...invalidas]))
