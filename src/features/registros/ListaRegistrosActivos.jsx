@@ -6,6 +6,11 @@ import {
     puedeFinalizarRegistro
 } from "../../domain/tiempo/CalculosDuracion.js"
 import { useReloj } from "../../app/useReloj.js"
+import {
+    obtenerOrigenGestionRegistro,
+    ORIGEN_GESTION_FOCUS,
+    ORIGEN_GESTION_INDEPENDIENTE
+} from "../../domain/registros/origenGestionRegistro.js"
 
 export function ListaRegistrosActivos({ registros, estadoRegistro, titulo = "Actividades activas", className = "" }) {
     const ahora = useReloj()
@@ -18,6 +23,8 @@ export function ListaRegistrosActivos({ registros, estadoRegistro, titulo = "Act
                 const pausado = calcularTiempoPausado(registro.segmentos, ahora)
                 const transcurrido = calcularTiempoTranscurrido(registro.segmentos, ahora)
                 const puedeDetener = puedeFinalizarRegistro(registro.segmentos, ahora)
+                const origenGestion = obtenerOrigenGestionRegistro(registro)
+                const gestionIndependiente = origenGestion === ORIGEN_GESTION_INDEPENDIENTE
 
                 return (
                     <article className="registro-activo" key={registro.id} aria-label={`Actividad activa: ${registro.nombre}`}>
@@ -28,19 +35,25 @@ export function ListaRegistrosActivos({ registros, estadoRegistro, titulo = "Act
                         <p>Tiempo efectivo: {formatearDuracion(efectivo)}</p>
                         <p>Tiempo en pausa: {formatearDuracion(pausado)}</p>
                         <p>Tiempo transcurrido: {formatearDuracion(transcurrido)}</p>
-                        <div className="controles-registro-activo">
-                            {registro.estado === "En curso" ? (
-                            <button type="button" className="boton-pausar-temporizador" onClick={() => estadoRegistro.pausar(registro.id)}>Pausar</button>
-                            ) : (
-                                <button type="button" onClick={() => estadoRegistro.continuar(registro.id)}>Continuar</button>
-                            )}
-                            <button
-                                type="button"
-                                className="boton-finalizar-temporizador"
-                                disabled={!puedeDetener}
-                                onClick={() => estadoRegistro.finalizar(registro.id)}
-                            >Finalizar</button>
-                        </div>
+                        {gestionIndependiente ? (
+                            <div className="controles-registro-activo">
+                                {registro.estado === "En curso" ? (
+                                    <button type="button" className="boton-pausar-temporizador" onClick={() => estadoRegistro.pausar(registro.id)}>Pausar</button>
+                                ) : (
+                                    <button type="button" onClick={() => estadoRegistro.continuar(registro.id)}>Continuar</button>
+                                )}
+                                <button
+                                    type="button"
+                                    className="boton-finalizar-temporizador"
+                                    disabled={!puedeDetener}
+                                    onClick={() => estadoRegistro.finalizar(registro.id)}
+                                >Finalizar</button>
+                            </div>
+                        ) : (
+                            <p className="registro-activo-origen-gestion">
+                                Gestioná desde {origenGestion === ORIGEN_GESTION_FOCUS ? "Focus" : "Planificación"}.
+                            </p>
+                        )}
                     </article>
                 )
             })}

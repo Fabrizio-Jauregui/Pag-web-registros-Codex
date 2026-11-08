@@ -5,6 +5,7 @@ import { crearBloquesFocus, useSesionFocus } from "./usoSesionFocus.js"
 import { ControlesRegistro } from "./ControlesRegistro.jsx"
 import { SelectorOrigenRegistro } from "../comun/SelectorOrigenRegistro.jsx"
 import { ListaRegistrosActivos } from "./ListaRegistrosActivos.jsx"
+import { obtenerOrigenGestionRegistro, ORIGEN_GESTION_INDEPENDIENTE } from "../../domain/registros/origenGestionRegistro.js"
 import "./VistaFocus.css"
 
 function duracionVisible(ms) {
@@ -74,7 +75,10 @@ export function VistaFocus({ estadoRegistro, eventos = [], tareas = [], categori
     const sesion = focus.sesion
     const hayConcentracionActiva = sesion?.estado === "concentracion" || estadoRegistro.registros.some(registro => registro.origenFocus === true && registro.estado === "En curso")
     const configuracion = sesion?.configuracion
-    const independientes = registrosActivos.filter(registro => registro.id !== sesion?.registroId)
+    const independientes = registrosActivos.filter(registro =>
+        obtenerOrigenGestionRegistro(registro) === ORIGEN_GESTION_INDEPENDIENTE
+        && registro.id !== sesion?.registroId
+    )
     const totalMinutos = bloques.reduce((total, bloque) => total + (Number(bloque.minutos) || 0), 0)
     const eventoIndependiente = origenIndependiente.tipo === "evento" ? eventos.find(evento => evento.id === origenIndependiente.eventoId) ?? null : null
     const tareaIndependiente = origenIndependiente.tipo === "tarea" ? tareas.find(tarea => tarea.id === origenIndependiente.tareaId) ?? null : null

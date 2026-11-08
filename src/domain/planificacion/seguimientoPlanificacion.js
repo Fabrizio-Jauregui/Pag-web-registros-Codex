@@ -151,6 +151,16 @@ export function validarEstadoSeguimiento(estado) {
     if (estado.finalizados !== undefined && (!Array.isArray(estado.finalizados)
         || !estado.finalizados.every(id => typeof id === "string"))) return false
     if (estado.inicioSeguimiento !== undefined && !instanteValido(estado.inicioSeguimiento)) return false
+    const idsSecuencia = new Set(estado.secuencia.map(item => item?.planId))
+    if (estado.etapasDesbloqueadas !== undefined && (!Array.isArray(estado.etapasDesbloqueadas)
+        || estado.etapasDesbloqueadas.some(id => typeof id !== "string" || !idsSecuencia.has(id))
+        || new Set(estado.etapasDesbloqueadas).size !== estado.etapasDesbloqueadas.length)) return false
+    if (estado.transicionPendiente !== undefined && estado.transicionPendiente !== null && (!estado.transicionPendiente
+        || typeof estado.transicionPendiente !== "object"
+        || !Array.isArray(estado.transicionPendiente.planIds)
+        || estado.transicionPendiente.planIds.length === 0
+        || estado.transicionPendiente.planIds.some(id => typeof id !== "string" || !idsSecuencia.has(id))
+        || new Set(estado.transicionPendiente.planIds).size !== estado.transicionPendiente.planIds.length)) return false
 
     if (!instanteValido(estado.inicio)) return false
     if (estado.estado === "En curso" && !(esCronometro && estado.finBloque === null) && !instanteValido(estado.finBloque)) return false

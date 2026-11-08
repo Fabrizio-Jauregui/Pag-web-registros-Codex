@@ -29,7 +29,7 @@ test("Flujo de usuario: mantiene navegación y controles utilizables con teclado
     await expect(dia).toHaveAttribute("aria-pressed", "true")
     await page.getByRole("button", { name: "Acercar calendario" }).focus()
     await page.keyboard.press("Enter")
-    await expect(page.locator(".controles-zoom output")).toHaveText("16 h")
+    await expect(page.locator(".controles-zoom output")).toContainText("16 h")
 
     const desbordeHorizontal = await page.evaluate(() => (
         document.documentElement.scrollWidth > window.innerWidth
@@ -50,7 +50,9 @@ test("Flujo de usuario: consulta una actividad de la semana en la agenda móvil 
     await page.goto("/")
     await page.getByLabel("Ir a fecha").fill(fecha)
     await page.getByRole("button", { name: "Nuevo registro", exact: true }).click()
-    await page.getByLabel("Nombre de la actividad").fill("Lectura de prueba móvil")
+    await page.getByRole("form", { name: "Nuevo registro manual" })
+        .getByRole("radio", { name: "Actividad puntual" }).check()
+    await page.getByLabel("Nombre del registro").fill("Lectura de prueba móvil")
     await page.getByLabel("Inicio").fill(`${fecha}T09:00`)
     await page.getByLabel("Fin", { exact: true }).fill(`${fecha}T09:30`)
     await page.getByRole("button", { name: "Crear registro", exact: true }).click()

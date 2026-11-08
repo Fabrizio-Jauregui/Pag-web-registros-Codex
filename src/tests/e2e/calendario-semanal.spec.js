@@ -24,6 +24,8 @@ test("Datos preparados + interacción UI: muestra en ambos días un registro que
     const registro = {
         id: "qa-cruce-medianoche",
         nombre: "Registro de medianoche",
+        origenPuntual: true,
+        categoriaIds: [],
         eventoId: null,
         colorEvento: null,
         estado: "Finalizado",

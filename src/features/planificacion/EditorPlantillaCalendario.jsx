@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react"
 import { formatearDuracionEntrada, parsearDuracionEntrada } from "../../domain/tiempo/duracionEntrada.js"
+import { normalizarOrdenEtapasCronometro } from "../../domain/planificacion/plantillasPlanificacion.js"
 import { SelectorOrigenActividad } from "../comun/SelectorOrigenActividad.jsx"
 
 const hora = segundos => {
@@ -325,12 +326,11 @@ function EditorPlantillaCronometro({ plantilla, eventos, tareas = [], categorias
         if (actividades.length < 2) { cambiarError("Agregá al menos dos eventos."); return }
         if (actividades.some(item => !(item.tipoActividad === "focus" && item.configuracionFocus?.usarColaFocus)
             && (Boolean(item.eventoId) === Boolean(item.tareaId)))) { cambiarError("Elegí una plantilla de evento o una tarea para cada actividad."); return }
-        const indices = new Map()
-        const items = actividades.map(item => {
-            if (!indices.has(item.grupoCronometro)) indices.set(item.grupoCronometro, indices.size)
+        const actividadesNormalizadas = normalizarOrdenEtapasCronometro(actividades)
+        const items = actividadesNormalizadas.map(item => {
             const evento = eventos.find(elemento => elemento.id === item.eventoId)
             const tarea = tareas.find(elemento => elemento.id === item.tareaId)
-            return { id: item.id, nombre: (evento?.nombre ?? tarea?.nombre ?? item.nombre).trim(), eventoId: item.eventoId ?? null, ...(tarea ? { tareaId: tarea.id, tareaNombre: tarea.nombre } : {}), ...(item.tipoActividad === "focus" ? { tipoActividad: "focus", plantillaFocusId: item.plantillaFocusId, configuracionFocus: structuredClone(item.configuracionFocus) } : {}), grupoCronometro: indices.get(item.grupoCronometro), ordenSecuencia: indices.get(item.grupoCronometro) }
+            return { id: item.id, nombre: (evento?.nombre ?? tarea?.nombre ?? item.nombre).trim(), eventoId: item.eventoId ?? null, ...(tarea ? { tareaId: tarea.id, tareaNombre: tarea.nombre } : {}), ...(item.tipoActividad === "focus" ? { tipoActividad: "focus", plantillaFocusId: item.plantillaFocusId, configuracionFocus: structuredClone(item.configuracionFocus) } : {}), grupoCronometro: item.grupoCronometro, ordenSecuencia: item.ordenSecuencia }
         })
         const resultado = onGuardar({ id: plantilla?.id, nombre: nombre.trim(), modo: "cronometro", actividades: items })
         if (!resultado.ok) { cambiarError(resultado.error); return }

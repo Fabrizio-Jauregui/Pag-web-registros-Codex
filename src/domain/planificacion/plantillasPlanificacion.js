@@ -202,6 +202,43 @@ function materializarActividades(plantilla) {
     return plantilla.modo === "secuencias" ? obtenerActividadesSecuenciadas(plantilla.actividades) : plantilla.actividades
 }
 
+export function ordenarActividadesPlantilla(plantilla) {
+    const actividades = plantilla?.modo === "secuencias"
+        ? materializarActividades(plantilla)
+        : Array.isArray(plantilla?.actividades) ? plantilla.actividades : []
+    const modo = plantilla?.modo ?? "horarios"
+    return actividades.map((actividad, indiceOriginal) => ({ actividad, indiceOriginal })).sort((a, b) => {
+        if (modo === "cronometro") {
+            const ordenA = a.actividad.ordenSecuencia ?? a.actividad.grupoCronometro ?? 0
+            const ordenB = b.actividad.ordenSecuencia ?? b.actividad.grupoCronometro ?? 0
+            return ordenA - ordenB || a.indiceOriginal - b.indiceOriginal
+        }
+        if (modo === "horarios") {
+            const inicioA = a.actividad.inicioSegundos ?? 0
+            const inicioB = b.actividad.inicioSegundos ?? 0
+            return inicioA - inicioB || a.indiceOriginal - b.indiceOriginal
+        }
+        if (modo === "duraciones") {
+            const ordenA = a.actividad.ordenSecuencia ?? a.indiceOriginal
+            const ordenB = b.actividad.ordenSecuencia ?? b.indiceOriginal
+            return ordenA - ordenB || a.indiceOriginal - b.indiceOriginal
+        }
+        const inicioA = a.actividad.inicioDesplazamientoSegundos ?? 0
+        const inicioB = b.actividad.inicioDesplazamientoSegundos ?? 0
+        return inicioA - inicioB || a.indiceOriginal - b.indiceOriginal
+    }).map(({ actividad }) => actividad)
+}
+
+export function normalizarOrdenEtapasCronometro(actividades) {
+    const etapasOrdenadas = [...new Set(actividades.map(actividad => actividad.grupoCronometro))]
+        .sort((a, b) => a - b)
+    const ordenPorEtapa = new Map(etapasOrdenadas.map((etapa, indice) => [etapa, indice]))
+    return actividades.map(actividad => {
+        const orden = ordenPorEtapa.get(actividad.grupoCronometro)
+        return { ...actividad, grupoCronometro: orden, ordenSecuencia: orden }
+    })
+}
+
 export function validarColeccionPlantillasPlanificacion(plantillas) {
     if (!Array.isArray(plantillas)) return false
     const ids = new Set()
@@ -322,9 +359,14 @@ function prepararActividadesPlantilla(plantilla, fecha, eventos, opciones = {}) 
 export function previsualizarPlantillaPlanificacion(plantilla, fecha, eventos, opciones = {}) {
     const resultado = prepararActividadesPlantilla(plantilla, fecha, eventos, opciones)
     if (!resultado.ok) return resultado
+    const ordenPorId = new Map(ordenarActividadesPlantilla(plantilla).map((actividad, indice) => [actividad.id, indice]))
+    const actividadesOrdenadas = [...resultado.actividades].sort((a, b) =>
+        (ordenPorId.get(a.actividad.id) ?? Number.MAX_SAFE_INTEGER)
+        - (ordenPorId.get(b.actividad.id) ?? Number.MAX_SAFE_INTEGER)
+    )
     return {
         ok: true,
-        actividades: resultado.actividades.map(({ actividad, evento, tarea, inicio, fin }) => ({
+        actividades: actividadesOrdenadas.map(({ actividad, evento, tarea, inicio, fin }) => ({
             nombre: evento?.nombre ?? tarea?.nombre ?? actividad.nombre,
             eventoNombre: evento?.nombre ?? null,
             tareaNombre: tarea?.nombre ?? null,

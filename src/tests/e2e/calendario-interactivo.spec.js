@@ -46,6 +46,8 @@ test("Datos preparados + interacción UI: el único calendario acerca desde 24 h
     const registros = [{
         id: "qa-registro-breve",
         nombre: "Registro QA breve",
+        origenPuntual: true,
+        categoriaIds: [],
         eventoId: null,
         colorEvento: null,
         estado: "Finalizado",
@@ -80,30 +82,61 @@ test("Datos preparados + interacción UI: el único calendario acerca desde 24 h
     const nivelZoom = page.locator(".controles-zoom output")
     const bloque = page.getByRole("button", { name: /Registro QA breve/ })
     await expect(bloque).toBeVisible()
-    await expect(nivelZoom).toHaveText("24 h")
+    await expect(nivelZoom).toContainText("24 h visibles")
+    expect(await page.locator(".calendario-dia-scroll").evaluate(element => element.scrollHeight <= element.clientHeight + 1)).toBe(true)
     await expect(alejar).toBeDisabled()
     await expect(restablecer).toBeDisabled()
 
     await bloque.click()
     await acercar.click()
-    await expect(nivelZoom).toHaveText("5 min")
+    await expect(nivelZoom).toContainText("2 min")
     await expect(page.locator(".calendario-dia-scroll")).toBeVisible()
     await expect(page.getByRole("heading", { name: "Calendario ampliado" })).toHaveCount(0)
-    const bloqueZoom = page.locator(".bloque-detalle-tramo").filter({ hasText: "Registro QA breve" })
+    const bloqueZoom = page.locator(".bloque-registro").filter({ hasText: "Registro QA breve" })
     await expect(bloqueZoom).toBeVisible()
-    const altoBloqueAmpliado = await bloqueZoom.evaluate(element => element.getBoundingClientRect().height)
-    expect(altoBloqueAmpliado).toBeGreaterThan(100)
+    const geometriaZoom = await bloqueZoom.evaluate(element => ({
+        altoBloque: element.getBoundingClientRect().height,
+        altoPanel: element.closest(".calendario-dia-scroll").clientHeight
+    }))
+    expect(geometriaZoom.altoBloque).toBeGreaterThan(geometriaZoom.altoPanel * 0.95)
+    expect(geometriaZoom.altoBloque).toBeLessThan(geometriaZoom.altoPanel * 1.05)
 
     while (await acercar.isEnabled()) await acercar.click()
-    await expect(nivelZoom).toHaveText("1 segundo")
+    await expect(nivelZoom).toContainText("1 segundo")
     await expect(acercar).toBeDisabled()
     await expect(alejar).toBeEnabled()
     await expect(restablecer).toBeEnabled()
     await expect(page.locator(".calendario-dia-scroll")).toBeVisible()
     while (await alejar.isEnabled()) await alejar.click()
-    await expect(nivelZoom).toHaveText("24 h")
+    await expect(nivelZoom).toContainText("24 h visibles")
     await expect(page.locator(".calendario-hora")).toHaveCount(24)
     await expect(restablecer).toBeDisabled()
     expect(erroresPagina).toEqual([])
     expect(erroresConsola).toEqual([])
+})
+
+test("seleccionar una franja acerca exactamente ese intervalo sin crear ni editar registros", async ({ page }) => {
+    const fecha = new Date()
+    fecha.setDate(fecha.getDate() - 1)
+    await page.goto("/")
+    const selectorFecha = page.getByLabel("Ir a fecha")
+    await selectorFecha.fill(fechaLocalISO(fecha))
+    const calendario = page.locator(".calendario-dia-scroll")
+    await calendario.scrollIntoViewIfNeeded()
+    const caja = await calendario.boundingBox()
+    const alto = await calendario.evaluate(elemento => elemento.clientHeight)
+    const x = caja.x + Math.min(caja.width - 40, 200)
+    const inicioY = caja.y + alto * 9 / 24
+    const finY = caja.y + alto * 10 / 24
+    await page.mouse.move(x, inicioY)
+    await page.mouse.down()
+    await page.mouse.move(x, finY, { steps: 5 })
+    await page.mouse.up()
+    await page.getByRole("button", { name: "Acercar calendario" }).click()
+
+    const salida = page.locator(".controles-zoom output")
+    await expect(salida).toContainText("1 h visibles")
+    await expect(salida).toContainText("09:00:00–")
+    await expect(salida).toContainText("10:00:00")
+    expect(await page.evaluate(() => localStorage.getItem("focus.registros.v1"))).toBeNull()
 })

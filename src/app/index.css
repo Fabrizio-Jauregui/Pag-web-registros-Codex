@@ -98,7 +98,8 @@ html[data-tema="oscuro"] .detalle-tramo-header h3 {
 
 html[data-tema="oscuro"] .controles-temporizador label,
 html[data-tema="oscuro"] .estado-temporizador,
-html[data-tema="oscuro"] .registro-activo-estado {
+html[data-tema="oscuro"] .registro-activo-estado,
+html[data-tema="oscuro"] .registro-activo-origen-gestion {
   color: #c3cede;
 }
 

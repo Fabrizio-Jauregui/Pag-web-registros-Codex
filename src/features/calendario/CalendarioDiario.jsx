@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react"
+import { cloneElement, forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react"
 
 import {
     desplazarDia,
@@ -11,17 +11,13 @@ import {
 import { obtenerFragmentosCalendario } from "./segmentosCalendario.js"
 import { formatearInstante } from "../../domain/tiempo/historial.js"
 import { FormularioRegistro } from "./FormularioRegistro.jsx"
-import { DetalleTramo } from "./DetalleTramo.jsx"
 import { DetalleRegistro } from "./DetalleRegistro.jsx"
 import { TiempoTotal } from "./TiempoTotal.jsx"
 import { VistaCalendarioDia } from "./VistaCalendarioDia.jsx"
 import { VistaCalendarioSemana } from "./VistaCalendarioSemana.jsx"
 import { FormularioPlan } from "./FormularioPlan.jsx"
 import { DetallePlan } from "./DetallePlan.jsx"
-import {
-    ALTURA_HORA_BASE,
-    VENTANAS_ZOOM_SEGUNDOS
-} from "./zoomCalendario.js"
+import { ALTURA_HORA_BASE } from "./zoomCalendario.js"
 import { obtenerFragmentosPlanesCalendario } from "./segmentosCalendario.js"
 import { generarAparicionesRecurrencia } from "../../domain/planificacion/recurrencias.js"
 import "./CalendarioDiario.css"
@@ -45,16 +41,29 @@ function obtenerCentroRegistro(registro, ahora) {
     return new Date((inicio + fin) / 2)
 }
 
-function obtenerVentanaPlan(plan) {
-    const ventanas = [1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600, 7200, 14400, 28800, 57600, 86400]
-    const duracion = (plan.fin.getTime() - plan.inicio.getTime()) / 1000
-    return ventanas.find(ventana => ventana >= duracion * 1.25) ?? ventanas.at(-1)
-}
-
 function etiquetaVentanaZoom(segundos) {
     if (segundos < 60) return `${segundos} ${segundos === 1 ? "segundo" : "segundos"}`
     if (segundos % 3600 === 0) return `${segundos / 3600} h`
     return `${segundos / 60} min`
+}
+
+function formatoInstanteVisible(instante, incluirFecha) {
+    return formatearInstante(instante, incluirFecha
+        ? { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" }
+        : { hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" })
+}
+
+function obtenerFechasDelTramo(inicio, fin) {
+    const cursor = new Date(inicio.getFullYear(), inicio.getMonth(), inicio.getDate())
+    const ultimoDia = new Date(fin.getFullYear(), fin.getMonth(), fin.getDate())
+    const fechas = []
+
+    while (cursor <= ultimoDia) {
+        fechas.push(new Date(cursor))
+        cursor.setDate(cursor.getDate() + 1)
+    }
+
+    return fechas
 }
 
 function distribuirCarriles(
@@ -118,27 +127,39 @@ export const CalendarioDiario = forwardRef(function CalendarioDiario({
     seguimientoPlanificacion = null
 }, referencia) {
     const [vista, cambiarVista] = useState("dia")
+    const [formatoSemanaMovil, cambiarFormatoSemanaMovil] = useState("agenda")
     const [fechaSeleccionada, cambiarFechaSeleccionada] = useState(
         () => fechaInicial ? new Date(fechaInicial.getFullYear(), fechaInicial.getMonth(), fechaInicial.getDate()) : obtenerFechaLocalHoy()
     )
-    const [alturaHoraDia] = useState(ALTURA_HORA_BASE)
-    const [alturaHoraSemana] = useState(ALTURA_HORA_BASE)
     const [registroSeleccionado, cambiarRegistroSeleccionado] = useState(null)
-    const [centroRegistroSeleccionado, cambiarCentroRegistroSeleccionado] = useState(null)
+    const [, cambiarCentroRegistroSeleccionado] = useState(null)
     const [formulario, cambiarFormulario] = useState(null)
-    const [tramoDetallado, cambiarTramoDetallado] = useState(null)
+    const [zoomCalendario, cambiarZoomCalendario] = useState(null)
+    const [rangoZoomVisible, cambiarRangoZoomVisible] = useState(null)
+    const [rangoLienzoZoom, cambiarRangoLienzoZoom] = useState(null)
     const [franjaSeleccionada, cambiarFranjaSeleccionada] = useState(null)
     const [estadoAjuste, cambiarEstadoAjuste] = useState(null)
     const [edicionDirectaHabilitada, cambiarEdicionDirectaHabilitada] = useState(false)
     const [idAplicacionArmada, cambiarIdAplicacionArmada] = useState(null)
     const [idAplicacionCronometroSeleccionada, cambiarIdAplicacionCronometroSeleccionada] = useState(null)
     const [planSeleccionado, cambiarPlanSeleccionado] = useState(null)
-    const [centroPlanSeleccionado, cambiarCentroPlanSeleccionado] = useState(null)
+    const [, cambiarCentroPlanSeleccionado] = useState(null)
     const [formularioPlan, cambiarFormularioPlan] = useState(null)
     const focoPlanRef = useRef(null)
     const formularioPlanAbiertoRef = useRef(false)
     const focoAlCerrarFormularioRef = useRef(null)
     const formularioAbiertoRef = useRef(false)
+    const rangoZoomVisibleRef = useRef(null)
+    const idZoomRef = useRef(0)
+    const [esViewportMovil, cambiarEsViewportMovil] = useState(false)
+
+    useEffect(() => {
+        const media = window.matchMedia("(max-width: 700px)")
+        const actualizar = () => cambiarEsViewportMovil(media.matches)
+        actualizar()
+        media.addEventListener("change", actualizar)
+        return () => media.removeEventListener("change", actualizar)
+    }, [])
 
 
     useEffect(() => {
@@ -173,7 +194,7 @@ export const CalendarioDiario = forwardRef(function CalendarioDiario({
             cambiarRegistroSeleccionado(null)
             cambiarPlanSeleccionado(null)
             cambiarFormularioPlan(null)
-            cambiarTramoDetallado(null)
+            cambiarZoomCalendario(null)
             cambiarEstadoAjuste(null)
             cambiarFormulario({ tipo: "crear" })
         },
@@ -183,7 +204,7 @@ export const CalendarioDiario = forwardRef(function CalendarioDiario({
             cambiarPlanSeleccionado(null)
             cambiarCentroPlanSeleccionado(null)
             cambiarRegistroSeleccionado(null)
-            cambiarTramoDetallado(null)
+            cambiarZoomCalendario(null)
             cambiarEstadoAjuste(null)
             cambiarFormulario(null)
             cambiarFormularioPlan({ tipo: "crear" })
@@ -198,9 +219,10 @@ export const CalendarioDiario = forwardRef(function CalendarioDiario({
     const fechaVisible = vista === "dia"
         ? formatoFechaLarga.format(fechaSeleccionada)
         : `${formatoFechaCorta.format(inicioSemana)} – ${formatoFechaCorta.format(diasSemana[6])}`
+    const fechaFinRecurrencias = vista === "dia" ? fechaSeleccionada : new Date(diasSemana[6])
+    if (vista === "semana") fechaFinRecurrencias.setDate(fechaFinRecurrencias.getDate() + 1)
     const planesVisibles = [...planes, ...generarAparicionesRecurrencia(
-        recurrencias, vista === "dia" ? fechaSeleccionada : diasSemana[0],
-        vista === "dia" ? fechaSeleccionada : diasSemana[6]
+        recurrencias, vista === "dia" ? fechaSeleccionada : diasSemana[0], fechaFinRecurrencias
     )]
     const planActivoSeguimientoId = seguimientoPlanificacion?.estado
         ? seguimientoPlanificacion.estado.secuencia[seguimientoPlanificacion.estado.indiceActual]?.planId
@@ -226,6 +248,7 @@ export const CalendarioDiario = forwardRef(function CalendarioDiario({
 
         return {
             id: ancla.idAplicacionPlantilla,
+            inicio: ancla.inicio,
             marcador: <button
                 type="button"
                 key={ancla.idAplicacionPlantilla}
@@ -290,66 +313,126 @@ export const CalendarioDiario = forwardRef(function CalendarioDiario({
             ...obtenerFragmentosPlanesCalendario(planesVisibles, dia)
                 .map(fragmento => ({ ...fragmento, tipoVisual: "plan" }))
         ])
+        const diaSiguiente = new Date(dia)
+        diaSiguiente.setDate(diaSiguiente.getDate() + 1)
+        const extendidos = distribuirCarriles([
+            ...combinados,
+            ...obtenerFragmentosCalendario(registros, diaSiguiente, ahora)
+                .map(fragmento => ({ ...fragmento, tipoVisual: "registro" })),
+            ...obtenerFragmentosPlanesCalendario(planesVisibles, diaSiguiente)
+                .map(fragmento => ({ ...fragmento, tipoVisual: "plan" }))
+        ], fragmento => fragmento.inicio.getTime(), fragmento => fragmento.fin.getTime())
         return {
             fecha: formatearFechaISO(dia),
             fragmentos: combinados.filter(fragmento => fragmento.tipoVisual === "registro"),
-            planes: combinados.filter(fragmento => fragmento.tipoVisual === "plan")
+            planes: combinados.filter(fragmento => fragmento.tipoVisual === "plan"),
+            fragmentosExtendidos: extendidos.filter(fragmento => fragmento.tipoVisual === "registro"),
+            planesExtendidos: extendidos.filter(fragmento => fragmento.tipoVisual === "plan")
         }
     })
-    const fragmentosCalendario = vista === "dia"
-        ? fragmentosCombinadosDia
-        : fragmentosSemana.flatMap(columna => [...columna.fragmentos, ...columna.planes])
-    const alturaHora = vista === "dia" ? alturaHoraDia : alturaHoraSemana
+    const inicioLienzoZoom = rangoLienzoZoom?.inicio
+        ?? (zoomCalendario ? new Date(zoomCalendario.inicio.getTime() - zoomCalendario.duracionSegundos * 1000) : null)
+    const finLienzoZoom = rangoLienzoZoom?.fin
+        ?? (zoomCalendario ? new Date(inicioLienzoZoom.getTime() + zoomCalendario.duracionSegundos * 3000) : null)
+    const fragmentosZoom = zoomCalendario && vista === "dia"
+        ? (() => {
+            const fechas = obtenerFechasDelTramo(inicioLienzoZoom, finLienzoZoom)
+            const planesLienzo = [
+                ...planes,
+                ...generarAparicionesRecurrencia(recurrencias, fechas[0], fechas.at(-1))
+            ]
+            const fragmentos = fechas.flatMap(fecha => [
+                ...obtenerFragmentosCalendario(registros, fecha, ahora)
+                    .map(fragmento => ({ ...fragmento, tipoVisual: "registro" })),
+                ...obtenerFragmentosPlanesCalendario(planesLienzo, fecha)
+                    .map(fragmento => ({ ...fragmento, tipoVisual: "plan" }))
+            ])
+            return distribuirCarriles(fragmentos, fragmento => fragmento.inicio.getTime(), fragmento => fragmento.fin.getTime())
+        })()
+        : []
     const escalaCalendario = {
-        "--altura-hora": `${alturaHora}px`,
-        "--altura-dia": `${alturaHora * 24}px`
+        "--altura-hora": `${ALTURA_HORA_BASE}px`,
+        "--altura-dia": `${ALTURA_HORA_BASE * 24}px`
+    }
+    const zoomBloqueadoAgenda = vista === "semana" && esViewportMovil && formatoSemanaMovil === "agenda"
+    const inicioEtiquetaZoom = rangoZoomVisible?.inicio
+        ?? new Date(fechaSeleccionada.getFullYear(), fechaSeleccionada.getMonth(), fechaSeleccionada.getDate())
+    const finEtiquetaZoom = rangoZoomVisible?.fin
+        ?? new Date(fechaSeleccionada.getFullYear(), fechaSeleccionada.getMonth(), fechaSeleccionada.getDate() + 1)
+    const duracionEtiquetaZoom = zoomCalendario?.duracionSegundos ?? 86400
+
+    function obtenerCentroInicialZoom() {
+        const hoy = new Date(ahora)
+        hoy.setHours(0, 0, 0, 0)
+        const inicio = vista === "semana" ? new Date(diasSemana[0]) : new Date(fechaSeleccionada)
+        inicio.setHours(0, 0, 0, 0)
+        const fin = vista === "semana" ? new Date(diasSemana[6]) : new Date(fechaSeleccionada)
+        fin.setHours(23, 59, 59, 999)
+        return hoy >= inicio && hoy <= fin
+            ? new Date(ahora)
+            : new Date(fechaSeleccionada.getFullYear(), fechaSeleccionada.getMonth(), fechaSeleccionada.getDate(), 12)
     }
 
     function cambiarZoom(direccion) {
-        const ventanaActual = tramoDetallado?.ventanaSegundos ?? VENTANAS_ZOOM_SEGUNDOS.at(-1)
-        const indiceActual = VENTANAS_ZOOM_SEGUNDOS.indexOf(ventanaActual)
-        let indiceSiguiente = Math.max(0, Math.min(VENTANAS_ZOOM_SEGUNDOS.length - 1, indiceActual - direccion))
-        let referencia = tramoDetallado?.referencia
-        let centro = tramoDetallado?.centro ?? new Date(fechaSeleccionada.getTime() + 12 * 60 * 60 * 1000)
-        let tipo = tramoDetallado?.tipo ?? "calendario"
+        const enAgendaSemanalMovil = vista === "semana" && esViewportMovil && formatoSemanaMovil === "agenda"
+        if (enAgendaSemanalMovil) return
 
-        if (direccion > 0 && !tramoDetallado && (registroSeleccionado || planSeleccionado || franjaSeleccionada)) {
-            referencia = registroSeleccionado ?? planSeleccionado ?? franjaSeleccionada.referencia
-            centro = registroSeleccionado
-                ? centroRegistroSeleccionado ?? obtenerCentroRegistro(registroSeleccionado, new Date())
-                : planSeleccionado
-                    ? centroPlanSeleccionado ?? new Date((planSeleccionado.inicio.getTime() + planSeleccionado.fin.getTime()) / 2)
-                    : franjaSeleccionada.centro
-            const ventana = franjaSeleccionada?.ventanaSegundos
-                ?? (registroSeleccionado ? 300 : obtenerVentanaPlan(planSeleccionado))
-            indiceSiguiente = VENTANAS_ZOOM_SEGUNDOS.indexOf(ventana)
-            tipo = franjaSeleccionada ? "franja" : planSeleccionado ? "plan" : "registro"
-            cambiarFranjaSeleccionada(null)
+        let inicio
+        let duracionSegundos
+        if (!zoomCalendario && direccion > 0 && (registroSeleccionado || planSeleccionado || franjaSeleccionada)) {
+            if (franjaSeleccionada) {
+                inicio = franjaSeleccionada.referencia.inicio
+                duracionSegundos = (franjaSeleccionada.referencia.fin.getTime() - inicio.getTime()) / 1000
+            } else if (registroSeleccionado) {
+                inicio = registroSeleccionado.segmentos[0].inicio
+                const fin = registroSeleccionado.segmentos.at(-1).fin ?? ahora
+                duracionSegundos = (fin.getTime() - inicio.getTime()) / 1000
+            } else {
+                inicio = planSeleccionado.inicio
+                duracionSegundos = (planSeleccionado.fin.getTime() - inicio.getTime()) / 1000
+            }
+        } else {
+            const rango = rangoZoomVisibleRef.current
+            const centro = rango
+                ? new Date((rango.inicio.getTime() + rango.fin.getTime()) / 2)
+                : obtenerCentroInicialZoom()
+            const actual = zoomCalendario?.duracionSegundos ?? 86400
+            duracionSegundos = zoomCalendario
+                ? Math.min(86400, Math.max(1, actual * (direccion > 0 ? 0.5 : 2)))
+                : 43200
+            inicio = new Date(centro.getTime() - duracionSegundos * 500)
         }
-        const siguiente = VENTANAS_ZOOM_SEGUNDOS[indiceSiguiente]
-        if (siguiente === VENTANAS_ZOOM_SEGUNDOS.at(-1)) {
-            cambiarTramoDetallado(null)
+
+        duracionSegundos = Math.max(1, Math.min(86400, duracionSegundos))
+        cambiarFranjaSeleccionada(null)
+        if (duracionSegundos >= 86400) {
+            restablecerZoom()
             return
         }
-        if (!referencia) referencia = tramoDetallado?.referencia ?? { id: "calendario", fecha: fechaISO }
-        cambiarTramoDetallado({ referencia, centro, ventanaSegundos: siguiente, tipo })
+        const nuevoZoom = { id: ++idZoomRef.current, inicio: new Date(inicio), duracionSegundos }
+        cambiarZoomCalendario(nuevoZoom)
+        cambiarRangoZoomVisible({ inicio: nuevoZoom.inicio, fin: new Date(inicio.getTime() + duracionSegundos * 1000) })
+        rangoZoomVisibleRef.current = { inicio: nuevoZoom.inicio, fin: new Date(inicio.getTime() + duracionSegundos * 1000) }
+        cambiarRangoLienzoZoom({
+            inicio: new Date(inicio.getTime() - duracionSegundos * 1000),
+            fin: new Date(inicio.getTime() + duracionSegundos * 2000)
+        })
     }
 
     function restablecerZoom() {
-        cambiarTramoDetallado(null)
+        cambiarZoomCalendario(null)
+        cambiarRangoZoomVisible(null)
+        cambiarRangoLienzoZoom(null)
+        rangoZoomVisibleRef.current = null
         cambiarFranjaSeleccionada(null)
     }
 
     function seleccionarFranja(inicio, fin) {
-        const duracion = Math.max(1, Math.round((fin.getTime() - inicio.getTime()) / 1000))
-        const ventanas = VENTANAS_ZOOM_SEGUNDOS
-        const ventanaSegundos = ventanas.find(ventana => ventana >= duracion * 1.25) ?? ventanas.at(-1)
         cambiarRegistroSeleccionado(null)
         cambiarPlanSeleccionado(null)
         cambiarFranjaSeleccionada({
             referencia: { id: "franja-seleccionada", inicio, fin },
-            centro: new Date((inicio.getTime() + fin.getTime()) / 2),
-            ventanaSegundos
+            centro: new Date((inicio.getTime() + fin.getTime()) / 2)
         })
     }
 
@@ -365,7 +448,7 @@ export const CalendarioDiario = forwardRef(function CalendarioDiario({
             cambiarPlanSeleccionado(null)
             cambiarCentroPlanSeleccionado(null)
             cambiarFormularioPlan(null)
-            cambiarTramoDetallado(null)
+            restablecerZoom()
             cambiarEstadoAjuste(null)
         }
     }
@@ -381,7 +464,7 @@ export const CalendarioDiario = forwardRef(function CalendarioDiario({
             cambiarPlanSeleccionado(null)
             cambiarCentroPlanSeleccionado(null)
             cambiarFormularioPlan(null)
-            cambiarTramoDetallado(null)
+            restablecerZoom()
             cambiarEstadoAjuste(null)
         }
     }
@@ -394,7 +477,7 @@ export const CalendarioDiario = forwardRef(function CalendarioDiario({
         cambiarPlanSeleccionado(null)
             cambiarCentroPlanSeleccionado(null)
         cambiarFormularioPlan(null)
-        cambiarTramoDetallado(null)
+        restablecerZoom()
         cambiarEstadoAjuste(null)
     }
 
@@ -406,7 +489,7 @@ export const CalendarioDiario = forwardRef(function CalendarioDiario({
         cambiarPlanSeleccionado(null)
         cambiarCentroPlanSeleccionado(null)
         cambiarFormularioPlan(null)
-        cambiarTramoDetallado(null)
+        restablecerZoom()
         cambiarEstadoAjuste(null)
     }
 
@@ -717,21 +800,25 @@ export const CalendarioDiario = forwardRef(function CalendarioDiario({
                                 <button
                                     type="button"
                                     aria-label="Alejar calendario"
-                                    disabled={!tramoDetallado}
+                                    disabled={!zoomCalendario || zoomBloqueadoAgenda}
                                     onClick={() => cambiarZoom(-1)}
                                 >−</button>
-                                <output aria-live="polite">{tramoDetallado ? etiquetaVentanaZoom(tramoDetallado.ventanaSegundos) : "24 h"}</output>
+                                <output aria-live="polite">
+                                    {zoomBloqueadoAgenda
+                                        ? "Cambiá a Grilla por horas para acercar"
+                                        : `${etiquetaVentanaZoom(duracionEtiquetaZoom)} visibles · ${formatoInstanteVisible(inicioEtiquetaZoom, true)}–${formatoInstanteVisible(finEtiquetaZoom, true)}`}
+                                </output>
                                 <button
                                     type="button"
                                     aria-label="Acercar calendario"
-                                    disabled={tramoDetallado?.ventanaSegundos === VENTANAS_ZOOM_SEGUNDOS[0]}
+                                    disabled={zoomBloqueadoAgenda || zoomCalendario?.duracionSegundos <= 1}
                                     onClick={() => cambiarZoom(1)}
                                 >+</button>
                                 <button
                                     type="button"
                                     className="boton-restablecer-zoom"
-                                    disabled={!tramoDetallado && !franjaSeleccionada}
-                                    onClick={restablecerZoom}
+                                    disabled={!zoomCalendario && !franjaSeleccionada}
+                                    onClick={() => restablecerZoom()}
                                 >Restablecer</button>
                             </div>
                             <button
@@ -754,7 +841,7 @@ export const CalendarioDiario = forwardRef(function CalendarioDiario({
             {idAplicacionArmada && (
                 <p className="mensaje-ajuste-calendario" role="status">Edición directa está activada. Arrastrá cualquier bloque de esa aplicación para mover todas sus actividades juntas. El modo seguirá activo hasta que lo canceles; cambiar un borde afecta solo esa actividad. <button type="button" onClick={() => cambiarIdAplicacionArmada(null)}>Cancelar movimiento conjunto</button></p>
             )}
-            {!tramoDetallado && franjaSeleccionada && (
+            {!zoomCalendario && franjaSeleccionada && (
                 <p className="mensaje-ajuste-calendario" role="status">
                     Franja seleccionada: {formatearInstante(franjaSeleccionada.referencia.inicio, { hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" })} – {formatearInstante(franjaSeleccionada.referencia.fin, { hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" })}. Toca «Acercar calendario» para enfocarla.
                 </p>
@@ -765,24 +852,25 @@ export const CalendarioDiario = forwardRef(function CalendarioDiario({
                 </p>
             )}
 
-            {tramoDetallado ? (
-                <DetalleTramo
-                    tramo={tramoDetallado}
-                    fragmentosCalendario={fragmentosCalendario}
-                    eventos={eventos}
-                    tareas={tareas}
-                    edicionDirectaHabilitada={edicionDirectaHabilitada}
-                    onAjustarRegistro={ajustarRegistroDesdeCalendario}
-                    onAjustarPlan={ajustarPlanDesdeCalendario}
-                />
-            ) : vista === "dia" ? (
+            {vista === "dia" ? (
                 <VistaCalendarioDia
                     escalaCalendario={escalaCalendario}
+                    zoom={zoomCalendario}
                     fechaISO={fechaISO}
                     fechaVisible={fechaVisible}
-                    fragmentos={fragmentosDia}
-                    fragmentosPlanes={fragmentosPlanesDia}
-                    marcadoresSecuenciales={representacionesSecuenciaCronometro.map(item => item.marcador)}
+                    fragmentos={zoomCalendario ? fragmentosZoom.filter(fragmento => fragmento.tipoVisual === "registro") : fragmentosDia}
+                    fragmentosPlanes={zoomCalendario ? fragmentosZoom.filter(fragmento => fragmento.tipoVisual === "plan") : fragmentosPlanesDia}
+                    registros={registros}
+                    planes={planes}
+                    recurrencias={recurrencias}
+                    ahora={ahora}
+                    onLienzoZoomChange={rango => cambiarRangoLienzoZoom(rango)}
+                    onRangoVisibleChange={(inicio, fin) => {
+                        const rango = { inicio, fin }
+                        rangoZoomVisibleRef.current = rango
+                        cambiarRangoZoomVisible(rango)
+                    }}
+                    marcadoresSecuenciales={representacionesSecuenciaCronometro.map(item => cloneElement(item.marcador, { "data-instante": item.inicio.getTime() }))}
                     eventos={eventos}
                     onSeleccionar={(registro, fragmento) => {
                         cambiarFranjaSeleccionada(null)
@@ -829,6 +917,15 @@ export const CalendarioDiario = forwardRef(function CalendarioDiario({
                     edicionDirectaHabilitada={edicionDirectaHabilitada}
                     idAplicacionArmada={idAplicacionArmada}
                     planActivoSeguimientoId={planActivoSeguimientoId}
+                    formatoMovil={formatoSemanaMovil}
+                    cambiarFormatoMovil={cambiarFormatoSemanaMovil}
+                    esViewportMovil={esViewportMovil}
+                    zoom={zoomCalendario}
+                    onRangoVisibleChange={(inicio, fin) => {
+                        const rango = { inicio, fin }
+                        rangoZoomVisibleRef.current = rango
+                        cambiarRangoZoomVisible(rango)
+                    }}
                 />
             )}
             {vista === "dia" && representacionesSecuenciaCronometro
@@ -865,7 +962,7 @@ export const CalendarioDiario = forwardRef(function CalendarioDiario({
                 />
             )}
 
-            {!tramoDetallado && !formulario && registroSeleccionado && (
+            {!formulario && registroSeleccionado && (
                 <DetalleRegistro
                     registro={registroSeleccionado}
                     tareas={tareas}
@@ -875,7 +972,7 @@ export const CalendarioDiario = forwardRef(function CalendarioDiario({
                     onCerrar={() => cambiarRegistroSeleccionado(null)}
                 />
             )}
-            {!formularioPlan && !formulario && !tramoDetallado && planSeleccionado && (
+            {!formularioPlan && !formulario && planSeleccionado && (
                 <DetallePlan
                     plan={planSeleccionado}
                     evento={eventos.find(evento => evento.id === planSeleccionado.eventoId)}

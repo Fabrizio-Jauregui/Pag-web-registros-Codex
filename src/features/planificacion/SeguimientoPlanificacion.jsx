@@ -212,9 +212,7 @@ export function PanelSeguimientoPlanificacion({
                     <h4>{eventosActivos.length > 1 ? "En curso en paralelo" : "Evento registrándose"}</h4>
                     <ul>{eventosActivos.map(activo => {
                         const item = estado.secuencia.find(elemento => elemento.planId === activo.planId)
-                        const siguiente = esCronometro
-                            ? seguimiento.siguienteEventoAlFinalizar?.(activo.planId)
-                            : null
+                        const siguiente = seguimiento.siguienteEventoAlFinalizar?.(activo.planId)
                         const restante = estado.estado === "Pausado"
                             ? activo.restanteMs
                             : Date.parse(activo.finBloque) - ahoraMs
@@ -272,6 +270,10 @@ export function PanelSeguimientoPlanificacion({
             )}
             {error && <p className="seguimiento-plan-error" role="alert">{error}</p>}
             {mensaje && <p className="seguimiento-plan-mensaje" role="status">{mensaje}</p>}
+            {estado.transicionPendiente && estado.estado === "En curso" && <button type="button" onClick={seguimiento.reintentarTransicion}>
+                Reintentar inicio de “{estado.secuencia.find(item => estado.transicionPendiente.planIds.includes(item.planId))?.nombre ?? "la siguiente etapa"}”
+            </button>}
+            {estado.transicionPendiente && estado.estado === "Pausado" && <p role="status">El inicio siguiente está pendiente. Continuá el seguimiento para poder reintentarlo.</p>}
             <div className="seguimiento-plan-acciones">
                 {estado.estado === "En curso"
                     ? <button type="button" onClick={seguimiento.pausar}>Pausar</button>

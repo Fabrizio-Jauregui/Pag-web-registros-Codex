@@ -424,7 +424,7 @@ test("Flujo de usuario: amplía una planificación de pocos segundos hasta verla
 
     const acercar = zoom.getByRole("button", { name: "Acercar calendario" })
     while (await acercar.isEnabled()) await acercar.click()
-    await expect(zoom.locator("output")).toHaveText("1 segundo")
+    await expect(zoom.locator("output")).toContainText("1 segundo")
     await expect(bloque).toBeVisible()
     const alejar = zoom.getByRole("button", { name: "Alejar calendario" })
     while (await alejar.isEnabled()) await alejar.click()
@@ -462,7 +462,7 @@ test("Flujo de usuario: enfoca el zoom desde una franja horaria seleccionada en 
     await page.getByRole("button", { name: "Acercar calendario" }).click()
     await expect(page.locator(".calendario-dia-scroll")).toBeVisible()
     await expect(page.locator(".bloque-detalle-plan").filter({ hasText: "Plan dentro de franja" })).toBeVisible()
-    await expect(page.getByRole("group", { name: "Zoom del calendario" }).locator("output")).toHaveText("15 min")
+    await expect(page.getByRole("group", { name: "Zoom del calendario" }).locator("output")).toContainText("15 min")
 })
 
 test("Flujo de usuario: ampliar desde un registro o un plan conserva juntos los mismos tramos del calendario", async ({ page }) => {

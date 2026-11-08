@@ -1,6 +1,7 @@
 import { useRef, useState } from "react"
 
 import { formatearInstante } from "../../domain/tiempo/historial.js"
+import { ALTURA_HORA_BASE } from "./zoomCalendario.js"
 
 const opcionesHora = { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }
 const duracionRelativa = segundos => `${String(Math.floor(segundos / 3600)).padStart(2, "0")}:${String(Math.floor(segundos % 3600 / 60)).padStart(2, "0")}:${String(Math.floor(segundos % 60)).padStart(2, "0")}`
@@ -30,7 +31,10 @@ export function BloquePlan({
     edicionDirectaHabilitada,
     estaEnSeguimiento = false,
     permiteCambiarDia = false,
-    tiempoRelativo = false
+    tiempoRelativo = false,
+    compacto = false,
+    anchoCarril = 0,
+    escalaTemporal = null
 }) {
     const gestoRef = useRef(null)
     const ignorarClickRef = useRef(false)
@@ -47,8 +51,17 @@ export function BloquePlan({
     const etiqueta = tiempoRelativo
         ? `${etiquetaOrden}${plan.tipoPlanificacion === "focus" ? "Sesión Focus planificada" : "Planificado"}: ${nombre}, inicio +${duracionRelativa(segundosDesdeInicio)}, duración ${duracionRelativa(duracionSegundos)}`
         : `${etiquetaOrden}${plan.tipoPlanificacion === "focus" ? "Sesión Focus planificada" : "Planificado"}: ${nombre}, ${contextoDia}${formatearInstante(fragmento.inicio, opcionesHora)} a ${formatearInstante(fragmento.fin, opcionesHora)}`
-    const top = (minutosInicio / 1440) * 100
-    const height = ((minutosFin - minutosInicio) / 1440) * 100
+    const top = escalaTemporal
+        ? ((fragmento.inicio.getTime() - escalaTemporal.inicio.getTime()) / (escalaTemporal.duracionSegundos * 1000)) * 100
+        : (minutosInicio / 1440) * 100
+    const height = escalaTemporal
+        ? ((fragmento.fin.getTime() - fragmento.inicio.getTime()) / (escalaTemporal.duracionSegundos * 1000)) * 100
+        : ((minutosFin - minutosInicio) / 1440) * 100
+    const altoVisual = escalaTemporal
+        ? (fragmento.fin.getTime() - fragmento.inicio.getTime()) / 1000 * escalaTemporal.pixelesPorSegundo
+        : (minutosFin - minutosInicio) * ALTURA_HORA_BASE / 60
+    const muestraNombre = altoVisual >= 28 && anchoCarril >= 120
+    const muestraHorario = altoVisual >= 44 && anchoCarril >= 150
     const esExtremoInicio = fragmento.inicio.getTime() === plan.inicio.getTime()
     const esExtremoFin = fragmento.fin.getTime() === plan.fin.getTime()
     const esFocus = plan.tipoPlanificacion === "focus"
@@ -150,6 +163,12 @@ export function BloquePlan({
         width: `calc(${100 / cantidadCarriles}% - 4px)`,
         "--color-plan": color
     }
+    if (compacto) {
+        style.height = "28px"
+        style.width = "28px"
+        style.left = `calc(${((carril + 0.5) * 100) / cantidadCarriles}%)`
+        style.transform = "translateX(-50%)"
+    }
     if (esFocus) {
         const total = plan.configuracionFocus.bloques.reduce((suma, bloque) => suma + bloque.minutos, 0)
         let acumulado = 0
@@ -164,7 +183,9 @@ export function BloquePlan({
         })
         style.background = `linear-gradient(to bottom, ${paradas.join(", ")})`
     }
-    if (vistaGesto?.modo === "mover") style.transform = `translate(${vistaGesto.x}px, ${vistaGesto.y}px)`
+    if (vistaGesto?.modo === "mover") style.transform = compacto
+        ? `translate(calc(-50% + ${vistaGesto.x}px), ${vistaGesto.y}px)`
+        : `translate(${vistaGesto.x}px, ${vistaGesto.y}px)`
     else if (vistaGesto?.modo === "inicio") {
         style.top = `calc(${top}% + ${vistaGesto.y}px)`
         style.height = `calc(${height}% - ${vistaGesto.y}px)`
@@ -173,7 +194,7 @@ export function BloquePlan({
     return (
         <button
             type="button"
-            className={`bloque-plan ${edicionDirectaHabilitada ? "bloque-plan-editable" : ""} ${estaEnSeguimiento ? "bloque-plan-en-seguimiento" : ""} ${vistaGesto ? "bloque-plan-arrastrando" : ""}`}
+            className={`bloque-plan ${compacto ? "bloque-plan-compacto" : ""} ${!compacto && !muestraNombre ? "bloque-plan-sin-texto" : ""} ${edicionDirectaHabilitada ? "bloque-plan-editable" : ""} ${estaEnSeguimiento ? "bloque-plan-en-seguimiento" : ""} ${vistaGesto ? "bloque-plan-arrastrando" : ""}`}
             style={style}
             aria-label={etiqueta}
             aria-description={edicionDirectaHabilitada
@@ -197,16 +218,17 @@ export function BloquePlan({
                 onSeleccionar(plan, fragmento)
             }}
         >
-            {edicionDirectaHabilitada && !esFocus && esExtremoInicio && <span className="control-bloque-registro control-bloque-plan control-bloque-inicio" data-extremo="inicio" aria-hidden="true" />}
-            <span aria-hidden="true">{esFocus ? `Sesión Focus: ${nombre}` : `Plan: ${nombre}`}</span>
-            {esFocus && height > 2 && <small aria-hidden="true">{plan.configuracionFocus.bloques.map(bloque => bloque.tipo === "concentracion" ? "Concentración" : "Descanso").join(" · ")}</small>}
-            {Number.isInteger(plan.ordenSeguimiento) && <small className="bloque-plan-orden" aria-hidden="true">Orden {plan.ordenSeguimiento + 1}</small>}
-            {height > 1.5 && <small aria-hidden="true">
+            {compacto && <span className="marca-bloque-compacto marca-bloque-plan" aria-hidden="true" />}
+            {!compacto && edicionDirectaHabilitada && !esFocus && esExtremoInicio && <span className="control-bloque-registro control-bloque-plan control-bloque-inicio" data-extremo="inicio" aria-hidden="true" />}
+            {!compacto && muestraNombre && <span aria-hidden="true">{esFocus ? `Sesión Focus: ${nombre}` : `Plan: ${nombre}`}</span>}
+            {!compacto && muestraNombre && muestraHorario && esFocus && <small aria-hidden="true">{plan.configuracionFocus.bloques.map(bloque => bloque.tipo === "concentracion" ? "Concentración" : "Descanso").join(" · ")}</small>}
+            {!compacto && muestraNombre && muestraHorario && Number.isInteger(plan.ordenSeguimiento) && <small className="bloque-plan-orden" aria-hidden="true">Orden {plan.ordenSeguimiento + 1}</small>}
+            {!compacto && muestraNombre && muestraHorario && <small aria-hidden="true">
                 {tiempoRelativo
                     ? `+${duracionRelativa(segundosDesdeInicio)} · ${duracionRelativa(duracionSegundos)} de duración`
                     : `${formatearInstante(fragmento.inicio, opcionesHora)} – ${formatearInstante(fragmento.fin, opcionesHora)}`}
             </small>}
-            {edicionDirectaHabilitada && !esFocus && esExtremoFin && <span className="control-bloque-registro control-bloque-plan control-bloque-fin" data-extremo="fin" aria-hidden="true" />}
+            {!compacto && edicionDirectaHabilitada && !esFocus && esExtremoFin && <span className="control-bloque-registro control-bloque-plan control-bloque-fin" data-extremo="fin" aria-hidden="true" />}
         </button>
     )
 }

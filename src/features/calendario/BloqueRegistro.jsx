@@ -7,6 +7,7 @@ import {
     ajustarExtremoSegmentosRegistro,
     desplazarSegmentosRegistro
 } from "./ajustesRegistroCalendario.js"
+import { ALTURA_HORA_BASE } from "./zoomCalendario.js"
 
 const opcionesHora = { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }
 const formatoFechaSemana = new Intl.DateTimeFormat("es-AR", {
@@ -39,6 +40,9 @@ function BloqueRegistroBase({
     onAjustarRegistro,
     edicionDirectaHabilitada,
     permiteCambiarDia,
+    compacto = false,
+    anchoCarril = 0,
+    escalaTemporal = null,
     ahora
 }) {
     const gestoRef = useRef(null)
@@ -59,8 +63,17 @@ function BloqueRegistroBase({
                 + finFecha.getSeconds() / 60 + finFecha.getMilliseconds() / 60000
     }
 
-    const top = (minutosInicio / 1440) * 100
-    const height = ((minutosFin - minutosInicio) / 1440) * 100
+    const top = escalaTemporal
+        ? ((fragmento.inicio.getTime() - escalaTemporal.inicio.getTime()) / (escalaTemporal.duracionSegundos * 1000)) * 100
+        : (minutosInicio / 1440) * 100
+    const height = escalaTemporal
+        ? ((fragmento.fin.getTime() - fragmento.inicio.getTime()) / (escalaTemporal.duracionSegundos * 1000)) * 100
+        : ((minutosFin - minutosInicio) / 1440) * 100
+    const altoVisual = escalaTemporal
+        ? (fragmento.fin.getTime() - fragmento.inicio.getTime()) / 1000 * escalaTemporal.pixelesPorSegundo
+        : (minutosFin - minutosInicio) * ALTURA_HORA_BASE / 60
+    const muestraNombre = altoVisual >= 28 && anchoCarril >= 120
+    const muestraHorario = altoVisual >= 44 && anchoCarril >= 150
     const color = registro.colorEvento ?? "#4F46E5"
     const finalizado = registro.estado === ESTADO_REGISTRO_FINALIZADO
     const esPrimerSegmento = fragmento.indiceSegmento === 0
@@ -213,8 +226,17 @@ function BloqueRegistroBase({
         "--color-evento": color
     }
 
+    if (compacto) {
+        style.height = "28px"
+        style.width = "28px"
+        style.left = `calc(${((carril + 0.5) * 100) / cantidadCarriles}%)`
+        style.transform = "translateX(-50%)"
+    }
+
     if (vistaGesto?.modo === "mover") {
-        style.transform = `translate(${vistaGesto.x}px, ${vistaGesto.y}px)`
+        style.transform = compacto
+            ? `translate(calc(-50% + ${vistaGesto.x}px), ${vistaGesto.y}px)`
+            : `translate(${vistaGesto.x}px, ${vistaGesto.y}px)`
     } else if (vistaGesto?.modo === "inicio") {
         style.top = `calc(${top}% + ${vistaGesto.y}px)`
         style.height = `calc(${height}% - ${vistaGesto.y}px)`
@@ -224,11 +246,13 @@ function BloqueRegistroBase({
 
     return (
         <button
-            className={`bloque-registro ${segmento.tipo === "Pausado" ? "bloque-registro-pausado" : ""} ${finalizado && edicionDirectaHabilitada ? "bloque-registro-editable" : ""} ${vistaGesto ? "bloque-registro-arrastrando" : ""}`}
+            className={`bloque-registro ${segmento.tipo === "Pausado" ? "bloque-registro-pausado" : ""} ${compacto ? "bloque-registro-compacto" : ""} ${!compacto && !muestraNombre ? "bloque-registro-sin-texto" : ""} ${finalizado && edicionDirectaHabilitada ? "bloque-registro-editable" : ""} ${vistaGesto ? "bloque-registro-arrastrando" : ""}`}
             type="button"
             style={style}
             aria-label={etiqueta}
-            aria-description={finalizado && edicionDirectaHabilitada
+            aria-description={compacto
+                ? `${segmento.tipo === "Pausado" ? "En pausa" : abierto ? "En curso" : "Finalizado"}. Duración real ${Math.max(0, Math.round((fragmento.fin.getTime() - fragmento.inicio.getTime()) / 1000))} segundos. Seleccioná para ver los detalles.`
+                : finalizado && edicionDirectaHabilitada
                 ? "Arrastrá para mover. Flechas arriba y abajo: mover un minuto. Mayúsculas más flecha: cambiar el fin. Alt más flecha: cambiar el inicio. En vista semanal, Alt más flecha izquierda o derecha: mover de día."
                 : undefined}
             aria-keyshortcuts={finalizado && edicionDirectaHabilitada
@@ -248,20 +272,19 @@ function BloqueRegistroBase({
                 onSeleccionar(registro, fragmento)
             }}
         >
-            {finalizado && edicionDirectaHabilitada && esPrimerSegmento && (
+            {compacto && <span className="marca-bloque-compacto" aria-hidden="true" />}
+            {!compacto && finalizado && edicionDirectaHabilitada && esPrimerSegmento && (
                 <span className="control-bloque-registro control-bloque-inicio" data-extremo="inicio" aria-hidden="true" />
             )}
-            {height > 2.8 ? (
+            {!compacto && muestraNombre && (
                 <>
                     <span>{registro.nombre}</span>
-                    <small className="estado-bloque-registro">
-                        {segmento.tipo === "Pausado" ? "En pausa" : "En curso"} · {hora(fragmento.inicio)} – {abierto ? "ahora" : hora(fragmento.fin)}
-                    </small>
+                    {muestraHorario && <small className="estado-bloque-registro">
+                        {segmento.tipo === "Pausado" ? "En pausa" : abierto ? "En curso" : "Finalizado"} · {hora(fragmento.inicio)} – {abierto ? "ahora" : hora(fragmento.fin)}
+                    </small>}
                 </>
-            ) : (
-                <span>{segmento.tipo === "Pausado" ? "En pausa" : "En curso"} · {registro.nombre}</span>
             )}
-            {finalizado && edicionDirectaHabilitada && esUltimoSegmento && (
+            {!compacto && finalizado && edicionDirectaHabilitada && esUltimoSegmento && (
                 <span className="control-bloque-registro control-bloque-fin" data-extremo="fin" aria-hidden="true" />
             )}
         </button>
@@ -273,8 +296,8 @@ function BloqueRegistroEnVivo(props) {
     return <BloqueRegistroBase {...props} ahora={ahora} />
 }
 
-export function BloqueRegistro({ fragmento, onSeleccionar, onAjustarRegistro, edicionDirectaHabilitada = false, permiteCambiarDia = false }) {
-    const props = { fragmento, onSeleccionar, onAjustarRegistro, edicionDirectaHabilitada, permiteCambiarDia }
+export function BloqueRegistro({ fragmento, onSeleccionar, onAjustarRegistro, edicionDirectaHabilitada = false, permiteCambiarDia = false, compacto = false, anchoCarril = 0, escalaTemporal = null }) {
+    const props = { fragmento, onSeleccionar, onAjustarRegistro, edicionDirectaHabilitada, permiteCambiarDia, compacto, anchoCarril, escalaTemporal }
     return fragmento.abierto
         ? <BloqueRegistroEnVivo {...props} />
         : <BloqueRegistroBase {...props} />

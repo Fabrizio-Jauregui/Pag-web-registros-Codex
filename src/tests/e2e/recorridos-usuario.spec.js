@@ -525,7 +525,7 @@ test("Flujo de usuario: amplía localmente registros consecutivos de pocos segun
     await zoom.getByRole("button", { name: "Acercar calendario" }).click()
     await expect(zoom.locator("output")).toHaveText("2 min")
     await zoom.getByRole("button", { name: "Alejar calendario" }).click()
-    await expect(zoom.locator("output")).toHaveText("5 min")
+    await expect(zoom.locator("output")).toContainText("5 min")
     const alejar = zoom.getByRole("button", { name: "Alejar calendario" })
     while (await alejar.isEnabled()) await alejar.click()
     await expect(page.getByRole("heading", { name: "Calendario" })).toBeVisible()

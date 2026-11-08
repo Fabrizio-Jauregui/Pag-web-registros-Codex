@@ -156,3 +156,33 @@ test("valida y persiste la sesión activa", () => {
     assert.equal(guardarSeguimientoPlanificacion(null, almacenamiento).ok, true)
     assert.equal(cargarSeguimientoPlanificacion(almacenamiento).estado, null)
 })
+
+test("acepta marcadores de avance y reintento válidos sin exigirlos a sesiones anteriores", () => {
+    const sesionAnterior = {
+        id: "seguimiento-anterior",
+        estado: "En curso",
+        secuencia: [{
+            planId: "plan-1", nombre: "Desayuno", evento: null,
+            inicioPrevisto: fecha(9).toISOString(), finPrevisto: fecha(9, 10).toISOString(),
+            duracionMs: 10 * 60_000
+        }],
+        indiceActual: 0,
+        registroId: "registro-1",
+        inicio: fecha(9).toISOString(),
+        finBloque: fecha(9, 10).toISOString()
+    }
+    assert.equal(validarEstadoSeguimiento(sesionAnterior), true)
+
+    const sesionActualizada = {
+        ...sesionAnterior,
+        idAplicacionPlantilla: "aplicacion-1",
+        tipoSeguimiento: "duracion",
+        modoAvance: "manual",
+        registrosActivos: [{ planId: "plan-1", registroId: "registro-1", finBloque: fecha(9, 10).toISOString() }],
+        etapasDesbloqueadas: ["plan-1"],
+        transicionPendiente: { planIds: ["plan-1"] }
+    }
+    assert.equal(validarEstadoSeguimiento(sesionActualizada), true)
+    assert.equal(validarEstadoSeguimiento({ ...sesionActualizada, etapasDesbloqueadas: ["inexistente"] }), false)
+    assert.equal(validarEstadoSeguimiento({ ...sesionActualizada, transicionPendiente: { planIds: ["inexistente"] } }), false)
+})

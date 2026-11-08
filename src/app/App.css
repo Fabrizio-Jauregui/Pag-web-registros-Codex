@@ -214,6 +214,12 @@
   margin: 5px 0;
 }
 
+.registro-activo-origen-gestion {
+  color: #475569;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
 .controles-registro-activo {
   display: flex;
   flex-wrap: wrap;
