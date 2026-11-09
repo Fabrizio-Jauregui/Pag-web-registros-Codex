@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 
 import { formatearInstante } from "../../domain/tiempo/historial.js"
-import { obtenerDuracionLegible } from "./presentacionMarcasCalendario.js"
+import { obtenerDuracionLegible, obtenerTopMarcador } from "./presentacionMarcasCalendario.js"
 
 const formatoFechaHora = { dateStyle: "short", timeStyle: "medium" }
 
@@ -44,7 +44,7 @@ function datosElemento(elemento, eventos) {
     }
 }
 
-export function GrupoMarcasCalendario({ grupo, eventos = [], onSeleccionar }) {
+export function GrupoMarcasCalendario({ grupo, eventos = [], onSeleccionar, altoLienzo = 0 }) {
     const botonRef = useRef(null)
     const popupRef = useRef(null)
     const [abierto, cambiarAbierto] = useState(false)
@@ -134,6 +134,7 @@ export function GrupoMarcasCalendario({ grupo, eventos = [], onSeleccionar }) {
         </>,
         document.body
     )
+    const top = obtenerTopMarcador(grupo[0].y, altoLienzo)
 
     return (
         <>
@@ -141,7 +142,7 @@ export function GrupoMarcasCalendario({ grupo, eventos = [], onSeleccionar }) {
                 ref={botonRef}
                 className="grupo-marcas-boton"
                 type="button"
-                style={{ top: `${grupo[0].y}px`, left: `${grupo[0].x}px` }}
+                style={{ top: `${top}px`, left: `${grupo[0].x}px` }}
                 aria-label={`Ver ${grupo.length} actividades cercanas`}
                 aria-haspopup="dialog"
                 aria-expanded={abierto}

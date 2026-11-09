@@ -35,6 +35,7 @@ export function VistaCalendarioSemana({
     const reloj = useReloj()
     const calendarioRef = useRef(null)
     const selectorRef = useRef(null)
+    const ayudaRef = useRef(null)
     const scrollPendienteRef = useRef(null)
     const onRangoVisibleChangeRef = useRef(onRangoVisibleChange)
     const [altoViewport, cambiarAltoViewport] = useState(360)
@@ -55,15 +56,25 @@ export function VistaCalendarioSemana({
         const raiz = calendarioRef.current
         if (!raiz) return
         function medir() {
+            function medirAlturaEnFlujo(elemento) {
+                if (!elemento || getComputedStyle(elemento).display === "none") return 0
+                const estilos = getComputedStyle(elemento)
+                return elemento.getBoundingClientRect().height
+                    + (Number.parseFloat(estilos.marginTop) || 0)
+                    + (Number.parseFloat(estilos.marginBottom) || 0)
+            }
             const alturaSelector = selectorRef.current && getComputedStyle(selectorRef.current).display !== "none"
                 ? selectorRef.current.clientHeight
                 : 0
+            const alturaSelectorEnFlujo = medirAlturaEnFlujo(selectorRef.current)
+            const alturaAyuda = medirAlturaEnFlujo(ayudaRef.current)
             cambiarAltoSelector(alturaSelector)
-            cambiarAltoViewport(Math.max(120, raiz.clientHeight - alturaSelector - 84))
+            cambiarAltoViewport(Math.max(120, raiz.clientHeight - alturaSelectorEnFlujo - alturaAyuda - 84))
         }
         const observador = new ResizeObserver(medir)
         observador.observe(raiz)
         if (selectorRef.current) observador.observe(selectorRef.current)
+        if (ayudaRef.current) observador.observe(ayudaRef.current)
         const raf = requestAnimationFrame(medir)
         return () => {
             cancelAnimationFrame(raf)
@@ -119,12 +130,11 @@ export function VistaCalendarioSemana({
     }
 
     function escalaColumna(columna) {
-        if (!zoom) return null
         const fecha = diasSemana.find(dia => formatearFechaISO(dia) === columna.fecha)
         const inicioDia = new Date(fecha)
         inicioDia.setHours(0, 0, 0, 0)
         return {
-            inicio: new Date(inicioDia.getTime() + inicioSegundosLienzo * 1000),
+            inicio: new Date(inicioDia.getTime() + (zoom ? inicioSegundosLienzo * 1000 : 0)),
             duracionSegundos: duracionLienzoSegundos,
             pixelesPorSegundo
         }
@@ -169,7 +179,7 @@ export function VistaCalendarioSemana({
                 <button type="button" aria-pressed={formatoMovil === "agenda"} onClick={() => cambiarFormatoMovil("agenda")}>Agenda</button>
                 <button type="button" aria-pressed={formatoMovil === "grilla"} onClick={() => cambiarFormatoMovil("grilla")}>Grilla por horas</button>
             </div>
-            <p className="ayuda-desplazamiento-semana">Deslizá horizontalmente para ver todos los días de la semana.</p>
+            <p ref={ayudaRef} className="ayuda-desplazamiento-semana">Deslizá horizontalmente para ver todos los días de la semana.</p>
             <div className="agenda-semana-movil" aria-label={`Agenda de la semana: ${fechaVisible}`}>
                 {actividadesPorDia.map((dia, indice) => (
                     <section className="agenda-semana-dia" data-fecha={dia.fecha} aria-labelledby={`agenda-semana-dia-${dia.fecha}`} key={dia.fecha}>

@@ -98,11 +98,11 @@ export function VistaCalendarioDia({
         ? inicioLienzo ?? new Date(zoom.inicio.getTime() - duracionVistaSegundos * 1000)
         : inicioDia
     const finTemporal = new Date(inicioTemporal.getTime() + duracionLienzoSegundos * 1000)
-    const escalaTemporal = zoom ? {
+    const escalaTemporal = {
         inicio: inicioTemporal,
         duracionSegundos: duracionLienzoSegundos,
         pixelesPorSegundo
-    } : null
+    }
     const estiloCalendario = {
         ...escalaCalendarioBase,
         "--altura-hora": `${pixelesPorSegundo * 3600}px`,

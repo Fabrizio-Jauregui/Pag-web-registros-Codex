@@ -42,6 +42,8 @@ function BloqueRegistroBase({
     permiteCambiarDia,
     compacto = false,
     anchoCarril = 0,
+    topMarcador,
+    desplazamientoMarcaY,
     escalaTemporal = null,
     ahora
 }) {
@@ -231,6 +233,10 @@ function BloqueRegistroBase({
         style.width = "28px"
         style.left = `calc(${((carril + 0.5) * 100) / cantidadCarriles}%)`
         style.transform = "translateX(-50%)"
+        if (Number.isFinite(topMarcador)) {
+            style.top = `${topMarcador}px`
+            style["--offset-marca-y"] = `${desplazamientoMarcaY}px`
+        }
     }
 
     if (vistaGesto?.modo === "mover") {
@@ -296,8 +302,8 @@ function BloqueRegistroEnVivo(props) {
     return <BloqueRegistroBase {...props} ahora={ahora} />
 }
 
-export function BloqueRegistro({ fragmento, onSeleccionar, onAjustarRegistro, edicionDirectaHabilitada = false, permiteCambiarDia = false, compacto = false, anchoCarril = 0, escalaTemporal = null }) {
-    const props = { fragmento, onSeleccionar, onAjustarRegistro, edicionDirectaHabilitada, permiteCambiarDia, compacto, anchoCarril, escalaTemporal }
+export function BloqueRegistro({ fragmento, onSeleccionar, onAjustarRegistro, edicionDirectaHabilitada = false, permiteCambiarDia = false, compacto = false, anchoCarril = 0, topMarcador, desplazamientoMarcaY, escalaTemporal = null }) {
+    const props = { fragmento, onSeleccionar, onAjustarRegistro, edicionDirectaHabilitada, permiteCambiarDia, compacto, anchoCarril, topMarcador, desplazamientoMarcaY, escalaTemporal }
     return fragmento.abierto
         ? <BloqueRegistroEnVivo {...props} />
         : <BloqueRegistroBase {...props} />

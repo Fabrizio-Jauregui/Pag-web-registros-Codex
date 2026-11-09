@@ -6,7 +6,8 @@ import { BloquePlan } from "./BloquePlan.jsx"
 import { GrupoMarcasCalendario } from "./GrupoMarcasCalendario.jsx"
 import {
     agruparMarcadoresCercanos,
-    obtenerDuracionVisualPx
+    obtenerDuracionVisualPx,
+    obtenerTopMarcador
 } from "./presentacionMarcasCalendario.js"
 
 export function BloquesCalendario({
@@ -58,6 +59,9 @@ export function BloquesCalendario({
     })
     const { compactos, grupos, idsAgrupados } = agruparMarcadoresCercanos(elementosPosicionados)
     const compactoPorId = new Set(compactos.map(elemento => elemento.id))
+    const altoLienzo = escalaTemporal
+        ? escalaTemporal.duracionSegundos * escalaTemporal.pixelesPorSegundo
+        : 24 * ALTURA_HORA_BASE
 
     function seleccionar(tipo, fragmento) {
         if (tipo === "registro") onSeleccionarRegistro(fragmento.registro, fragmento)
@@ -71,10 +75,17 @@ export function BloquesCalendario({
                 const compacto = compactoPorId.has(id)
                 const cantidadCarriles = Math.max(1, fragmento.cantidadCarriles ?? 1)
                 const anchoCarril = anchoCapa / cantidadCarriles - 4
+                const topMarcador = escalaTemporal
+                    ? obtenerTopMarcador(elemento.y, altoLienzo)
+                    : undefined
                 const props = {
                     fragmento,
                     compacto,
                     anchoCarril,
+                    topMarcador,
+                    desplazamientoMarcaY: escalaTemporal && compacto
+                        ? elemento.y - topMarcador - 4
+                        : undefined,
                     onAjustarRegistro,
                     onAjustarPlan,
                     edicionDirectaHabilitada,
@@ -99,6 +110,7 @@ export function BloquesCalendario({
                     grupo={grupo}
                     eventos={eventos}
                     onSeleccionar={seleccionar}
+                    altoLienzo={altoLienzo}
                 />
             ))}
         </div>

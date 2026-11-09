@@ -346,7 +346,7 @@
 
 .marca-bloque-compacto {
   position: absolute;
-  top: 0;
+  top: var(--offset-marca-y, 0px);
   left: 50%;
   display: block;
   width: 8px;
@@ -370,7 +370,7 @@
   width: 28px;
   height: 28px;
   padding: 0;
-  transform: translate(-50%, -1px);
+  transform: translateX(-50%);
   border: 2px solid #fff;
   border-radius: 50%;
   background: #334155;
@@ -1307,6 +1307,12 @@ html[data-tema="oscuro"] .marco-aplicacion-planificacion {
 
   .calendario-semana-formato-grilla .ayuda-desplazamiento-semana {
     display: block;
+  }
+
+  .calendario-semana-formato-grilla:not(.calendario-semana-zoom-activo) .calendario-fila-semanal:not(.calendario-cabecera-semanal) .calendario-celda-hora {
+    padding-top: 0;
+    font-size: 0.68rem;
+    line-height: 1;
   }
 
   .agenda-semana-dia {

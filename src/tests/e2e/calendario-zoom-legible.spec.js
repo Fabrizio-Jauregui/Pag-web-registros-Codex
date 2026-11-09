@@ -28,7 +28,7 @@ test("agrupa marcas breves cercanas y permite elegir cada registro", async ({ pa
     const datos = [
         registro("breve-a", "Lectura breve", inicio, new Date(inicio.getTime() + 5000)),
         registro("breve-b", "Nota breve", new Date(inicio.getTime() + 8000), new Date(inicio.getTime() + 12_000)),
-        registro("largo", "Bloque de media hora", new Date(inicio.getTime() + 60_000), new Date(inicio.getTime() + 31 * 60_000))
+        registro("largo", "Bloque de dos horas", new Date(inicio.getTime() + 60_000), new Date(inicio.getTime() + 121 * 60_000))
     ]
     const planes = [{
         id: "plan-breve",
@@ -64,7 +64,7 @@ test("agrupa marcas breves cercanas y permite elegir cada registro", async ({ pa
     await expect(lista.getByRole("button", { name: /Plan breve/ })).toContainText("Plan")
     await lista.getByRole("button", { name: /Nota breve/ }).click()
     await expect(page.getByRole("region", { name: "Nota breve" })).toBeVisible()
-    await expect(page.getByRole("region", { name: "Bloque de media hora" })).toHaveCount(0)
+    await expect(page.getByRole("region", { name: "Bloque de dos horas" })).toHaveCount(0)
     await page.getByRole("region", { name: "Nota breve" }).getByRole("button", { name: "Cerrar detalle" }).click()
     await page.setViewportSize({ width: 390, height: 844 })
     await grupo.click()
@@ -90,7 +90,9 @@ test("el zoom mantiene el calendario, cruza medianoche y conserva el calendario 
     await page.getByLabel("Ir a fecha").fill(fechaISO(dia))
     await page.getByRole("button", { name: "Semana", exact: true }).click()
     await page.getByRole("button", { name: "Grilla por horas" }).click()
-    await page.getByRole("button", { name: /Actividad al cambio de día, sábado/ }).click()
+    await page.getByRole("button", { name: /Ver 2 actividades cercanas/ }).click()
+    const grupoMedianoche = page.getByRole("dialog", { name: "2 actividades cercanas" })
+    await grupoMedianoche.getByRole("button", { name: /Actividad al cambio de día/ }).click()
     await page.getByRole("button", { name: "Acercar calendario" }).click()
 
     const zoom = page.locator(".calendario-semana-scroll")
@@ -116,4 +118,90 @@ test("el zoom mantiene el calendario, cruza medianoche y conserva el calendario 
     await page.getByRole("button", { name: "Restablecer", exact: true }).click()
     await expect(page.getByRole("table", { name: /^Semana del/ })).toBeVisible()
     await expect(page.getByRole("button", { name: "Grilla por horas" })).toHaveAttribute("aria-pressed", "true")
+})
+
+test("la escala móvil mantiene bloques y grupos dentro de las 24 horas en Día y Grilla semanal", async ({ page }) => {
+    const dia = new Date(2026, 10, 8)
+    const registros = []
+    function agregarGrupo(prefijo, hora, minuto) {
+        for (let indice = 0; indice < 3; indice += 1) {
+            const inicio = new Date(dia.getFullYear(), dia.getMonth(), dia.getDate(), hora, minuto + indice, 0)
+            registros.push(registro(`${prefijo}-${indice}`, `${prefijo} ${indice + 1}`, inicio, new Date(inicio.getTime() + 5_000)))
+        }
+    }
+    agregarGrupo("Grupo nocturno", 22, 0)
+    agregarGrupo("Grupo medianoche", 23, 57)
+    const inicioBloque = new Date(dia.getFullYear(), dia.getMonth(), dia.getDate(), 12)
+    registros.push(registro("bloque-medio-hora", "Bloque treinta minutos", inicioBloque, new Date(inicioBloque.getTime() + 30 * 60_000)))
+
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.addInitScript(({ clave, datos }) => localStorage.setItem(clave, JSON.stringify(datos)), {
+        clave: CLAVE_REGISTROS,
+        datos: registros
+    })
+    await page.goto("/")
+    await page.getByLabel("Ir a fecha").fill(fechaISO(dia))
+
+    const calendarioDia = page.locator(".calendario-dia-scroll")
+    const medicionesDia = await calendarioDia.evaluate(root => {
+        const capa = root.querySelector(".capa-registros-dia")
+        const grupos = [...root.querySelectorAll(".grupo-marcas-boton")].map(boton => {
+            const caja = boton.getBoundingClientRect()
+            const capaCaja = capa.getBoundingClientRect()
+            return { top: caja.top - capaCaja.top, bottom: caja.bottom - capaCaja.top }
+        })
+        const bloque = root.querySelector('[aria-label*="Bloque treinta minutos"]')
+        const cajaBloque = bloque.getBoundingClientRect()
+        return {
+            altoPanel: root.clientHeight,
+            altoLienzo: capa.clientHeight,
+            altoDesplazable: root.scrollHeight,
+            grupos,
+            bloque: {
+                top: cajaBloque.top - capa.getBoundingClientRect().top,
+                alto: cajaBloque.height,
+                compacto: bloque.classList.contains("bloque-registro-compacto"),
+                marca: (() => {
+                    const cajaMarca = bloque.querySelector(".marca-bloque-compacto").getBoundingClientRect()
+                    return (cajaMarca.top + cajaMarca.height / 2) - capa.getBoundingClientRect().top
+                })()
+            }
+        }
+    })
+    expect(medicionesDia.altoDesplazable).toBeLessThanOrEqual(medicionesDia.altoPanel + 1)
+    expect(medicionesDia.altoLienzo).toBe(medicionesDia.altoPanel)
+    expect(medicionesDia.grupos).toHaveLength(2)
+    for (const grupo of medicionesDia.grupos) {
+        expect(grupo.top).toBeGreaterThanOrEqual(0)
+        expect(grupo.bottom).toBeLessThanOrEqual(medicionesDia.altoLienzo + 1)
+    }
+    expect(medicionesDia.bloque.compacto).toBe(true)
+    expect(medicionesDia.bloque.marca).toBeCloseTo(medicionesDia.altoLienzo / 2, 0)
+    expect(medicionesDia.bloque.alto).toBe(28)
+
+    await page.getByRole("button", { name: "Ver 3 actividades cercanas" }).nth(1).click()
+    const dialogo = page.getByRole("dialog", { name: "3 actividades cercanas" })
+    await expect(dialogo.getByRole("button", { name: /Grupo medianoche 1/ })).toBeVisible()
+    await page.keyboard.press("Escape")
+    await page.getByRole("button", { name: "Semana", exact: true }).click()
+    await page.getByRole("button", { name: "Grilla por horas" }).click()
+
+    const calendarioSemana = page.locator(".calendario-semana-scroll")
+    const medicionesSemana = await calendarioSemana.evaluate(root => {
+        const columnas = [...root.querySelectorAll(".columna-registros-semana")]
+        const alturaCapa = root.querySelector(".capa-registros-semana").clientHeight
+        const grupos = [...root.querySelectorAll(".grupo-marcas-boton")].map(boton => {
+            const caja = boton.getBoundingClientRect()
+            const columna = boton.closest(".columna-registros-semana")
+            return { top: caja.top - columna.getBoundingClientRect().top, bottom: caja.bottom - columna.getBoundingClientRect().top, alto: columna.clientHeight }
+        })
+        return { altoDesplazable: root.scrollHeight, altoPanel: root.clientHeight, alturaCapa, columnas: columnas.length, grupos }
+    })
+    expect(medicionesSemana.columnas).toBe(7)
+    expect(medicionesSemana.altoDesplazable).toBeLessThanOrEqual(medicionesSemana.altoPanel + 1)
+    expect(medicionesSemana.grupos).toHaveLength(2)
+    for (const grupo of medicionesSemana.grupos) {
+        expect(grupo.top).toBeGreaterThanOrEqual(0)
+        expect(grupo.bottom).toBeLessThanOrEqual(grupo.alto + 1)
+    }
 })

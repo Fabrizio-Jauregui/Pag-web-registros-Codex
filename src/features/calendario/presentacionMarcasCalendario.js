@@ -9,6 +9,11 @@ export function obtenerDuracionVisualPx(inicio, fin, pixelesPorSegundo) {
     return Math.max(0, (fin.getTime() - inicio.getTime()) / 1000 * pixelesPorSegundo)
 }
 
+export function obtenerTopMarcador(y, altoLienzo, altoObjetivo = ALTO_MINIMO_MARCADOR) {
+    if (!Number.isFinite(y) || !Number.isFinite(altoLienzo) || altoLienzo <= 0) return 0
+    return Math.max(0, Math.min(y - altoObjetivo / 2, Math.max(0, altoLienzo - altoObjetivo)))
+}
+
 export function agruparMarcadoresCercanos(elementos, distancia = ALTO_MINIMO_MARCADOR) {
     const compactos = elementos.filter(elemento => elemento.alto < ALTO_COMPACTO_MARCAS)
     const padres = compactos.map((_, indice) => indice)

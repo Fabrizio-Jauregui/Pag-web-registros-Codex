@@ -34,6 +34,8 @@ export function BloquePlan({
     tiempoRelativo = false,
     compacto = false,
     anchoCarril = 0,
+    topMarcador,
+    desplazamientoMarcaY,
     escalaTemporal = null
 }) {
     const gestoRef = useRef(null)
@@ -168,6 +170,10 @@ export function BloquePlan({
         style.width = "28px"
         style.left = `calc(${((carril + 0.5) * 100) / cantidadCarriles}%)`
         style.transform = "translateX(-50%)"
+        if (Number.isFinite(topMarcador)) {
+            style.top = `${topMarcador}px`
+            style["--offset-marca-y"] = `${desplazamientoMarcaY}px`
+        }
     }
     if (esFocus) {
         const total = plan.configuracionFocus.bloques.reduce((suma, bloque) => suma + bloque.minutos, 0)
