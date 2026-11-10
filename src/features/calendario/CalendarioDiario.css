@@ -382,6 +382,46 @@
   pointer-events: auto;
 }
 
+.indicador-borde-conector-horizontal,
+.indicador-borde-conector-vertical {
+  position: absolute;
+  z-index: 6;
+  display: block;
+  border-color: #94a3b8;
+  border-style: dashed;
+  opacity: 0.65;
+  pointer-events: none;
+}
+
+.indicador-borde-conector-horizontal {
+  height: 0;
+  border-top-width: 1px;
+  border-top-style: dashed;
+  transform: translateY(-50%);
+}
+
+.indicador-borde-conector-vertical {
+  width: 0;
+  border-left-width: 1px;
+  border-left-style: dashed;
+}
+
+.grupo-marcas-boton.indicador-borde-boton {
+  z-index: 12;
+  display: grid;
+  min-width: 32px;
+  height: 28px;
+  padding: 0 6px;
+  transform: none;
+  border: 1px solid #c4b5fd;
+  border-right: 0;
+  border-radius: 999px 0 0 999px;
+  background: #4f46e5;
+  color: #fff;
+  font-size: 0.76rem;
+  font-weight: 750;
+}
+
 .grupo-marcas-boton:hover,
 .grupo-marcas-boton:focus-visible,
 .grupo-marcas-boton[aria-expanded="true"] {
@@ -472,6 +512,30 @@
 .grupo-marcas-datos strong { overflow-wrap: anywhere; }
 .grupo-marcas-datos small { color: #475569; font-size: 0.78rem; }
 
+.grupo-marcas-popup footer {
+  display: flex;
+  margin-top: 10px;
+  padding-top: 9px;
+  border-top: 1px solid #dbe3ee;
+}
+
+.grupo-marcas-popup footer button {
+  width: 100%;
+  min-height: 40px;
+  border: 1px solid #4f46e5;
+  border-radius: 8px;
+  background: #4f46e5;
+  color: #fff;
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.grupo-marcas-popup footer button:focus-visible {
+  outline: 3px solid #2563eb;
+  outline-offset: 2px;
+}
+
 [data-tema="oscuro"] .grupo-marcas-popup {
   border-color: #46536c;
   background: #111a2a;
@@ -488,6 +552,11 @@
 [data-tema="oscuro"] .grupo-marcas-popup li button:hover,
 [data-tema="oscuro"] .grupo-marcas-popup li button:focus-visible { background: #27334b; }
 [data-tema="oscuro"] .grupo-marcas-datos small { color: #b6c2d4; }
+
+[data-tema="oscuro"] .indicador-borde-conector-horizontal,
+[data-tema="oscuro"] .indicador-borde-conector-vertical { border-color: #cbd5e1; opacity: 0.55; }
+
+[data-tema="oscuro"] .grupo-marcas-popup footer { border-top-color: #46536c; }
 
 .bloque-plan {
   position: absolute;

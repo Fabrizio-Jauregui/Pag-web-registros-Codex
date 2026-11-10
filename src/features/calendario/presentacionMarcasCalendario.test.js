@@ -18,19 +18,26 @@ test("calcula altura temporal sin alterar la duración real", () => {
     assert.ok(ALTO_COMPACTO_MARCAS < ALTO_MINIMO_MARCADOR)
 })
 
-test("agrupa únicamente marcas compactas con áreas seleccionables superpuestas", () => {
+test("agrupa marcas compactas por bandas de colisión limitadas y conserva las aisladas", () => {
     const elementos = [
-        { id: "registro-a", x: 30, y: 100, alto: 2 },
-        { id: "plan-a", x: 50, y: 120, alto: 1 },
-        { id: "registro-b", x: 150, y: 101, alto: 2 },
-        { id: "bloque-legible", x: 32, y: 101, alto: 20 }
+        { id: "registro-a", x: 30, y: 3, alto: 2 },
+        { id: "plan-a", x: 650, y: 26, alto: 1 },
+        { id: "registro-b", x: 150, y: 30, alto: 2 },
+        { id: "registro-c", x: 110, y: 58, alto: 2 },
+        { id: "bloque-legible", x: 32, y: 4, alto: 20 }
     ]
 
-    const resultado = agruparMarcadoresCercanos(elementos)
+    const resultado = agruparMarcadoresCercanos(elementos, ALTO_MINIMO_MARCADOR, 84)
 
-    assert.equal(resultado.grupos.length, 1)
-    assert.deepEqual(resultado.grupos[0].map(item => item.id), ["registro-a", "plan-a"])
-    assert.deepEqual([...resultado.idsAgrupados], ["registro-a", "plan-a"])
-    assert.deepEqual(resultado.compactos.map(item => item.id), ["registro-a", "plan-a", "registro-b"])
+    assert.equal(resultado.grupos.length, 3)
+    assert.deepEqual(resultado.grupos[0].elementos.map(item => item.id), ["registro-a", "plan-a"])
+    assert.equal(resultado.grupos[0].yIndicador, 14)
+    assert.deepEqual(resultado.grupos.map(grupo => grupo.elementos.map(item => item.id)), [
+        ["registro-a", "plan-a"],
+        ["registro-b"],
+        ["registro-c"]
+    ])
+    assert.deepEqual([...resultado.idsAgrupados], ["registro-a", "plan-a", "registro-b", "registro-c"])
+    assert.deepEqual(resultado.compactos.map(item => item.id), ["registro-a", "plan-a", "registro-b", "registro-c"])
 })
 

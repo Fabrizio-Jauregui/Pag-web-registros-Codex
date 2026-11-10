@@ -373,13 +373,16 @@ export const CalendarioDiario = forwardRef(function CalendarioDiario({
             : new Date(fechaSeleccionada.getFullYear(), fechaSeleccionada.getMonth(), fechaSeleccionada.getDate(), 12)
     }
 
-    function cambiarZoom(direccion) {
+    function cambiarZoom(direccion, intervaloForzado = null) {
         const enAgendaSemanalMovil = vista === "semana" && esViewportMovil && formatoSemanaMovil === "agenda"
         if (enAgendaSemanalMovil) return
 
         let inicio
         let duracionSegundos
-        if (!zoomCalendario && direccion > 0 && (registroSeleccionado || planSeleccionado || franjaSeleccionada)) {
+        if (direccion > 0 && intervaloForzado) {
+            inicio = new Date(intervaloForzado.inicio)
+            duracionSegundos = (new Date(intervaloForzado.fin).getTime() - inicio.getTime()) / 1000
+        } else if (!zoomCalendario && direccion > 0 && (registroSeleccionado || planSeleccionado || franjaSeleccionada)) {
             if (franjaSeleccionada) {
                 inicio = franjaSeleccionada.referencia.inicio
                 duracionSegundos = (franjaSeleccionada.referencia.fin.getTime() - inicio.getTime()) / 1000
@@ -885,6 +888,7 @@ export const CalendarioDiario = forwardRef(function CalendarioDiario({
                         cambiarCentroPlanSeleccionado(new Date((fragmento.inicio.getTime() + fragmento.fin.getTime()) / 2))
                     }}
                     onSeleccionarFranja={seleccionarFranja}
+                    onAcercarGrupo={(inicio, fin) => cambiarZoom(1, { inicio, fin })}
                     franjaSeleccionada={franjaSeleccionada?.referencia ?? null}
                     onAjustarPlan={ajustarPlanDesdeCalendario}
                     onAjustarRegistro={ajustarRegistroDesdeCalendario}
@@ -912,6 +916,7 @@ export const CalendarioDiario = forwardRef(function CalendarioDiario({
                         cambiarPlanSeleccionado(plan)
                         cambiarCentroPlanSeleccionado(new Date((fragmento.inicio.getTime() + fragmento.fin.getTime()) / 2))
                     }}
+                    onAcercarGrupo={(inicio, fin) => cambiarZoom(1, { inicio, fin })}
                     onAjustarPlan={ajustarPlanDesdeCalendario}
                     onAjustarRegistro={ajustarRegistroDesdeCalendario}
                     edicionDirectaHabilitada={edicionDirectaHabilitada}

@@ -27,6 +27,7 @@ export function VistaCalendarioDia({
     eventos = [],
     onSeleccionar,
     onSeleccionarPlan = () => {},
+    onAcercarGrupo = () => {},
     onSeleccionarFranja = () => {},
     franjaSeleccionada = null,
     onAjustarPlan,
@@ -248,11 +249,13 @@ export function VistaCalendarioDia({
                     eventos={eventos}
                     onSeleccionarRegistro={onSeleccionar}
                     onSeleccionarPlan={onSeleccionarPlan}
+                    onAcercarGrupo={onAcercarGrupo}
                     onAjustarRegistro={onAjustarRegistro}
                     onAjustarPlan={onAjustarPlan}
                     edicionDirectaHabilitada={edicionDirectaHabilitada}
                     planActivoSeguimientoId={planActivoSeguimientoId}
                     escalaTemporal={escalaTemporal}
+                    fechaColumna={fechaVisible}
                 />
                 <MarcoAplicacionPlanificacion
                     fragmentos={fragmentosPlanes}

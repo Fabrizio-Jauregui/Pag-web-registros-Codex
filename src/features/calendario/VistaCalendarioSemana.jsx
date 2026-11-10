@@ -21,6 +21,7 @@ export function VistaCalendarioSemana({
     registros,
     onSeleccionar,
     onSeleccionarPlan,
+    onAcercarGrupo = () => {},
     onAjustarPlan,
     onAjustarRegistro,
     edicionDirectaHabilitada,
@@ -292,12 +293,14 @@ export function VistaCalendarioSemana({
                                 eventos={eventos}
                                 onSeleccionarRegistro={onSeleccionar}
                                 onSeleccionarPlan={onSeleccionarPlan}
+                                onAcercarGrupo={onAcercarGrupo}
                                 onAjustarRegistro={onAjustarRegistro}
                                 onAjustarPlan={onAjustarPlan}
                                 edicionDirectaHabilitada={edicionDirectaHabilitada}
                                 permiteCambiarDia
                                 planActivoSeguimientoId={planActivoSeguimientoId}
                                 escalaTemporal={escalaTemporal}
+                                fechaColumna={columna.fecha}
                             />
                             <MarcoAplicacionPlanificacion
                                 fragmentos={planesColumna}

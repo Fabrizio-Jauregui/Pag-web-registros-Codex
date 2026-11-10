@@ -16,12 +16,14 @@ export function BloquesCalendario({
     eventos = [],
     onSeleccionarRegistro,
     onSeleccionarPlan,
+    onAcercarGrupo = () => {},
     onAjustarRegistro,
     onAjustarPlan,
     edicionDirectaHabilitada,
     permiteCambiarDia = false,
     planActivoSeguimientoId = null,
-    escalaTemporal = null
+    escalaTemporal = null,
+    fechaColumna = null
 }) {
     const capaRef = useRef(null)
     const [anchoCapa, cambiarAnchoCapa] = useState(0)
@@ -57,11 +59,15 @@ export function BloquesCalendario({
                 : (fragmento.minutosInicio ?? 0) * ALTURA_HORA_BASE / 60
         }
     })
-    const { compactos, grupos, idsAgrupados } = agruparMarcadoresCercanos(elementosPosicionados)
-    const compactoPorId = new Set(compactos.map(elemento => elemento.id))
     const altoLienzo = escalaTemporal
         ? escalaTemporal.duracionSegundos * escalaTemporal.pixelesPorSegundo
         : 24 * ALTURA_HORA_BASE
+    const { compactos, grupos, idsAgrupados } = agruparMarcadoresCercanos(
+        elementosPosicionados,
+        undefined,
+        altoLienzo
+    )
+    const compactoPorId = new Set(compactos.map(elemento => elemento.id))
 
     function seleccionar(tipo, fragmento) {
         if (tipo === "registro") onSeleccionarRegistro(fragmento.registro, fragmento)
@@ -106,11 +112,14 @@ export function BloquesCalendario({
             })}
             {grupos.map((grupo, indice) => (
                 <GrupoMarcasCalendario
-                    key={`grupo-${grupo.map(elemento => elemento.id).join("-")}-${indice}`}
+                    key={`grupo-${grupo.elementos.map(elemento => elemento.id).join("-")}-${indice}`}
                     grupo={grupo}
                     eventos={eventos}
                     onSeleccionar={seleccionar}
+                    onAcercar={onAcercarGrupo}
                     altoLienzo={altoLienzo}
+                    anchoLienzo={anchoCapa}
+                    fechaColumna={fechaColumna}
                 />
             ))}
         </div>

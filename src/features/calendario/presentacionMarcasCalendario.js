@@ -14,45 +14,38 @@ export function obtenerTopMarcador(y, altoLienzo, altoObjetivo = ALTO_MINIMO_MAR
     return Math.max(0, Math.min(y - altoObjetivo / 2, Math.max(0, altoLienzo - altoObjetivo)))
 }
 
-export function agruparMarcadoresCercanos(elementos, distancia = ALTO_MINIMO_MARCADOR) {
+export function agruparMarcadoresCercanos(elementos, distancia = ALTO_MINIMO_MARCADOR, altoLienzo = null) {
     const compactos = elementos.filter(elemento => elemento.alto < ALTO_COMPACTO_MARCAS)
-    const padres = compactos.map((_, indice) => indice)
-
-    function buscar(indice) {
-        if (padres[indice] !== indice) padres[indice] = buscar(padres[indice])
-        return padres[indice]
+    const altoTemporal = Number.isFinite(altoLienzo) && altoLienzo > 0
+        ? altoLienzo
+        : Math.max(distancia, ...compactos.map(elemento => elemento.y + distancia))
+    const cantidadBandas = Math.max(1, Math.floor(altoTemporal / distancia))
+    const altoBanda = altoTemporal / cantidadBandas
+    const bandas = new Map()
+    for (const elemento of compactos) {
+        const banda = Math.max(0, Math.min(cantidadBandas - 1, Math.floor(elemento.y / altoBanda)))
+        if (!bandas.has(banda)) bandas.set(banda, [])
+        bandas.get(banda).push(elemento)
     }
 
-    function unir(a, b) {
-        const raizA = buscar(a)
-        const raizB = buscar(b)
-        if (raizA !== raizB) padres[raizB] = raizA
-    }
-
-    for (let a = 0; a < compactos.length; a += 1) {
-        for (let b = a + 1; b < compactos.length; b += 1) {
-            if (Math.abs(compactos[a].x - compactos[b].x) < distancia
-                && Math.abs(compactos[a].y - compactos[b].y) < distancia) {
-                unir(a, b)
-            }
+    const grupos = [...bandas.entries()].map(([banda, miembros]) => {
+        miembros.sort((a, b) => a.y - b.y || a.x - b.x)
+        const yRepresentativo = miembros.reduce((total, elemento) => total + elemento.y, 0) / miembros.length
+        const elementoAncla = miembros.reduce((mejor, elemento) => (
+            Math.abs(elemento.y - yRepresentativo) < Math.abs(mejor.y - yRepresentativo) ? elemento : mejor
+        ), miembros[0])
+        return {
+            elementos: miembros,
+            yRepresentativo,
+            yIndicador: (banda + 0.5) * altoBanda,
+            xRepresentativo: elementoAncla.x
         }
-    }
-
-    const gruposPorRaiz = new Map()
-    compactos.forEach((elemento, indice) => {
-        const raiz = buscar(indice)
-        if (!gruposPorRaiz.has(raiz)) gruposPorRaiz.set(raiz, [])
-        gruposPorRaiz.get(raiz).push(elemento)
     })
-
-    const grupos = [...gruposPorRaiz.values()]
-        .filter(grupo => grupo.length > 1)
-        .map(grupo => grupo.sort((a, b) => a.y - b.y || a.x - b.x))
 
     return {
         compactos,
         grupos,
-        idsAgrupados: new Set(grupos.flatMap(grupo => grupo.map(elemento => elemento.id)))
+        idsAgrupados: new Set(compactos.map(elemento => elemento.id))
     }
 }
 
