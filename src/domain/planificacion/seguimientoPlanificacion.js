@@ -29,12 +29,13 @@ export function crearSecuenciaSeguimiento(planes, idPlanSeleccionado, eventos = 
     if (seleccionado.tipoPlanificacion === "focus") {
         return { ok: false, error: "Iniciá esta sesión Focus desde su bloque planificado; el seguimiento normal no puede registrar sus descansos y concentración." }
     }
-    if (!esCronometro && alcanceCompleto.some(plan => plan.tipoPlanificacion === "focus")) {
+    if (esAplicacion && !esCronometro && alcanceCompleto.some(plan => plan.tipoPlanificacion === "focus")) {
         return { ok: false, error: "Esta planificación incluye una sesión Focus. Iníciala desde su bloque en el calendario para conservar sus períodos de concentración y descanso." }
     }
     const planesAlcance = esCronometro
         ? alcanceCompleto.filter(plan => plan.tipoPlanificacion !== "focus")
-        : alcanceCompleto
+        : alcanceCompleto.filter(plan => plan.tipoPlanificacion !== "focus"
+            && plan.modoSeguimientoPlanificacion !== "cronometro")
     const ordenados = [...planesAlcance].sort(esCronometro
         ? (a, b) => (a.ordenSeguimiento ?? 0) - (b.ordenSeguimiento ?? 0) || a.id.localeCompare(b.id)
         : esAplicacion
@@ -42,7 +43,7 @@ export function crearSecuenciaSeguimiento(planes, idPlanSeleccionado, eventos = 
             || a.fin.getTime() - b.fin.getTime() || a.id.localeCompare(b.id)
         : compararPlanesPorSeguimiento)
     let indiceSeleccionado = esCronometro ? 0 : ordenados.findIndex(plan => plan.id === idPlanSeleccionado)
-    if (esAplicacion && indiceSeleccionado > 0) {
+    if (!esCronometro && indiceSeleccionado > 0) {
         let inicioGrupoSeleccionado = ordenados[indiceSeleccionado].inicio.getTime()
         let cambio = true
         while (cambio) {
@@ -80,7 +81,7 @@ export function crearSecuenciaSeguimiento(planes, idPlanSeleccionado, eventos = 
         }
     })
 
-    if (esAplicacion && !esCronometro) {
+    if (!esCronometro) {
         const grupos = []
         let grupo = null
         for (const item of secuencia) {
@@ -142,6 +143,9 @@ export function validarEstadoSeguimiento(estado) {
     const esCronometro = estado.tipoSeguimiento === "cronometro"
 
     if (estado.modoAvance !== undefined && !["automatico", "manual"].includes(estado.modoAvance)) return false
+    if (estado.controlAvancePorEtapas !== undefined
+        && (typeof estado.controlAvancePorEtapas !== "boolean"
+            || estado.controlAvancePorEtapas && estado.tipoSeguimiento !== "duracion")) return false
     if (estado.idAplicacionPlantilla !== undefined && estado.idAplicacionPlantilla !== null
         && typeof estado.idAplicacionPlantilla !== "string") return false
     if (estado.registrosActivos !== undefined && (!Array.isArray(estado.registrosActivos)
@@ -173,7 +177,7 @@ export function validarEstadoSeguimiento(estado) {
     const idsActivos = new Set((estado.registrosActivos ?? []).map(item => item.planId))
     for (const planId of eventosOmitidos) {
         const indiceOmitido = estado.secuencia.findIndex(item => item?.planId === planId)
-        const fueraDePosicion = estado.idAplicacionPlantilla
+        const fueraDePosicion = estado.idAplicacionPlantilla || estado.controlAvancePorEtapas
             ? idsActivos.has(planId)
             : indiceOmitido >= estado.indiceActual
         if (typeof planId !== "string" || indiceOmitido < 0 || fueraDePosicion

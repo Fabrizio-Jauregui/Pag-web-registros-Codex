@@ -77,6 +77,24 @@ test("la aplicación limita el seguimiento a su grupo y representa solapamientos
     assert.equal(resultado.secuencia.some(item => item.planId === "otra-aplicacion" || item.planId === "sin-aplicacion"), false)
 })
 
+test("los planes creados desde el calendario conservan sus solapamientos al seguir el día", () => {
+    const planes = [
+        plan("cocinar", fecha(9), fecha(9, 25), null),
+        plan("escuchar-musica", fecha(9, 10), fecha(9, 30), null),
+        plan("ordenar", fecha(9, 30), fecha(9, 40), null),
+        { ...plan("sesion-focus", fecha(9), fecha(9, 20), null), tipoPlanificacion: "focus" },
+        { ...plan("plan-cronometro", fecha(9), null, null), modoSeguimientoPlanificacion: "cronometro", idAplicacionPlantilla: "aplicacion-cronometro" },
+        plan("otro-dia", new Date(2026, 9, 19, 10), new Date(2026, 9, 19, 10, 30), null)
+    ]
+
+    const resultado = crearSecuenciaSeguimiento(planes, "escuchar-musica")
+    assert.equal(resultado.ok, true)
+    assert.equal(resultado.idAplicacionPlantilla, null)
+    assert.deepEqual(resultado.secuencia.map(item => item.planId), ["cocinar", "escuchar-musica", "ordenar"])
+    assert.deepEqual(resultado.secuencia.map(item => item.grupo), [0, 0, 1])
+    assert.deepEqual(resultado.secuencia.map(item => item.inicioOffsetMs), [0, 10 * 60_000, 30 * 60_000])
+})
+
 test("la aplicación ejecuta los grupos consecutivos y conserva el orden manual entre grupos", () => {
     const planes = [
         { ...plan("grupo-a1", fecha(9), fecha(9, 10), null), idAplicacionPlantilla: "app", ordenSeguimiento: 0 },
@@ -185,4 +203,18 @@ test("acepta marcadores de avance y reintento válidos sin exigirlos a sesiones 
     assert.equal(validarEstadoSeguimiento(sesionActualizada), true)
     assert.equal(validarEstadoSeguimiento({ ...sesionActualizada, etapasDesbloqueadas: ["inexistente"] }), false)
     assert.equal(validarEstadoSeguimiento({ ...sesionActualizada, transicionPendiente: { planIds: ["inexistente"] } }), false)
+
+    const seguimientoCalendario = {
+        ...sesionAnterior,
+        tipoSeguimiento: "duracion",
+        controlAvancePorEtapas: true,
+        modoAvance: "manual",
+        registrosActivos: [{ planId: "plan-1", registroId: "registro-1", finBloque: fecha(9, 10).toISOString() }],
+        inicioSeguimiento: fecha(9).toISOString(),
+        iniciados: ["plan-1"],
+        finalizados: []
+    }
+    assert.equal(validarEstadoSeguimiento(seguimientoCalendario), true)
+    assert.equal(validarEstadoSeguimiento({ ...seguimientoCalendario, controlAvancePorEtapas: "si" }), false)
+    assert.equal(validarEstadoSeguimiento({ ...seguimientoCalendario, controlAvancePorEtapas: true, tipoSeguimiento: "cronometro" }), false)
 })

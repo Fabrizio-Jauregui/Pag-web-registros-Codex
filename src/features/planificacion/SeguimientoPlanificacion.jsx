@@ -39,18 +39,18 @@ export function PanelSeguimientoPlanificacion({
     </>
 
     const eventosActivos = estado.registrosActivos ?? []
-    const esAplicacionParalela = Boolean(estado.idAplicacionPlantilla)
+    const esSeguimientoPorEtapas = Boolean(estado.idAplicacionPlantilla || estado.controlAvancePorEtapas)
     const esCronometro = estado.tipoSeguimiento === "cronometro"
     const actual = estado.indiceActual + 1
     const idsEnCurso = new Set(eventosActivos.map(item => item.planId))
     const idsCerrados = new Set([...(estado.finalizados ?? []), ...(estado.eventosOmitidos ?? [])])
-    const proximos = esAplicacionParalela
+    const proximos = esSeguimientoPorEtapas
         ? estado.secuencia.filter((item, indice) => indice !== estado.indiceActual
             && !idsEnCurso.has(item.planId) && !idsCerrados.has(item.planId))
         : estado.secuencia.slice(estado.indiceActual + 1)
     const fechaSeguimiento = new Date(estado.secuencia[0].inicioPrevisto)
     const ahoraMs = reloj.getTime()
-    const modoManual = estado.modoAvance === "manual"
+    const modoManual = estado.modoAvance !== "automatico"
     const excedido = !esCronometro && estado.estado === "En curso" && elementoActual
         && ahoraMs >= Date.parse(eventosActivos[0]?.finBloque ?? estado.finBloque)
     const segundosExcedidos = excedido
@@ -166,7 +166,7 @@ export function PanelSeguimientoPlanificacion({
                     <h2 id="titulo-seguimiento-plan">{esCronometro ? "Carril de seguimiento" : "Siguiendo la planificación"}</h2>
                     <p>{esCronometro
                         ? `${eventosActivos.length} cronómetro${eventosActivos.length === 1 ? "" : "s"} en curso · ${estado.secuencia.length} eventos en la secuencia`
-                        : esAplicacionParalela
+                        : esSeguimientoPorEtapas
                         ? `${eventosActivos.length} evento${eventosActivos.length === 1 ? "" : "s"} en curso · ${estado.secuencia.length} en la planificación`
                         : `Evento ${actual} de ${estado.secuencia.length}`}</p>
                 </div>
@@ -175,11 +175,11 @@ export function PanelSeguimientoPlanificacion({
                 </span>
             </header>
             <h3>{esCronometro ? estado.secuencia.find(item => item.planId === eventosActivos[0]?.planId)?.nombre ?? "Secuencia activa"
-                : esAplicacionParalela
+                : esSeguimientoPorEtapas
                 ? `En curso: ${eventosActivos.map(activo => estado.secuencia.find(item => item.planId === activo.planId)?.nombre).filter(Boolean).join(" · ") || elementoActual?.nombre}`
                 : elementoActual?.nombre}</h3>
             {esCronometro && <p>Cada evento conserva su propio cronómetro. Iniciar el siguiente no detiene los que siguen en curso.</p>}
-            {!esAplicacionParalela && <>
+            {!esSeguimientoPorEtapas && <>
                 <p className="seguimiento-plan-restante">
                     {estado.estado === "Pausado" ? "Tiempo restante" : excedido && modoManual ? "Tiempo excedido" : "Tiempo restante"}: <strong>{formatearDuracion(excedido && modoManual ? segundosExcedidos : segundosRestantes)}</strong>
                 </p>
@@ -192,7 +192,7 @@ export function PanelSeguimientoPlanificacion({
             {elementoSiguiente && (
                 <p className="seguimiento-plan-siguiente">Próximo: {elementoSiguiente.nombre}</p>
             )}
-            {esAplicacionParalela && !esCronometro && (
+            {!esCronometro && (
                 <fieldset className="seguimiento-plan-modo" aria-label="Modo de avance de la planificación">
                     <legend>Al cumplirse la duración prevista</legend>
                     <label>
@@ -207,7 +207,7 @@ export function PanelSeguimientoPlanificacion({
                     </label>
                 </fieldset>
             )}
-            {esAplicacionParalela && eventosActivos.length > 0 && (
+            {esSeguimientoPorEtapas && eventosActivos.length > 0 && (
                 <section aria-label={eventosActivos.length > 1 ? "Eventos registrándose en paralelo" : "Evento registrándose"}>
                     <h4>{eventosActivos.length > 1 ? "En curso en paralelo" : "Evento registrándose"}</h4>
                     <ul>{eventosActivos.map(activo => {
@@ -278,10 +278,10 @@ export function PanelSeguimientoPlanificacion({
                 {estado.estado === "En curso"
                     ? <button type="button" onClick={seguimiento.pausar}>Pausar</button>
                     : <button type="button" onClick={seguimiento.reanudar}>Continuar</button>}
-                {!esAplicacionParalela && <button type="button" onClick={seguimiento.finalizarYContinuar}>
+                {!esSeguimientoPorEtapas && <button type="button" onClick={seguimiento.finalizarYContinuar}>
                     {elementoSiguiente ? "Finalizar y continuar con el próximo" : "Finalizar secuencia"}
                 </button>}
-                {!esAplicacionParalela && elementoSiguiente && (
+                {!esSeguimientoPorEtapas && elementoSiguiente && (
                     <button type="button" onClick={seguimiento.finalizarYOmitirSiguiente}>
                         {elementoPosterior
                             ? `Finalizar, omitir “${elementoSiguiente.nombre}” y continuar con “${elementoPosterior.nombre}”`
@@ -310,7 +310,7 @@ export function PanelSeguimientoPlanificacion({
                                     <button type="button" aria-label={`Mover ${item.nombre} después`} disabled={indice === proximos.length - 1} onClick={() => moverPlan(indice, 1)}>↓</button>
                                     <button type="button" disabled={!plan} onClick={() => plan && cambiarFormularioPlan({ plan })}>Editar</button>
                                     <button type="button" disabled={!plan} onClick={() => eliminarPlan(item.planId)}>Eliminar</button>
-                                    {esAplicacionParalela && <button type="button"
+                                    {esSeguimientoPorEtapas && <button type="button"
                                         aria-label={`Omitir ${item.nombre} en este seguimiento`}
                                         onClick={() => {
                                             if (!seguimiento.omitirEvento(item.planId)) cambiarErrorCola("No se pudo omitir el evento en este seguimiento.")

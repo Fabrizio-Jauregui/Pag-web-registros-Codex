@@ -56,8 +56,13 @@ async function prepararSeguimiento(page, { movil = false, fallarInicio = false }
     const bloque = page.getByRole("region", { name: "Calendario" })
         .getByRole("group", { name: /Registros del/ })
         .getByRole("button", { name: /Planificado: Desayunar/ })
-    await bloque.focus()
-    await bloque.press("Enter")
+    if (await bloque.count()) {
+        await bloque.focus()
+        await bloque.press("Enter")
+    } else {
+        await page.getByRole("button", { name: /Ver \d+ actividades cercanas/ }).first().click()
+        await page.getByRole("dialog").getByRole("button").filter({ hasText: "Desayunar" }).click()
+    }
     const detalle = page.getByRole("region", { name: "Plan: Desayunar" })
     await detalle.getByRole("button", { name: "Seguir planificación" }).click()
     await detalle.getByRole("button", { name: "Desde el primer evento de esta planificación" }).click()

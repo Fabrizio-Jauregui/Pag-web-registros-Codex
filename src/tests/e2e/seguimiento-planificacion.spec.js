@@ -19,8 +19,9 @@ function datosHoy() {
 async function crearPlan(page, nombre, inicio, fin) {
     await page.getByRole("button", { name: "Planificar actividad", exact: true }).click()
     const formulario = page.getByRole("form", { name: "Planificar actividad" })
+    await formulario.getByLabel("Actividad puntual").check()
     await formulario.getByLabel("Nombre de la actividad").fill(nombre)
-    await formulario.getByLabel("Inicio").fill(inicio)
+    await formulario.getByRole("textbox", { name: "Inicio", exact: true }).fill(inicio)
     await formulario.getByLabel("Fin", { exact: true }).fill(fin)
     await formulario.getByRole("button", { name: "Guardar plan", exact: true }).click()
 }
@@ -38,6 +39,16 @@ function bloqueDelPlan(page, nombre) {
         .getByRole("button", { name: new RegExp(`Planificado: ${nombre}`) })
 }
 
+async function abrirPlan(page, nombre) {
+    const bloque = bloqueDelPlan(page, nombre)
+    if (await bloque.count()) {
+        await bloque.click()
+        return
+    }
+    await page.getByRole("button", { name: /Ver \d+ actividades cercanas/ }).first().click()
+    await page.getByRole("dialog").getByRole("button").filter({ hasText: nombre }).click()
+}
+
 test("Flujo de usuario: sigue todos los planes del día y crea registros en secuencia desde ahora", async ({ page }) => {
     const { fecha, hora } = datosHoy()
     await page.clock.install({ time: new Date() })
@@ -46,20 +57,22 @@ test("Flujo de usuario: sigue todos los planes del día y crea registros en secu
     await crearPlan(page, "Preparar desayuno", hora(9, 0), hora(9, 1))
     await crearPlan(page, "Desayunar", hora(9, 10), hora(9, 11))
 
-    await bloqueDelPlan(page, "Preparar desayuno").click()
+    await abrirPlan(page, "Preparar desayuno")
     const detalle = page.getByRole("region", { name: "Plan: Preparar desayuno" })
     await detalle.getByRole("button", { name: "Seguir planificación" }).click()
     await detalle.getByRole("button", { name: "Desde el primero del día" }).click()
 
     const panel = page.getByRole("region", { name: "Siguiendo la planificación" })
     await expect(panel).toContainText("Preparar desayuno")
+    await expect(panel.getByLabel("Modo de avance de la planificación").getByLabel(/Manual/)).toBeChecked()
+    await panel.getByLabel("Modo de avance de la planificación").getByLabel(/Automático/).check()
     const registrosIniciales = await page.evaluate(clave => JSON.parse(localStorage.getItem(clave)), claveRegistros)
     expect(registrosIniciales).toHaveLength(1)
     expect(registrosIniciales[0].planId).toBeTruthy()
     expect(new Date(registrosIniciales[0].segmentos[0].inicio).getTime()).toBeGreaterThan(Date.now() - 5000)
 
     await page.clock.fastForward(60_000)
-    await expect(panel).toContainText("Evento 2 de 2", { timeout: 5000 })
+    await expect(panel).toContainText("Evento registrándose", { timeout: 5000 })
     await expect(panel).toContainText("Desayunar")
     await page.clock.fastForward(60_000)
     await expect(panel).toHaveCount(0, { timeout: 5000 })
@@ -78,7 +91,7 @@ test("Flujo de usuario: pausa, recarga, salta el evento actual y detiene la secu
     await page.getByLabel("Ir a fecha").fill(fecha)
     await crearPlan(page, "Lectura inicial", hora(9, 0), hora(9, 30))
     await crearPlan(page, "Lectura siguiente", hora(10, 0), hora(10, 30))
-    await bloqueDelPlan(page, "Lectura inicial").click()
+    await abrirPlan(page, "Lectura inicial")
     const detalle = page.getByRole("region", { name: "Plan: Lectura inicial" })
     await detalle.getByRole("button", { name: "Seguir planificación" }).click()
     await detalle.getByRole("button", { name: "Desde este evento" }).click()
@@ -96,8 +109,9 @@ test("Flujo de usuario: pausa, recarga, salta el evento actual y detiene la secu
     await page.clock.fastForward(10_000)
     await expect(panelRecargado).toContainText("Lectura inicial")
     await panelRecargado.getByRole("button", { name: "Continuar", exact: true }).click()
-    await page.clock.fastForward(1100)
-    await panelRecargado.getByRole("button", { name: "Finalizar y continuar con el próximo" }).click()
+    await page.clock.fastForward(31 * 60_000)
+    await expect(panelRecargado).toContainText("Tiempo excedido")
+    await panelRecargado.getByRole("button", { name: "Finalizar “Lectura inicial” y comenzar “Lectura siguiente”" }).click()
     await expect(panelRecargado).toContainText("Lectura siguiente")
 
     const registrosTrasSalto = await page.evaluate(clave => JSON.parse(localStorage.getItem(clave)), claveRegistros)
@@ -333,9 +347,9 @@ test("Flujo de usuario: el modo automático termina cada evento al cumplirse su 
     const { fecha, instante } = datosHoy()
     const idAplicacion = "aplicacion-seguimiento-automatico"
     const planes = [
-        { id: "plan-uno", nombre: "Evento uno", eventoId: null, colorEvento: "#0F766E", inicio: instante(9, 0, 0), fin: instante(9, 0, 2), idAplicacionPlantilla: idAplicacion },
-        { id: "plan-dos", nombre: "Evento dos", eventoId: null, colorEvento: "#0F766E", inicio: instante(9, 0, 1), fin: instante(9, 0, 3), idAplicacionPlantilla: idAplicacion },
-        { id: "plan-tres", nombre: "Evento tres", eventoId: null, colorEvento: "#0F766E", inicio: instante(9, 0, 3), fin: instante(9, 0, 4), idAplicacionPlantilla: idAplicacion }
+        { id: "plan-uno", nombre: "Evento uno", eventoId: null, origenPuntual: true, categoriaIds: [], colorEvento: "#0F766E", inicio: instante(9, 0, 0), fin: instante(9, 0, 2), idAplicacionPlantilla: idAplicacion },
+        { id: "plan-dos", nombre: "Evento dos", eventoId: null, origenPuntual: true, categoriaIds: [], colorEvento: "#0F766E", inicio: instante(9, 0, 1), fin: instante(9, 0, 3), idAplicacionPlantilla: idAplicacion },
+        { id: "plan-tres", nombre: "Evento tres", eventoId: null, origenPuntual: true, categoriaIds: [], colorEvento: "#0F766E", inicio: instante(9, 0, 3), fin: instante(9, 0, 4), idAplicacionPlantilla: idAplicacion }
     ]
     await page.clock.install({ time: new Date() })
     await page.addInitScript(({ planesIniciales, clavePlanes }) => {
@@ -343,8 +357,7 @@ test("Flujo de usuario: el modo automático termina cada evento al cumplirse su 
     }, { planesIniciales: planes, clavePlanes })
     await page.goto("/")
     await page.getByLabel("Ir a fecha").fill(fecha)
-    await bloqueDelPlan(page, "Evento uno").focus()
-    await bloqueDelPlan(page, "Evento uno").press("Enter")
+    await abrirPlan(page, "Evento uno")
     const detalle = page.getByRole("region", { name: "Plan: Evento uno" })
     await detalle.getByRole("button", { name: "Seguir planificación" }).click()
     await detalle.getByRole("button", { name: "Desde el primer evento de esta planificación" }).click()
