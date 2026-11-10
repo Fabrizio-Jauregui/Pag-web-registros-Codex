@@ -16,7 +16,7 @@ export function obtenerTopMarcador(y, altoLienzo, altoObjetivo = ALTO_MINIMO_MAR
 
 export function agruparMarcadoresCercanos(elementos, distancia = ALTO_MINIMO_MARCADOR) {
     const compactos = elementos.filter(elemento => elemento.alto < ALTO_COMPACTO_MARCAS)
-    const padres = compactos.map((_, indice) => indice)
+    const padres = elementos.map((_, indice) => indice)
 
     function buscar(indice) {
         if (padres[indice] !== indice) padres[indice] = buscar(padres[indice])
@@ -29,17 +29,36 @@ export function agruparMarcadoresCercanos(elementos, distancia = ALTO_MINIMO_MAR
         if (raizA !== raizB) padres[raizB] = raizA
     }
 
-    for (let a = 0; a < compactos.length; a += 1) {
-        for (let b = a + 1; b < compactos.length; b += 1) {
-            if (Math.abs(compactos[a].x - compactos[b].x) < distancia
-                && Math.abs(compactos[a].y - compactos[b].y) < distancia) {
-                unir(a, b)
+    const ordenTemporal = elementos
+        .map((elemento, indice) => ({ elemento, indice }))
+        .sort((a, b) => a.elemento.arriba - b.elemento.arriba || a.elemento.izquierda - b.elemento.izquierda)
+    let activos = []
+
+    for (const actual of ordenTemporal) {
+        activos = activos.filter(anterior => anterior.elemento.abajo + distancia > actual.elemento.arriba)
+        for (const anterior of activos) {
+            const primero = anterior.elemento
+            const segundo = actual.elemento
+            const distanciaHorizontal = Math.max(
+                0,
+                primero.izquierda - segundo.derecha,
+                segundo.izquierda - primero.derecha
+            )
+            const distanciaVertical = Math.max(
+                0,
+                primero.arriba - segundo.abajo,
+                segundo.arriba - primero.abajo
+            )
+
+            if (distanciaHorizontal < distancia && distanciaVertical < distancia) {
+                unir(anterior.indice, actual.indice)
             }
         }
+        activos.push(actual)
     }
 
     const gruposPorRaiz = new Map()
-    compactos.forEach((elemento, indice) => {
+    elementos.forEach((elemento, indice) => {
         const raiz = buscar(indice)
         if (!gruposPorRaiz.has(raiz)) gruposPorRaiz.set(raiz, [])
         gruposPorRaiz.get(raiz).push(elemento)

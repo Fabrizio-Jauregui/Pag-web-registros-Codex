@@ -367,28 +367,37 @@
 .grupo-marcas-boton {
   position: absolute;
   z-index: 10;
-  width: 28px;
-  height: 28px;
+  box-sizing: border-box;
   padding: 0;
-  transform: translateX(-50%);
-  border: 2px solid #fff;
-  border-radius: 50%;
-  background: #334155;
-  color: #fff;
-  font-size: 0.72rem;
-  font-weight: 750;
-  font-variant-numeric: tabular-nums;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   cursor: pointer;
   pointer-events: auto;
 }
 
-.grupo-marcas-boton:hover,
+.grupo-marcas-franja {
+  position: absolute;
+  display: block;
+  box-sizing: border-box;
+  min-height: 2px;
+  border: 1px solid #475569;
+  border-radius: 3px;
+  background: repeating-linear-gradient(135deg, #cbd5e1 0 5px, #64748b 5px 8px);
+  opacity: 0.94;
+  pointer-events: none;
+}
+
 .grupo-marcas-boton:focus-visible,
 .grupo-marcas-boton[aria-expanded="true"] {
   z-index: 11;
   outline: 3px solid #2563eb;
-  outline-offset: 2px;
+  outline-offset: 1px;
 }
+
+.grupo-marcas-boton:hover .grupo-marcas-franja,
+.grupo-marcas-boton[aria-expanded="true"] .grupo-marcas-franja { opacity: 1; }
 
 .grupo-marcas-fondo {
   position: fixed;
@@ -471,6 +480,32 @@
 .grupo-marcas-datos { display: grid; min-width: 0; gap: 2px; }
 .grupo-marcas-datos strong { overflow-wrap: anywhere; }
 .grupo-marcas-datos small { color: #475569; font-size: 0.78rem; }
+
+.grupo-marcas-acercar {
+  width: 100%;
+  min-height: 40px;
+  margin-top: 10px;
+  padding: 8px 10px;
+  border: 1px solid #4f46e5;
+  border-radius: 8px;
+  background: #eef2ff;
+  color: #312e81;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.grupo-marcas-acercar:hover,
+.grupo-marcas-acercar:focus-visible { background: #e0e7ff; }
+
+[data-tema="oscuro"] .grupo-marcas-franja {
+  border-color: #94a3b8;
+  background: repeating-linear-gradient(135deg, #334155 0 5px, #cbd5e1 5px 8px);
+}
+
+[data-tema="oscuro"] .grupo-marcas-acercar { border-color: #818cf8; background: #252b55; color: #eef2ff; }
+[data-tema="oscuro"] .grupo-marcas-acercar:hover,
+[data-tema="oscuro"] .grupo-marcas-acercar:focus-visible { background: #30386c; }
 
 [data-tema="oscuro"] .grupo-marcas-popup {
   border-color: #46536c;
