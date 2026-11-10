@@ -21,7 +21,6 @@ export function VistaCalendarioSemana({
     registros,
     onSeleccionar,
     onSeleccionarPlan,
-    onAcercarAgrupacion = () => {},
     onAjustarPlan,
     onAjustarRegistro,
     edicionDirectaHabilitada,
@@ -293,7 +292,6 @@ export function VistaCalendarioSemana({
                                 eventos={eventos}
                                 onSeleccionarRegistro={onSeleccionar}
                                 onSeleccionarPlan={onSeleccionarPlan}
-                                onAcercarAgrupacion={onAcercarAgrupacion}
                                 onAjustarRegistro={onAjustarRegistro}
                                 onAjustarPlan={onAjustarPlan}
                                 edicionDirectaHabilitada={edicionDirectaHabilitada}

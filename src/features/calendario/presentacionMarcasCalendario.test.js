@@ -18,33 +18,19 @@ test("calcula altura temporal sin alterar la duración real", () => {
     assert.ok(ALTO_COMPACTO_MARCAS < ALTO_MINIMO_MARCADOR)
 })
 
-test("agrupa bloques visibles próximos aunque no sean compactos", () => {
+test("agrupa únicamente marcas compactas con áreas seleccionables superpuestas", () => {
     const elementos = [
-        { id: "registro-a", izquierda: 30, derecha: 90, arriba: 100, abajo: 150, alto: 50 },
-        { id: "plan-a", izquierda: 94, derecha: 150, arriba: 120, abajo: 170, alto: 50 },
-        { id: "registro-b", izquierda: 250, derecha: 320, arriba: 100, abajo: 150, alto: 50 },
-        { id: "registro-breve", izquierda: 30, derecha: 38, arriba: 151, abajo: 179, alto: 2 }
+        { id: "registro-a", x: 30, y: 100, alto: 2 },
+        { id: "plan-a", x: 50, y: 120, alto: 1 },
+        { id: "registro-b", x: 150, y: 101, alto: 2 },
+        { id: "bloque-legible", x: 32, y: 101, alto: 20 }
     ]
 
     const resultado = agruparMarcadoresCercanos(elementos)
 
     assert.equal(resultado.grupos.length, 1)
-    assert.deepEqual(resultado.grupos[0].map(item => item.id), ["registro-a", "plan-a", "registro-breve"])
-    assert.deepEqual([...resultado.idsAgrupados], ["registro-a", "plan-a", "registro-breve"])
-    assert.deepEqual(resultado.compactos.map(item => item.id), ["registro-breve"])
-})
-
-test("agrupa transitivamente y deja separados los bloques que exceden la distancia", () => {
-    const elementos = [
-        { id: "a", izquierda: 0, derecha: 20, arriba: 0, abajo: 20, alto: 20 },
-        { id: "b", izquierda: 45, derecha: 65, arriba: 15, abajo: 35, alto: 20 },
-        { id: "c", izquierda: 90, derecha: 110, arriba: 30, abajo: 50, alto: 20 },
-        { id: "d", izquierda: 138, derecha: 160, arriba: 30, abajo: 50, alto: 20 }
-    ]
-
-    const resultado = agruparMarcadoresCercanos(elementos)
-
-    assert.deepEqual(resultado.grupos.map(grupo => grupo.map(item => item.id)), [["a", "b", "c"]])
-    assert.deepEqual([...resultado.idsAgrupados], ["a", "b", "c"])
+    assert.deepEqual(resultado.grupos[0].map(item => item.id), ["registro-a", "plan-a"])
+    assert.deepEqual([...resultado.idsAgrupados], ["registro-a", "plan-a"])
+    assert.deepEqual(resultado.compactos.map(item => item.id), ["registro-a", "plan-a", "registro-b"])
 })
 

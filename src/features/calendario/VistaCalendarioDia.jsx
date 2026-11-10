@@ -27,7 +27,6 @@ export function VistaCalendarioDia({
     eventos = [],
     onSeleccionar,
     onSeleccionarPlan = () => {},
-    onAcercarAgrupacion = () => {},
     onSeleccionarFranja = () => {},
     franjaSeleccionada = null,
     onAjustarPlan,
@@ -249,7 +248,6 @@ export function VistaCalendarioDia({
                     eventos={eventos}
                     onSeleccionarRegistro={onSeleccionar}
                     onSeleccionarPlan={onSeleccionarPlan}
-                    onAcercarAgrupacion={onAcercarAgrupacion}
                     onAjustarRegistro={onAjustarRegistro}
                     onAjustarPlan={onAjustarPlan}
                     edicionDirectaHabilitada={edicionDirectaHabilitada}
