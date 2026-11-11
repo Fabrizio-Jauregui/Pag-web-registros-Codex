@@ -28,14 +28,35 @@ function crearPlanes(fecha, idAplicacion) {
     ]
 }
 
+function crearPlanesConEspera(fecha, { paralela = false } = {}) {
+    const instante = (hora, minuto) => new Date(`${fecha}T${String(hora).padStart(2, "0")}:${String(minuto).padStart(2, "0")}:00`).toISOString()
+    const plan = (id, nombre, desde, hasta) => ({
+        id,
+        nombre,
+        eventoId: null,
+        origenPuntual: true,
+        categoriaIds: [],
+        colorEvento: null,
+        inicio: instante(...desde),
+        fin: instante(...hasta),
+        idAplicacionPlantilla: "aplicacion-con-espera"
+    })
+    return [
+        plan("desayuno", "Desayunar", [9, 0], [9, 10]),
+        plan("sacar-mesa", "Sacar la mesa", [9, 10], [9, 12]),
+        ...(paralela ? [plan("limpiar-mesada", "Limpiar la mesada", [9, 10], [9, 12])] : []),
+        plan("lavar-platos", "Lavar los platos", [9, 12], [9, 14])
+    ]
+}
+
 function fechaDeHoy() {
     const hoy = new Date()
     return `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, "0")}-${String(hoy.getDate()).padStart(2, "0")}`
 }
 
-async function prepararSeguimiento(page, { movil = false, fallarInicio = false } = {}) {
+async function prepararSeguimiento(page, { movil = false, fallarInicio = false, planesIniciales = null } = {}) {
     const fecha = fechaDeHoy()
-    const planes = crearPlanes(fecha, "aplicacion-desayuno")
+    const planes = planesIniciales ?? crearPlanes(fecha, "aplicacion-desayuno")
     await page.clock.install({ time: new Date(`${fecha}T09:00:00`) })
     if (movil) await page.setViewportSize({ width: 390, height: 844 })
     await page.addInitScript(({ planesIniciales, fallarInicio, clavePlanes, claveRegistros }) => {
@@ -110,6 +131,92 @@ test("permite avanzar explícitamente también en modo automático", async ({ pa
         .getByRole("button", { name: "Finalizar “Desayunar” y comenzar “Sacar la mesa”" }).click()
     await expect(filaActiva(panel, "Sacar la mesa")).toBeVisible()
     await expect(filaActiva(panel, "Ver YouTube")).toBeVisible()
+})
+
+test("permite adelantar una etapa pendiente sin actividad activa en modo manual y conserva paralelos y horarios del calendario", async ({ page }) => {
+    const fecha = fechaDeHoy()
+    const planes = crearPlanesConEspera(fecha, { paralela: true })
+    const { panel } = await prepararSeguimiento(page, { planesIniciales: planes })
+    await page.clock.fastForward(1200)
+
+    await filaActiva(panel, "Desayunar").getByRole("button", { name: "Finalizar “Desayunar”", exact: true }).click()
+    const continuar = panel.getByRole("region", { name: "Continuar planificación" })
+    await expect(continuar).toContainText("Limpiar la mesada")
+    await expect(continuar.getByRole("button", { name: "Iniciar “Limpiar la mesada” ahora" })).toBeVisible()
+
+    const planesAntes = await page.evaluate(clave => JSON.parse(localStorage.getItem(clave)), CLAVE_PLANES)
+    const registroYoutube = page.getByRole("group", { name: "Origen de la actividad" }).last()
+    await registroYoutube.getByLabel("Actividad puntual").check()
+    await page.getByLabel("Nombre de la actividad").fill("Ver YouTube")
+    await page.getByRole("button", { name: "Iniciar", exact: true }).click()
+    await expect(page.getByRole("article", { name: "Actividad activa: Ver YouTube" })).toBeVisible()
+
+    await continuar.getByRole("button", { name: "Iniciar “Limpiar la mesada” ahora" }).click()
+    await expect(filaActiva(panel, "Sacar la mesa")).toBeVisible()
+    await expect(filaActiva(panel, "Limpiar la mesada")).toBeVisible()
+    await expect(page.getByRole("article", { name: "Actividad activa: Ver YouTube" })).toBeVisible()
+
+    const planesDespues = await page.evaluate(clave => JSON.parse(localStorage.getItem(clave)), CLAVE_PLANES)
+    expect(planesDespues).toEqual(planesAntes)
+    const seguimiento = await page.evaluate(clave => JSON.parse(localStorage.getItem(clave)), CLAVE_SEGUIMIENTO)
+    const desplazamientoParalelo = seguimiento.secuencia.find(item => item.planId === "limpiar-mesada").inicioOffsetMs
+        - seguimiento.secuencia.find(item => item.planId === "sacar-mesa").inicioOffsetMs
+    expect(desplazamientoParalelo).toBe(0)
+    const registros = await page.evaluate(clave => JSON.parse(localStorage.getItem(clave)), CLAVE_REGISTROS)
+    expect(registros.filter(registro => registro.planId === "sacar-mesa")).toHaveLength(1)
+    expect(registros.find(registro => registro.nombre === "Ver YouTube").estado).toBe("En curso")
+})
+
+test("permite adelantar manualmente la etapa pendiente en modo automático durante un hueco horario", async ({ page }) => {
+    const fecha = fechaDeHoy()
+    const planes = crearPlanesConEspera(fecha)
+    const { panel } = await prepararSeguimiento(page, { planesIniciales: planes })
+    await panel.getByLabel(/Automático/).check()
+
+    await page.clock.fastForward(1200)
+    await filaActiva(panel, "Desayunar").getByRole("button", { name: "Finalizar “Desayunar”", exact: true }).click()
+    await expect(filaActiva(panel, "Desayunar")).toHaveCount(0)
+    const continuar = panel.getByRole("region", { name: "Continuar planificación" })
+    await expect(continuar).toContainText("Sacar la mesa")
+    await continuar.getByRole("button", { name: "Iniciar “Sacar la mesa” ahora" }).click()
+    await expect(filaActiva(panel, "Sacar la mesa")).toBeVisible()
+    const seguimiento = await page.evaluate(clave => JSON.parse(localStorage.getItem(clave)), CLAVE_SEGUIMIENTO)
+    expect(seguimiento.modoAvance).toBe("automatico")
+    expect(seguimiento.transicionPendiente).toBeNull()
+})
+
+test("conserva el siguiente paso si Focus bloquea su inicio y permite reintentarlo al pausar Focus", async ({ page }) => {
+    const fecha = fechaDeHoy()
+    const planes = crearPlanesConEspera(fecha)
+    const { panel } = await prepararSeguimiento(page, { planesIniciales: planes })
+    await page.clock.fastForward(1200)
+    await filaActiva(panel, "Desayunar").getByRole("button", { name: "Finalizar “Desayunar”", exact: true }).click()
+
+    await page.getByRole("button", { name: "Focus", exact: true }).click()
+    const vistaFocus = page.getByRole("region", { name: "Focus" })
+    const prepararFocus = vistaFocus.getByRole("region", { name: "Preparar sesión" })
+    await prepararFocus.getByLabel("Actividad puntual").check()
+    await vistaFocus.getByLabel("Nombre de la actividad").fill("Estudiar")
+    await vistaFocus.getByLabel("Pares de bloques").selectOption("1")
+    await vistaFocus.getByLabel("Concentración inicial (min)").fill("1")
+    await vistaFocus.getByLabel("Descanso inicial (min)").fill("1")
+    await vistaFocus.getByRole("button", { name: "Generar bloques" }).click()
+    await vistaFocus.getByRole("button", { name: "Confirmar bloques" }).click()
+    await vistaFocus.getByRole("button", { name: "Iniciar sesión Focus" }).click()
+
+    await page.getByRole("button", { name: "Calendario", exact: true }).click()
+    const continuar = panel.getByRole("region", { name: "Continuar planificación" })
+    const iniciarSiguiente = continuar.getByRole("button", { name: "Iniciar “Sacar la mesa” ahora" })
+    await iniciarSiguiente.click()
+    await expect(panel.getByRole("alert")).toContainText("No se puede iniciar otra actividad mientras Focus está en concentración")
+    await expect(iniciarSiguiente).toBeVisible()
+    await expect(panel).toContainText("Esperando para iniciar: Sacar la mesa")
+
+    await page.getByRole("button", { name: "Focus", exact: true }).click()
+    await vistaFocus.getByRole("button", { name: "Pausar sesión" }).click()
+    await page.getByRole("button", { name: "Calendario", exact: true }).click()
+    await iniciarSiguiente.click()
+    await expect(filaActiva(panel, "Sacar la mesa")).toBeVisible()
 })
 
 test("conserva y reintenta la transición fallida después de recargar, sin duplicar registros", async ({ page }) => {

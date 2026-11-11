@@ -31,7 +31,7 @@ function validarConfiguracionFocus(configuracion) {
 function validarOrigenActividad(actividad) {
     const tieneEvento = typeof actividad.eventoId === "string" && actividad.eventoId.trim() !== ""
     const tieneTarea = typeof actividad.tareaId === "string" && actividad.tareaId.trim() !== ""
-    if (actividad.tareaId !== undefined && !tieneTarea) return "La tarea vinculada a la actividad no es válida."
+    if (actividad.tareaId !== undefined && actividad.tareaId !== null && !tieneTarea) return "La tarea vinculada a la actividad no es válida."
     if (actividad.tareaNombre !== undefined && (typeof actividad.tareaNombre !== "string" || !actividad.tareaNombre.trim())) return "El nombre de la tarea vinculada no es válido."
     if (actividad.tipoActividad === "focus" && actividad.configuracionFocus?.usarColaFocus && !tieneEvento && !tieneTarea) return null
     return tieneEvento === tieneTarea ? "Elegí una plantilla de evento o una tarea para cada actividad." : null

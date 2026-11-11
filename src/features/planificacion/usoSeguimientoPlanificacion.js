@@ -722,49 +722,68 @@ export function useSeguimientoPlanificacion(estadoRegistro, tareas = []) {
             && puedeIniciarGrupo(sesionTrasFinalizar, item.grupo ?? 0)) ?? null
     }
 
+    function iniciarEtapaAhora(sesion, etapa, instante, nombreActual = null) {
+        const habilitacion = registroRef.current.puedeIniciarActividad?.(new Date(instante))
+        if (habilitacion && !habilitacion.ok) {
+            cambiarError(habilitacion.error)
+            return false
+        }
+        const inicioSeguimiento = Date.parse(sesion.inicioSeguimiento)
+        const primerOffsetEtapa = Math.min(...etapa.pendientes.map(item => item.inicioOffsetMs ?? 0))
+        const desplazamiento = instante - inicioSeguimiento - primerOffsetEtapa
+        const idsEtapa = sesion.secuencia
+            .filter(item => (item.grupo ?? 0) === etapa.grupo)
+            .map(item => item.planId)
+        const siguiente = etapa.pendientes[0]
+        const transicion = {
+            ...sesion,
+            secuencia: sesion.secuencia.map(item => (item.grupo ?? 0) >= etapa.grupo
+                && !(sesion.iniciados ?? []).includes(item.planId)
+                ? { ...item, inicioOffsetMs: (item.inicioOffsetMs ?? 0) + desplazamiento }
+                : item),
+            etapasDesbloqueadas: [...new Set([...(sesion.etapasDesbloqueadas ?? []), ...idsEtapa])],
+            transicionPendiente: { planIds: [siguiente.planId] }
+        }
+        if (!guardar(transicion)) return false
+        publicar(transicion)
+        procesarSecuenciaPorEtapas(instante, transicion, true)
+        if (estadoRef.current?.transicionPendiente) {
+            cambiarError(errorActual => {
+                const mensajeTransicion = `${nombreActual ? `Se finalizó “${nombreActual}”, pero ` : ""}no se pudo iniciar “${siguiente.nombre}”. Podés reintentar el inicio.`
+                return errorActual ? `${mensajeTransicion} ${errorActual}` : mensajeTransicion
+            })
+            return false
+        }
+        cambiarMensaje(nombreActual
+            ? `Se finalizó “${nombreActual}” y comenzó “${siguiente.nombre}”.`
+            : `Comenzó “${siguiente.nombre}”. Se ajustaron los horarios de las etapas pendientes.`)
+        return true
+    }
+
+    function iniciarSiguienteEtapaAhora() {
+        const sesion = estadoRef.current
+        if (!usaAvancePorEtapas(sesion) || sesion.tipoSeguimiento === "cronometro"
+            || sesion.estado !== "En curso" || (sesion.registrosActivos ?? []).length > 0
+            || sesion.transicionPendiente) return false
+        const etapa = obtenerSiguienteEtapa(sesion)
+        if (!etapa) return false
+        return iniciarEtapaAhora(sesion, etapa, Date.now())
+    }
+
     function finalizarYComenzarSiguiente(planId) {
         const sesion = estadoRef.current
         if (usaAvancePorEtapas(sesion) && sesion.tipoSeguimiento !== "cronometro") {
             const etapa = obtenerSiguienteEtapa(sesion)
             if (!etapa || !(sesion.registrosActivos ?? []).some(item => item.planId === planId)) return false
-            const habilitacion = registroRef.current.puedeIniciarActividad?.(new Date())
+            const instante = Date.now()
+            const nombreActual = sesion.secuencia.find(item => item.planId === planId)?.nombre ?? "la actividad actual"
+            const habilitacion = registroRef.current.puedeIniciarActividad?.(new Date(instante))
             if (habilitacion && !habilitacion.ok) {
                 cambiarError(habilitacion.error)
                 return false
             }
-            const instante = Date.now()
-            const inicioSeguimiento = Date.parse(sesion.inicioSeguimiento)
-            const primerOffsetEtapa = Math.min(...etapa.pendientes.map(item => item.inicioOffsetMs ?? 0))
-            const desplazamiento = instante - inicioSeguimiento - primerOffsetEtapa
-            const idsEtapa = sesion.secuencia
-                .filter(item => (item.grupo ?? 0) === etapa.grupo)
-                .map(item => item.planId)
-            const nombreActual = sesion.secuencia.find(item => item.planId === planId)?.nombre ?? "la actividad actual"
-            const siguiente = etapa.pendientes[0]
-
             if (!finalizarEvento(planId, { diferirAplicacion: true })) return false
-            const actualizada = estadoRef.current
-            const transicion = {
-                ...actualizada,
-                secuencia: actualizada.secuencia.map(item => (item.grupo ?? 0) >= etapa.grupo
-                    && !(actualizada.iniciados ?? []).includes(item.planId)
-                    ? { ...item, inicioOffsetMs: (item.inicioOffsetMs ?? 0) + desplazamiento }
-                    : item),
-                etapasDesbloqueadas: [...new Set([...(actualizada.etapasDesbloqueadas ?? []), ...idsEtapa])],
-                transicionPendiente: { planIds: [siguiente.planId] }
-            }
-            if (!guardar(transicion)) return false
-            publicar(transicion)
-            procesarSecuenciaPorEtapas(instante, transicion, true)
-            if (estadoRef.current?.transicionPendiente) {
-                cambiarError(errorActual => {
-                    const mensajeTransicion = `Se finalizó “${nombreActual}”, pero no se pudo iniciar “${siguiente.nombre}”. Podés reintentar el inicio.`
-                    return errorActual ? `${mensajeTransicion} ${errorActual}` : mensajeTransicion
-                })
-                return false
-            }
-            cambiarMensaje(`Se finalizó “${nombreActual}” y comenzó “${siguiente.nombre}”.`)
-            return true
+            return iniciarEtapaAhora(estadoRef.current, etapa, instante, nombreActual)
         }
         const siguiente = siguienteEventoAlFinalizar(planId)
         if (!sesion || !siguiente) return false
@@ -1020,6 +1039,10 @@ export function useSeguimientoPlanificacion(estadoRegistro, tareas = []) {
         : estado?.secuencia.slice((estado?.indiceActual ?? -1) + 1) ?? []
     const elementoSiguiente = siguientesDisponibles[0] ?? null
     const elementoPosterior = siguientesDisponibles[1] ?? null
+    const siguienteEtapaPendiente = estado && usaAvancePorEtapas(estado)
+        && estado.tipoSeguimiento !== "cronometro"
+        ? obtenerSiguienteEtapa(estado)?.pendientes[0] ?? null
+        : null
     const segundosRestantes = usaAvancePorEtapas(estado) && estado.registrosActivos?.length
         ? Math.ceil((estado.estado === "Pausado"
             ? estado.registrosActivos[0].restanteMs
@@ -1032,7 +1055,8 @@ export function useSeguimientoPlanificacion(estadoRegistro, tareas = []) {
         estado, error, mensaje, elementoActual, elementoSiguiente, elementoPosterior,
         segundosRestantes, empezar, pausar, reanudar, finalizarYContinuar,
         finalizarYOmitirSiguiente, dejarDeSeguir, sincronizarPlanes, finalizarEvento, cambiarModoAvance, omitirEvento,
-        siguienteEventoAlFinalizar, finalizarYComenzarSiguiente,
+        siguienteEventoAlFinalizar, finalizarYComenzarSiguiente, iniciarSiguienteEtapaAhora,
+        siguienteEtapaPendiente,
         reintentarTransicion,
         iniciarEvento: iniciarEventoSecuencial,
         iniciarGrupo: iniciarGrupoSecuencial,

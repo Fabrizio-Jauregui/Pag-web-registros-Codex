@@ -31,7 +31,8 @@ export function PanelSeguimientoPlanificacion({
     const [formularioCronometro, cambiarFormularioCronometro] = useState(null)
     const [errorCola, cambiarErrorCola] = useState("")
     const {
-        estado, error, mensaje, elementoActual, elementoSiguiente, elementoPosterior, segundosRestantes
+        estado, error, mensaje, elementoActual, elementoSiguiente, elementoPosterior, segundosRestantes,
+        siguienteEtapaPendiente
     } = seguimiento
     if (!estado) return <>
         {error && <p className="seguimiento-plan-error" role="alert">{error}</p>}
@@ -176,7 +177,9 @@ export function PanelSeguimientoPlanificacion({
             </header>
             <h3>{esCronometro ? estado.secuencia.find(item => item.planId === eventosActivos[0]?.planId)?.nombre ?? "Secuencia activa"
                 : esSeguimientoPorEtapas
-                ? `En curso: ${eventosActivos.map(activo => estado.secuencia.find(item => item.planId === activo.planId)?.nombre).filter(Boolean).join(" · ") || elementoActual?.nombre}`
+                ? eventosActivos.length
+                    ? `En curso: ${eventosActivos.map(activo => estado.secuencia.find(item => item.planId === activo.planId)?.nombre).filter(Boolean).join(" · ")}`
+                    : siguienteEtapaPendiente ? `Esperando para iniciar: ${siguienteEtapaPendiente.nombre}` : "Sin eventos activos"
                 : elementoActual?.nombre}</h3>
             {esCronometro && <p>Cada evento conserva su propio cronómetro. Iniciar el siguiente no detiene los que siguen en curso.</p>}
             {!esSeguimientoPorEtapas && <>
@@ -232,6 +235,15 @@ export function PanelSeguimientoPlanificacion({
                     })}</ul>
                 </section>
             )}
+            {!esCronometro && esSeguimientoPorEtapas && estado.estado === "En curso"
+                && eventosActivos.length === 0 && siguienteEtapaPendiente && !estado.transicionPendiente && (
+                    <section className="seguimiento-plan-espera" aria-label="Continuar planificación">
+                        <p>No hay ningún evento de la planificación en curso. Podés adelantar la etapa pendiente; las etapas siguientes conservarán sus duraciones y se desplazarán para continuar después.</p>
+                        <button type="button" onClick={seguimiento.iniciarSiguienteEtapaAhora}>
+                            Iniciar “{siguienteEtapaPendiente.nombre}” ahora
+                        </button>
+                    </section>
+                )}
             {esCronometro && proximos.length > 0 && <section aria-label="Eventos pendientes del carril de seguimiento">
                 <h4>Eventos que podés iniciar</h4>
                 <ul>{proximos.map((item, indice) => {
