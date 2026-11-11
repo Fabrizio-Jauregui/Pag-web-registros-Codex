@@ -40,6 +40,7 @@ export function PanelSeguimientoPlanificacion({
     </>
 
     const eventosActivos = estado.registrosActivos ?? []
+    const finalizacionesPendientes = estado.finalizacionesPendientes ?? []
     const esSeguimientoPorEtapas = Boolean(estado.idAplicacionPlantilla || estado.controlAvancePorEtapas)
     const esCronometro = estado.tipoSeguimiento === "cronometro"
     const actual = estado.indiceActual + 1
@@ -225,12 +226,32 @@ export function PanelSeguimientoPlanificacion({
                         return <li key={activo.planId}>
                             <strong>{item?.nombre}</strong>
                             <span>{esCronometro ? `Tiempo registrado: ${formatearDuracion(Math.floor(transcurrido / 1000))}` : `${excedidoEvento ? "Tiempo excedido" : estado.estado === "Pausado" ? "Tiempo restante" : "Tiempo previsto restante"}: ${formatearDuracion(segundosEvento)}`}</span>
-                            <button type="button" onClick={() => seguimiento.finalizarEvento(activo.planId)}>
+                            <button type="button" onClick={() => esCronometro
+                                ? seguimiento.finalizarEvento(activo.planId)
+                                : seguimiento.solicitarFinalizacion(activo.planId)}>
                                 Finalizar “{item?.nombre ?? "evento"}”
                             </button>
                             {siguiente && <button type="button" onClick={() => seguimiento.finalizarYComenzarSiguiente(activo.planId)}>
                                 Finalizar “{item?.nombre ?? "evento"}” y comenzar “{siguiente.nombre}”
                             </button>}
+                        </li>
+                    })}</ul>
+                </section>
+            )}
+            {finalizacionesPendientes.length > 0 && (
+                <section className="seguimiento-plan-deshacer" aria-label="Finalizaciones que podés deshacer">
+                    <h4>Deshacer una finalización</h4>
+                    <p>El evento ya se finalizó. Podés deshacerlo durante 10 segundos; se recupera el mismo registro y también el tiempo transcurrido desde que lo finalizaste. Mientras tanto, los controles del seguimiento quedan pausados.</p>
+                    <ul>{finalizacionesPendientes.map(pendiente => {
+                        const nombre = estado.secuencia.find(item => item.planId === pendiente.planId)?.nombre ?? "actividad"
+                        const segundos = Math.max(0, Math.ceil((Date.parse(pendiente.venceEn) - ahoraMs) / 1000))
+                        return <li key={pendiente.id}>
+                            <span>“{nombre}” · {segundos} s</span>
+                            <button type="button" disabled={segundos === 0}
+                                aria-label={`Deshacer finalización de ${nombre}`}
+                                onClick={() => seguimiento.deshacerFinalizacion(pendiente.id)}>
+                                Deshacer
+                            </button>
                         </li>
                     })}</ul>
                 </section>
@@ -288,8 +309,8 @@ export function PanelSeguimientoPlanificacion({
             {estado.transicionPendiente && estado.estado === "Pausado" && <p role="status">El inicio siguiente está pendiente. Continuá el seguimiento para poder reintentarlo.</p>}
             <div className="seguimiento-plan-acciones">
                 {estado.estado === "En curso"
-                    ? <button type="button" onClick={seguimiento.pausar}>Pausar</button>
-                    : <button type="button" onClick={seguimiento.reanudar}>Continuar</button>}
+                    ? <button type="button" disabled={finalizacionesPendientes.length > 0} onClick={seguimiento.pausar}>Pausar</button>
+                    : <button type="button" disabled={finalizacionesPendientes.length > 0} onClick={seguimiento.reanudar}>Continuar</button>}
                 {!esSeguimientoPorEtapas && <button type="button" onClick={seguimiento.finalizarYContinuar}>
                     {elementoSiguiente ? "Finalizar y continuar con el próximo" : "Finalizar secuencia"}
                 </button>}
@@ -300,7 +321,7 @@ export function PanelSeguimientoPlanificacion({
                             : `Finalizar y omitir “${elementoSiguiente.nombre}”`}
                     </button>
                 )}
-                <button type="button" className="seguimiento-plan-detener" onClick={seguimiento.dejarDeSeguir}>
+                <button type="button" className="seguimiento-plan-detener" disabled={finalizacionesPendientes.length > 0} onClick={seguimiento.dejarDeSeguir}>
                     Dejar de seguir
                 </button>
             </div>

@@ -112,6 +112,7 @@ test("Flujo de usuario: pausa, recarga, salta el evento actual y detiene la secu
     await page.clock.fastForward(31 * 60_000)
     await expect(panelRecargado).toContainText("Tiempo excedido")
     await panelRecargado.getByRole("button", { name: "Finalizar “Lectura inicial” y comenzar “Lectura siguiente”" }).click()
+    await page.clock.fastForward(10_000)
     await expect(panelRecargado).toContainText("Lectura siguiente")
 
     const registrosTrasSalto = await page.evaluate(clave => JSON.parse(localStorage.getItem(clave)), claveRegistros)
@@ -336,10 +337,12 @@ test("Flujo de usuario: registra en paralelo los eventos de una aplicación y co
     expect(registros.some(registro => registro.planId === "plan-otra-aplicacion")).toBe(false)
 
     await panelRecargado.getByRole("button", { name: "Finalizar “Cocinar”" }).click()
+    await page.clock.fastForward(10_000)
     registros = await page.evaluate(clave => JSON.parse(localStorage.getItem(clave)), claveRegistros)
     expect(registros.find(registro => registro.planId === "plan-cocinar").estado).toBe("Finalizado")
     expect(registros.find(registro => registro.planId === "plan-comer").estado).toBe("En curso")
     await panelRecargado.getByRole("button", { name: "Finalizar “Comer”" }).click()
+    await page.clock.fastForward(10_000)
     await expect(panelRecargado).toHaveCount(0)
 })
 
@@ -370,6 +373,7 @@ test("Flujo de usuario: el modo automático termina cada evento al cumplirse su 
     await page.clock.fastForward(1100)
     registros = await page.evaluate(clave => JSON.parse(localStorage.getItem(clave)), claveRegistros)
     expect(registros.find(registro => registro.planId === "plan-uno").estado).toBe("Finalizado")
+    await expect(panel.getByRole("region", { name: "Finalizaciones pendientes de confirmar" })).toHaveCount(0)
     expect(registros.find(registro => registro.planId === "plan-dos")?.estado,
         JSON.stringify({ registros, seguimiento: await page.evaluate(clave => JSON.parse(localStorage.getItem(clave)), claveSeguimiento) }))
         .toBe("En curso")
@@ -413,6 +417,7 @@ test("Flujo de usuario: omite un evento futuro sin quitarlo del calendario y con
 
     await page.clock.fastForward(2200)
     await panel.getByRole("button", { name: "Finalizar “Preparar”" }).click()
+    await page.clock.fastForward(10_000)
     const registros = await page.evaluate(clave => JSON.parse(localStorage.getItem(clave)), claveRegistros)
     expect(registros.some(registro => registro.planId === "plan-omitido")).toBe(false)
     expect(registros.find(registro => registro.planId === "plan-despues-omision").estado).toBe("En curso")

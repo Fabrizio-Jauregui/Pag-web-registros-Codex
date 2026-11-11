@@ -166,6 +166,23 @@ export function validarEstadoSeguimiento(estado) {
         || estado.transicionPendiente.planIds.some(id => typeof id !== "string" || !idsSecuencia.has(id))
         || new Set(estado.transicionPendiente.planIds).size !== estado.transicionPendiente.planIds.length)) return false
 
+    if (estado.finalizacionesPendientes !== undefined && (!Array.isArray(estado.finalizacionesPendientes)
+        || estado.finalizacionesPendientes.some(item => !item || typeof item.id !== "string" || !item.id.trim()
+            || typeof item.planId !== "string" || !idsSecuencia.has(item.planId)
+            || typeof item.registroId !== "string" || !item.registroId.trim()
+            || !instanteValido(item.venceEn)
+            || !["finalizar", "comenzar-siguiente"].includes(item.accion)
+            || !item.activoAnterior || item.activoAnterior.planId !== item.planId
+            || item.activoAnterior.registroId !== item.registroId
+            || !item.registroAnterior || item.registroAnterior.id !== item.registroId
+            || !["En curso", "Pausado"].includes(item.registroAnterior.estado)
+            || !Array.isArray(item.registroAnterior.segmentos)
+            || item.registroAnterior.segmentos.at(-1)?.fin !== null
+            || (item.grupoSiguiente !== undefined && (!Number.isInteger(item.grupoSiguiente) || item.grupoSiguiente < 0)))
+        || new Set(estado.finalizacionesPendientes.map(item => item.id)).size !== estado.finalizacionesPendientes.length
+        || new Set(estado.finalizacionesPendientes.map(item => item.planId)).size !== estado.finalizacionesPendientes.length
+        || estado.tipoSeguimiento === "cronometro")) return false
+
     if (!instanteValido(estado.inicio)) return false
     if (estado.estado === "En curso" && !(esCronometro && estado.finBloque === null) && !instanteValido(estado.finBloque)) return false
     if (estado.estado === "Pausado" && (estado.finBloque !== null
@@ -175,6 +192,8 @@ export function validarEstadoSeguimiento(estado) {
     if (!Array.isArray(eventosOmitidos)) return false
     const idsOmitidos = new Set()
     const idsActivos = new Set((estado.registrosActivos ?? []).map(item => item.planId))
+    if ((estado.finalizacionesPendientes ?? []).some(item => idsActivos.has(item.planId)
+        || !(estado.finalizados ?? []).includes(item.planId))) return false
     for (const planId of eventosOmitidos) {
         const indiceOmitido = estado.secuencia.findIndex(item => item?.planId === planId)
         const fueraDePosicion = estado.idAplicacionPlantilla || estado.controlAvancePorEtapas

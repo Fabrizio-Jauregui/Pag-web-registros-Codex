@@ -13,6 +13,7 @@ import {
     finalizarRegistro,
     iniciarRegistro,
     pausarRegistro,
+    restaurarRegistroDeshecho,
     validarColeccionRegistros
 } from "./registros.js"
 
@@ -97,6 +98,23 @@ test("permite registros y timers superpuestos", () => {
     assert.equal(segundo.ok, true)
     assert.equal(validarColeccionRegistros(segundo.registros, fecha(1000)), true)
     assert.equal(iniciarRegistro(segundo.registros, "Música", fecha(1000), () => "registro-3").ok, true)
+})
+
+test("restaura el mismo registro activo al deshacer una finalización y cuenta el tiempo transcurrido", () => {
+    const iniciado = iniciarRegistro([], "Actividad puntual", fecha(0), () => "registro-deshacer", null, null, "plan-deshacer", {
+        actividadPuntual: { nombre: "Actividad puntual", categoriaIds: [] }
+    })
+    const copiaAnterior = JSON.parse(JSON.stringify(iniciado.registro))
+    const finalizado = finalizarRegistro(iniciado.registros, "registro-deshacer", fecha(2000))
+    const restaurado = restaurarRegistroDeshecho(finalizado.registros, "registro-deshacer", iniciado.registro, fecha(12000))
+
+    assert.equal(finalizado.ok, true)
+    assert.equal(restaurado.ok, true)
+    assert.equal(restaurado.registro.id, "registro-deshacer")
+    assert.equal(restaurado.registro.estado, "En curso")
+    assert.equal(restaurado.registro.segmentos.at(-1).fin, null)
+    assert.equal(fecha(12000).getTime() - restaurado.registro.segmentos[0].inicio.getTime(), 12000)
+    assert.equal(copiaAnterior.id, "registro-deshacer")
 })
 
 test("finaliza al límite de 24 horas cuando alcanzó un segundo efectivo", () => {

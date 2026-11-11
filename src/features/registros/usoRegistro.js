@@ -12,7 +12,8 @@ import {
     finalizarRegistro,
     obtenerConflictoConcentracion,
     iniciarRegistro,
-    pausarRegistro
+    pausarRegistro,
+    restaurarRegistroDeshecho
 } from "../../domain/registros/registros.js"
 import { cargarRegistros, guardarRegistros, eliminarRegistroInvalido, CLAVE_REGISTROS } from "../../domain/registros/persistenciaRegistros.js"
 import { cargarSesionActivaFocus } from "../../domain/focus/persistenciaFocus.js"
@@ -212,6 +213,21 @@ export function useRegistro({ onInicioConEvento } = {}) {
         return guardarTransicion(finalizarRegistro(datosActuales.registros, id, instante)).ok
     }
 
+    function restaurarFinalizacion(id, registroAnterior, instante = new Date()) {
+        const datosActuales = datosRef.current
+        if (!datosActuales.ok) return { ok: false, error: datosActuales.error }
+        const registro = {
+            ...registroAnterior,
+            segmentos: registroAnterior.segmentos.map(segmento => ({
+                ...segmento,
+                inicio: new Date(segmento.inicio),
+                fin: segmento.fin === null ? null : new Date(segmento.fin)
+            }))
+        }
+        cambiarAhora(instante)
+        return guardarTransicion(restaurarRegistroDeshecho(datosActuales.registros, id, registro, instante))
+    }
+
     function descartarPlanSinDuracion(id, instante = new Date()) {
         const datosActuales = datosRef.current
         if (!datosActuales.ok) return false
@@ -318,6 +334,7 @@ export function useRegistro({ onInicioConEvento } = {}) {
         pausar,
         continuar,
         finalizar,
+        restaurarFinalizacion,
         descartarPlanSinDuracion,
         buscar,
         crearManual,

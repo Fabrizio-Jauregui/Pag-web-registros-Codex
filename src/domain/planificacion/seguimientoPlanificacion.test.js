@@ -217,4 +217,28 @@ test("acepta marcadores de avance y reintento válidos sin exigirlos a sesiones 
     assert.equal(validarEstadoSeguimiento(seguimientoCalendario), true)
     assert.equal(validarEstadoSeguimiento({ ...seguimientoCalendario, controlAvancePorEtapas: "si" }), false)
     assert.equal(validarEstadoSeguimiento({ ...seguimientoCalendario, controlAvancePorEtapas: true, tipoSeguimiento: "cronometro" }), false)
+
+    const finalizacionPendiente = {
+        ...seguimientoCalendario,
+        registrosActivos: [],
+        finalizados: ["plan-1"],
+        finalizacionesPendientes: [{
+            id: "deshacer-1", planId: "plan-1", registroId: "registro-1",
+            venceEn: fecha(9, 0, 10).toISOString(), accion: "finalizar",
+            activoAnterior: { planId: "plan-1", registroId: "registro-1", finBloque: fecha(9, 10).toISOString() },
+            registroAnterior: {
+                id: "registro-1", estado: "En curso",
+                segmentos: [{ tipo: "En curso", inicio: fecha(9).toISOString(), fin: null }]
+            }
+        }]
+    }
+    assert.equal(validarEstadoSeguimiento(finalizacionPendiente), true)
+    assert.equal(validarEstadoSeguimiento({
+        ...finalizacionPendiente,
+        finalizados: []
+    }), false)
+    assert.equal(validarEstadoSeguimiento({
+        ...finalizacionPendiente,
+        finalizacionesPendientes: [{ ...finalizacionPendiente.finalizacionesPendientes[0], accion: "otra" }]
+    }), false)
 })
