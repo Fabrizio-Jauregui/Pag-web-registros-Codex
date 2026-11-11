@@ -28,7 +28,9 @@ La implementación y las decisiones de producto pueden cambiar: inspeccioná el 
 ## Eficiencia, calidad y errores
 
 - Buscá completar el trabajo autorizado de punta a punta, con el menor retrabajo razonable. Inspeccioná primero las áreas relacionadas, elegí el cambio más acotado que resuelva el problema completo y aprovechá lógica compartida cuando evite duplicaciones.
+- Para pedidos claros y acotados, inspeccioná lo necesario y resolvelos sin sumar rondas de planificación y aprobación. Reservá esas rondas para decisiones de producto o cambios que puedan afectar datos o varias secciones.
 - Cuando una solicitud amplíe una función o modo que ya existe, identificá primero su flujo y sus controles actuales e incorporá ahí la capacidad nueva. No crees otra sección, formulario o diseñador que repita el mismo propósito con opciones adicionales si se puede extender el existente. Antes de separar una función en otro lugar, explicá qué diferencia de uso lo justifica y proponé esa estructura para que el usuario la decida.
+- Para cambios visuales ambiguos o amplios, inspeccioná primero la interfaz actual y presentá una representación concreta de la propuesta antes de rehacerla.
 - Diseñá cada función pensando en la comodidad de la persona: recorré mentalmente cómo la va a usar, cuántos pasos requiere, qué espera que ocurra y qué puede salir mal. La interfaz debe ser intuitiva, clara y coherente con el resto de Focus; no alcanza con que la lógica funcione. Revisá los textos, controles, estados vacíos y resultados visibles desde la perspectiva del usuario. Preguntá cuando estas decisiones puedan cambiar el comportamiento o los datos.
 - Si encontrás un error o una inconcordancia, hacelo saber con claridad. Si está dentro del alcance y la autorización, corregilo; si queda fuera, explicá su impacto y proponé cómo abordarlo.
 - No ocultes fallas de pruebas, advertencias, incertidumbres ni limitaciones, y no asegures que todo está libre de errores sin evidencia suficiente.
@@ -61,9 +63,14 @@ Antes de cambiar una función, identificá sus puntos de entrada, sus datos comp
 ## Verificación
 
 - Ajustá la verificación al pedido y al alcance autorizado. No afirmes que un recorrido pasó si no lo ejecutaste.
+- Empezá por las pruebas de dominio y los recorridos Playwright más específicos; ampliá la cobertura si el cambio toca reglas compartidas o si aparece una falla relacionada. No ejecutes toda la batería por defecto.
 - Si se pide probar un flujo de usuario, operá los controles visibles de la interfaz. Distinguí esas pruebas de las que preparan datos directamente en `localStorage`.
+- Usá la preparación directa de `localStorage` solo para estados difíciles de crear desde la interfaz y aclaralo al informar resultados. Para comportamientos temporizados, preferí el reloj simulado a esperas reales.
+- Ante una falla, reproducila y distinguí si corresponde al producto, a datos de prueba inválidos o a un selector desactualizado antes de cambiar código o pruebas. No borres pruebas de regresión para obtener un resultado verde.
+- Si una ejecución falla o se demora, informá el estado y detenela cuando el usuario lo pida; no la dejes corriendo mientras iniciás otra equivalente.
 - Para cambios que afecten varias secciones o modos, cubrí cada recorrido afectado y los casos límite relevantes; no supongas que probar un modo valida los demás.
-- Informá qué verificaste, el resultado, advertencias y cualquier limitación. Nunca prometas que no hay errores sin evidencia suficiente.
+- Informá por separado qué aprobó el usuario, qué pruebas se ejecutaron y qué se publicó. Indicá duraciones solo si fueron medidas directamente; los horarios de commits no miden el tiempo de trabajo.
+- Informá advertencias y limitaciones. Nunca prometas que no hay errores sin evidencia suficiente.
 
 ## Entorno y comandos actuales
 
@@ -72,16 +79,24 @@ Confirmá `package.json` y la configuración de Playwright antes de depender de 
 - En PowerShell usá `npm.cmd` si `npm` no se resuelve.
 - Comandos habituales desde la raíz: `npm.cmd run dev`, `npm.cmd run lint`, `npm.cmd test`, `npm.cmd run build` y `npm.cmd run test:e2e -- --headed --workers=1`.
 - Playwright está configurado para guardar navegadores y resultados en D:, porque el espacio de C: es limitado. Respetá las rutas configuradas y no escribas artefactos grandes en C:.
+- Usá el `globalSetup` y el `globalTeardown` de Playwright; esperá a que la ejecución termine y evitá iniciar otro servidor o cerrar procesos genéricos.
 
 ## Mantener esta guía
 
 Actualizá `AGENTS.md` cuando aparezca una preferencia estable del usuario, una regla de producto confirmada, una limitación permanente, una nueva forma acordada de colaborar o una lección de un error que deba evitarse en trabajos futuros. No hace falta esperar a que un problema se repita si ya quedó clara una regla duradera.
 
-Mantené la guía breve, vigente y sin contradicciones: corregí o reemplazá la instrucción antigua en vez de acumular variantes. No agregues el estado temporal de una tarea ni conviertas una sugerencia no aprobada en una regla. Al actualizarla, informá qué cambió y por qué.
+Mantené la guía breve, vigente y sin contradicciones: corregí o reemplazá la instrucción antigua en vez de acumular variantes. No agregues estados temporales de tareas, salvo las notas pendientes de fallas del proceso descritas abajo, ni conviertas sugerencias no aprobadas en reglas. Al actualizarla, informá qué cambió y por qué.
+
+### Incidentes del proceso del agente
+
+- Si una falla del proceso obliga a reintentar, cambiar de herramienta o deja trabajo incompleto, anotá brevemente el síntoma y la solución o el siguiente paso conocido. No registres aquí errores funcionales de Focus.
+- Si el incidente sigue sin resolverse al cerrar la tarea, dejalo marcado como pendiente, con hechos observados y sin atribuir causas no confirmadas. Cuando se resuelva, convertí la lección reusable en una pauta y quitá la nota temporal; si no deja una lección, eliminá la nota.
 
 ## Git y archivos
 
 - Antes de cualquier operación Git, comprobá raíz, rama, remoto y estado actual; preservá cambios locales que no pertenezcan a la tarea.
+- Antes de confirmar o publicar, revisá el diff y el contenido preparado para incluir solo cambios del pedido.
+- Mantené los cambios de `AGENTS.md` separados de los cambios de la aplicación al publicar, salvo que el usuario pida incluir ambos.
 - No descartes, restaures ni sobrescribas cambios de trabajo sin autorización explícita.
 - Confirmar, subir a GitHub o publicar son acciones separadas: hacelas cuando el usuario las pida.
 
