@@ -124,6 +124,8 @@ export function calcularAnaliticaRegistros(registros, eventos, inicio, fin, ahor
     const agrupamiento = ["categoria", "tarea"].includes(opciones.agruparPor) ? opciones.agruparPor : "evento"
     return {
         totalSegundos: calcularTiempoRegistradoEnPeriodo(registrosFiltrados, inicio, fin, ahora),
+        sumaDuracionesSegundos: registrosFiltrados.reduce((total, registro) => total
+            + calcularTiempoRegistradoEnPeriodo([registro], inicio, fin, ahora), 0),
         porEvento: agrupamiento === "evento" ? agruparTiempoPorEvento(registrosFiltrados, eventos, inicio, fin, ahora) : [],
         porCategoria: agrupamiento === "categoria" ? agruparTiempoPorCategoria(registrosFiltrados, eventos, categorias, inicio, fin, ahora) : [],
         porTarea: agrupamiento === "tarea" ? agruparTiempoPorTarea(registrosFiltrados, inicio, fin, ahora) : []

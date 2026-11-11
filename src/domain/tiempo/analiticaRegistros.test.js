@@ -39,6 +39,7 @@ test("agrupa por ID de evento, une solapamientos dentro del evento y distingue o
     const analitica = calcularAnaliticaRegistros(registros, eventos, inicioDia, finDia, finDia)
 
     assert.equal(analitica.totalSegundos, 2 * 60 * 60)
+    assert.equal(analitica.sumaDuracionesSegundos, 3.5 * 60 * 60)
     assert.deepEqual(analitica.porEvento.map(({ eventoId, nombre, segundos }) => ({ eventoId, nombre, segundos })), [
         { eventoId: "estudio", nombre: "Estudio actualizado", segundos: 90 * 60 },
         { eventoId: "pausa-activa", nombre: "Pausa activa", segundos: 60 * 60 },
@@ -59,6 +60,23 @@ test("cuenta tiempo efectivo en curso hasta ahora y excluye las pausas", () => {
 
     const grupos = agruparTiempoPorEvento(registros, [{ id: "estudio", nombre: "Estudio", color: "#123456" }], inicio, fin, ahora)
     assert.equal(grupos[0].segundos, 2 * 60 * 60)
+    const analitica = calcularAnaliticaRegistros(registros, [{ id: "estudio", nombre: "Estudio", color: "#123456" }], inicio, fin, ahora)
+    assert.equal(analitica.totalSegundos, 2 * 60 * 60)
+    assert.equal(analitica.sumaDuracionesSegundos, 2 * 60 * 60)
+})
+
+test("suma duraciones y tiempo cubierto recortando cada segmento al rango seleccionado", () => {
+    const inicio = new Date(2026, 9, 13)
+    const fin = new Date(2026, 9, 14)
+    const ahora = new Date(2026, 9, 13, 0, 40)
+    const registros = [
+        { eventoId: "cruce", segmentos: [intervalo(new Date(2026, 9, 12, 23, 30), new Date(2026, 9, 13, 0, 30))] },
+        { eventoId: "actual", segmentos: [intervalo(new Date(2026, 9, 13, 0, 10), null)] }
+    ]
+
+    const analitica = calcularAnaliticaRegistros(registros, [], inicio, fin, ahora)
+    assert.equal(analitica.totalSegundos, 40 * 60)
+    assert.equal(analitica.sumaDuracionesSegundos, 60 * 60)
 })
 
 test("no muestra grupos sin tiempo en el período", () => {
@@ -114,10 +132,13 @@ test("clasifica un registro completo bajo cada categoría y conserva los interva
     ])
     const filtrada = calcularAnaliticaRegistros(registros, eventos, inicio, fin, fin, { categorias, categoriaId: "salud" })
     assert.equal(filtrada.totalSegundos, 90 * 60)
+    assert.equal(filtrada.sumaDuracionesSegundos, 120 * 60)
     assert.deepEqual(filtrada.porEvento.map(grupo => grupo.nombre), ["Correr", "Yoga"])
     const filtradaCasa = calcularAnaliticaRegistros(registros, eventos, inicio, fin, fin, { categorias, categoriaId: "casa" })
     assert.equal(filtradaCasa.totalSegundos, 90 * 60)
+    assert.equal(filtradaCasa.sumaDuracionesSegundos, 90 * 60)
     const sinCategoria = calcularAnaliticaRegistros(registros, eventos, inicio, fin, fin, { categorias, categoriaId: "__sin_categoria__" })
     assert.equal(sinCategoria.totalSegundos, 25 * 60)
+    assert.equal(sinCategoria.sumaDuracionesSegundos, 25 * 60)
     assert.deepEqual(sinCategoria.porEvento.map(grupo => grupo.nombre).sort(), ["Leer", "Sin evento vinculado"])
 })

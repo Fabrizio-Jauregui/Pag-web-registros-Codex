@@ -36,7 +36,7 @@ export function AnaliticaRegistros({ registros = [], eventos = [], categorias = 
             agruparPor,
             categoriaId: agruparPor === "tarea" ? "" : categoriaFiltro
         })
-        : { totalSegundos: 0, porEvento: [], porCategoria: [], porTarea: [] }
+        : { totalSegundos: 0, sumaDuracionesSegundos: 0, porEvento: [], porCategoria: [], porTarea: [] }
     const grupos = agruparPor === "categoria"
         ? analitica.porCategoria
         : agruparPor === "tarea" ? analitica.porTarea : analitica.porEvento
@@ -109,11 +109,18 @@ export function AnaliticaRegistros({ registros = [], eventos = [], categorias = 
                 </p>
             ) : (
                 <>
-                    <section className="analitica-total" aria-label="Tiempo registrado del período">
-                        <span>Tiempo registrado total</span>
-                        <strong>{formatearDuracionAnalitica(analitica.totalSegundos)}</strong>
-                        <p>El total une los intervalos superpuestos para no contar dos veces el mismo tiempo.</p>
-                    </section>
+                    <div className="analitica-resumen-totales">
+                        <section className="analitica-total" aria-label="Tiempo cubierto del período">
+                            <span>Tiempo cubierto</span>
+                            <strong>{formatearDuracionAnalitica(analitica.totalSegundos)}</strong>
+                            <p>Une los horarios superpuestos para no contar dos veces el mismo tiempo.</p>
+                        </section>
+                        <section className="analitica-total" aria-label="Suma de duraciones del período">
+                            <span>Suma de duraciones</span>
+                            <strong>{formatearDuracionAnalitica(analitica.sumaDuracionesSegundos)}</strong>
+                            <p>Suma el tiempo efectivo de cada registro. Si coinciden en horario, cuenta cada uno.</p>
+                        </section>
+                    </div>
 
                     <section className="analitica-distribucion" aria-labelledby="titulo-distribucion">
                         <header>
@@ -127,7 +134,7 @@ export function AnaliticaRegistros({ registros = [], eventos = [], categorias = 
                         ) : (
                             <>
                                 <p className="analitica-ayuda-solapamientos">
-                                    Cada grupo evita duplicar sus propios solapamientos. Los registros de grupos distintos que coinciden pueden sumar más que el total del período.
+                                    Cada grupo evita duplicar sus propios solapamientos. Los registros de grupos distintos que coinciden pueden superar el tiempo cubierto del período.
                                 </p>
                                 <ol className="analitica-lista-eventos" aria-label={`Duración por ${etiquetaAgrupamiento}, de mayor a menor`}>
                                     {grupos.map(grupo => {

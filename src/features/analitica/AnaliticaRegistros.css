@@ -74,6 +74,12 @@
   text-transform: capitalize;
 }
 
+.analitica-resumen-totales {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
 .analitica-total,
 .analitica-distribucion {
   padding: 22px;
@@ -126,7 +132,9 @@ html[data-tema="oscuro"] .analitica-selector-agrupamiento select { border-color:
 html[data-tema="oscuro"] .analitica-tipo-periodo { background: #111a2a; }
 html[data-tema="oscuro"] .analitica-tipo-periodo button[aria-pressed="true"] { border-color: #46536c; background: #27354b; }
 html[data-tema="oscuro"] .analitica-evento-etiqueta time,
-html[data-tema="oscuro"] .analitica-periodo-visible { color: #c3cede; }
+html[data-tema="oscuro"] .analitica-periodo-visible,
+html[data-tema="oscuro"] .analitica-total > span,
+html[data-tema="oscuro"] .analitica-total p { color: #c3cede; }
 html[data-tema="oscuro"] .analitica-barra-fondo { background: #303d54; }
 html[data-tema="oscuro"] .analitica-error { background: #3c202b; color: #fda4af; }
 
@@ -136,5 +144,6 @@ html[data-tema="oscuro"] .analitica-error { background: #3c202b; color: #fda4af;
   .analitica-selector-fecha, .analitica-selector-filtro, .analitica-selector-agrupamiento { width: 100%; justify-content: space-between; margin-left: 0; }
   .analitica-total,
   .analitica-distribucion { padding: 16px; }
+  .analitica-resumen-totales { grid-template-columns: 1fr; }
   .analitica-ayuda-solapamientos { font-size: 0.9rem; }
 }
