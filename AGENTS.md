@@ -65,15 +65,6 @@ Antes de cambiar una función, identificá sus puntos de entrada, sus datos comp
 - Para cambios que afecten varias secciones o modos, cubrí cada recorrido afectado y los casos límite relevantes; no supongas que probar un modo valida los demás.
 - Informá qué verificaste, el resultado, advertencias y cualquier limitación. Nunca prometas que no hay errores sin evidencia suficiente.
 
-### Ejecución eficiente de pruebas
-
-- Empezá por la prueba más acotada que cubra el cambio: dominio para reglas de datos y una sola especificación E2E para el recorrido de interfaz. Ampliá a suites mayores cuando cambien reglas compartidas o el resultado focalizado lo justifique.
-- En E2E, usá la interfaz para afirmar recorridos de usuario; prepará datos directamente en almacenamiento solo cuando el caso requiera una combinación difícil de crear, y dejá claro qué parte no recorrió la interfaz. Mantené perfiles de navegador descartables.
-- Para duraciones y vencimientos, usá el reloj simulado de Playwright en lugar de esperas reales.
-- Si falla una prueba, separá defecto de producto, fixture inválido y selector desactualizado. Actualizá fixtures o selectores según el contrato vigente; no borres una regresión solo para dejar verde la suite.
-- Ejecutá Playwright con la configuración existente y esperá su resultado final. En Windows, el `globalSetup` y `globalTeardown` de `src/playwright.config.js` administran Vite en el puerto 5187; no arranques otro servidor en paralelo ni cierres procesos genéricos de Node o Chrome. Si una prueba se atasca, detené solo esa ejecución e identificá el paso que espera antes de repetir.
-- Una viewport móvil de Playwright verifica el diseño adaptable, pero no reemplaza una comprobación en teléfono real cuando el problema depende del navegador o del tacto.
-
 ## Entorno y comandos actuales
 
 Confirmá `package.json` y la configuración de Playwright antes de depender de estos detalles:
