@@ -242,6 +242,7 @@ export function VistaCalendarioDia({
                 <BloquesCalendario
                     fragmentosRegistros={fragmentos}
                     fragmentosPlanes={fragmentosPlanes}
+                    marcadoresSecuenciales={marcadoresSecuenciales}
                     registros={registros}
                     planes={planes}
                     recurrencias={recurrencias}
@@ -262,12 +263,6 @@ export function VistaCalendarioDia({
                     idAplicacion={idAplicacionArmada}
                     escalaTemporal={escalaTemporal}
                 />
-                {marcadoresSecuenciales.map(marcador => {
-                    if (!zoom) return marcador
-                    const inicio = Number(marcador.props["data-instante"])
-                    if (!Number.isFinite(inicio)) return marcador
-                    return { ...marcador, props: { ...marcador.props, style: { ...marcador.props.style, top: `${(inicio - inicioTemporal.getTime()) / 1000 * pixelesPorSegundo}px` } } }
-                })}
             </div>
         </div>
     )

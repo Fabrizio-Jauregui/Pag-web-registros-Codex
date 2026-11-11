@@ -17,6 +17,7 @@ export function VistaCalendarioSemana({
     fechaVisible,
     diasSemana,
     fragmentosSemana,
+    marcadoresSecuenciales = [],
     eventos,
     registros,
     onSeleccionar,
@@ -271,6 +272,11 @@ export function VistaCalendarioSemana({
                                 && fragmento.inicio.getTime() < escalaTemporal.inicio.getTime() + escalaTemporal.duracionSegundos * 1000)
                         const fragmentosColumna = (zoom ? (columna.fragmentosExtendidos ?? columna.fragmentos) : columna.fragmentos).filter(dentroLienzo)
                         const planesColumna = (zoom ? (columna.planesExtendidos ?? columna.planes) : columna.planes).filter(dentroLienzo)
+                        const marcadoresColumna = marcadoresSecuenciales.filter(marcador => (
+                            formatearFechaISO(marcador.inicio) === columna.fecha
+                            && (!escalaTemporal || (marcador.inicio >= escalaTemporal.inicio
+                                && marcador.inicio < new Date(escalaTemporal.inicio.getTime() + escalaTemporal.duracionSegundos * 1000)))
+                        ))
                         return (
                         <div
                             className="columna-registros-semana"
@@ -290,6 +296,7 @@ export function VistaCalendarioSemana({
                             <BloquesCalendario
                                 fragmentosRegistros={fragmentosColumna}
                                 fragmentosPlanes={planesColumna}
+                                marcadoresSecuenciales={marcadoresColumna}
                                 eventos={eventos}
                                 onSeleccionarRegistro={onSeleccionar}
                                 onSeleccionarPlan={onSeleccionarPlan}

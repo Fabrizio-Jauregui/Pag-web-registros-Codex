@@ -1534,22 +1534,21 @@ html[data-tema="oscuro"] .marco-aplicacion-planificacion {
 .marcador-secuencia-cronometro {
     position: absolute;
     z-index: 6;
-    top: 0;
-    left: 4px;
+    box-sizing: border-box;
     display: flex;
     align-items: center;
     gap: 8px;
-    width: min(250px, calc(100% - 8px));
-    min-height: 34px;
+    height: 34px;
+    min-width: 0;
     padding: 4px 9px;
     overflow: hidden;
-    transform: translateY(-50%);
-    border: 1px solid #0f766e;
-    border-radius: 9px;
+    border: 2px solid #0f766e;
+    border-radius: 999px;
     background: color-mix(in srgb, #14b8a6 16%, var(--color-panel, white));
     color: var(--color-texto, #172033);
     text-align: left;
     cursor: pointer;
+    pointer-events: auto;
 }
 .marcador-secuencia-cronometro:hover,
 .marcador-secuencia-cronometro[aria-expanded="true"] {
@@ -1560,15 +1559,25 @@ html[data-tema="oscuro"] .marco-aplicacion-planificacion {
     outline-offset: 2px;
 }
 .marcador-secuencia-cronometro strong {
+    flex: 1 1 auto;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
-.marcador-secuencia-cronometro span {
+.marcador-secuencia-cronometro .marcador-secuencia-cronometro-icono {
     flex: 0 0 auto;
+    overflow: visible;
+    color: #0f766e;
+    font-size: 1rem;
+}
+.marcador-secuencia-cronometro span {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
     color: var(--color-texto-secundario, #475569);
     font-size: 0.78rem;
+    text-overflow: ellipsis;
     white-space: nowrap;
 }
 .tarjeta-secuencia-cronometro {
@@ -1600,6 +1609,8 @@ html[data-tema="oscuro"] .tarjeta-secuencia-cronometro,
 html[data-tema="oscuro"] .marcador-secuencia-cronometro { background: color-mix(in srgb, #14b8a6 12%, #151827); color: #f1f5f9; }
 
 @media (max-width: 600px) {
+    .marcador-secuencia-cronometro { gap: 4px; padding: 3px 5px; font-size: 0.72rem; }
+    .marcador-secuencia-cronometro span { font-size: 0.64rem; }
     .tarjeta-secuencia-cronometro { padding: 12px; }
     .tarjeta-secuencia-cronometro > header { align-items: flex-start; flex-direction: column; }
     .secuencia-cronometro-estado { width: 100%; justify-content: space-between; }

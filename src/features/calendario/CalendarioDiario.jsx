@@ -1,4 +1,4 @@
-import { cloneElement, forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react"
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react"
 
 import {
     desplazarDia,
@@ -227,17 +227,24 @@ export const CalendarioDiario = forwardRef(function CalendarioDiario({
     const planActivoSeguimientoId = seguimientoPlanificacion?.estado
         ? seguimientoPlanificacion.estado.secuencia[seguimientoPlanificacion.estado.indiceActual]?.planId
         : null
-    const aplicacionesCronometroDia = vista === "dia" ? [...new Map(planesVisibles
-        .filter(plan => (plan.modoSeguimientoPlanificacion === "cronometro" || plan.modoAplicacionPlanificacion === "cronometro")
-            && plan.inicio.getFullYear() === fechaSeleccionada.getFullYear()
-            && plan.inicio.getMonth() === fechaSeleccionada.getMonth()
-            && plan.inicio.getDate() === fechaSeleccionada.getDate())
-        .map(plan => [plan.idAplicacionPlantilla, plan])).values()]
-        .map(ancla => ({ ancla, actividades: planesVisibles.filter(plan => plan.idAplicacionPlantilla === ancla.idAplicacionPlantilla
-            && (plan.modoSeguimientoPlanificacion === "cronometro" || (plan.tipoPlanificacion === "focus" && plan.modoAplicacionPlanificacion === "cronometro")))
-            .sort((a, b) => (a.ordenSeguimiento ?? a.ordenSeguimientoCronometro ?? 0) - (b.ordenSeguimiento ?? b.ordenSeguimientoCronometro ?? 0) || a.id.localeCompare(b.id)) })) : []
-    const representacionesSecuenciaCronometro = aplicacionesCronometroDia.map(({ ancla, actividades }) => {
-        const sesion = seguimientoPlanificacion?.estado?.idAplicacionPlantilla === ancla.idAplicacionPlantilla ? seguimientoPlanificacion.estado : null
+    const inicioRangoCronometros = vista === "dia" ? new Date(fechaSeleccionada) : new Date(diasSemana[0])
+    inicioRangoCronometros.setHours(0, 0, 0, 0)
+    const finRangoCronometros = new Date(inicioRangoCronometros)
+    finRangoCronometros.setDate(finRangoCronometros.getDate() + (vista === "dia" ? 1 : 7))
+    const planesCronometroVisibles = planesVisibles.filter(plan => (
+        plan.modoSeguimientoPlanificacion === "cronometro"
+        || (plan.tipoPlanificacion === "focus" && plan.modoAplicacionPlanificacion === "cronometro")
+    ) && plan.inicio >= inicioRangoCronometros && plan.inicio < finRangoCronometros)
+    const aplicacionesCronometro = [...new Set(planesCronometroVisibles
+        .map(plan => plan.idAplicacionPlantilla)
+        .filter(Boolean))]
+        .map(idAplicacion => {
+            const actividades = planesCronometroVisibles.filter(plan => plan.idAplicacionPlantilla === idAplicacion)
+                .sort((a, b) => (a.ordenSeguimiento ?? a.ordenSeguimientoCronometro ?? 0) - (b.ordenSeguimiento ?? b.ordenSeguimientoCronometro ?? 0) || a.id.localeCompare(b.id))
+            return { idAplicacion, actividades, ancla: actividades.reduce((primera, plan) => plan.inicio < primera.inicio ? plan : primera) }
+        })
+    const representacionesSecuenciaCronometro = aplicacionesCronometro.map(({ idAplicacion, ancla, actividades }) => {
+        const sesion = seguimientoPlanificacion?.estado?.idAplicacionPlantilla === idAplicacion ? seguimientoPlanificacion.estado : null
         const primero = actividades.find(plan => plan.modoSeguimientoPlanificacion === "cronometro") ?? actividades[0]
         const nombre = ancla.plantillaOrigenNombre ?? "Secuencia sin nombre"
         const horaAncla = formatearInstante(ancla.inicio, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
@@ -247,20 +254,23 @@ export const CalendarioDiario = forwardRef(function CalendarioDiario({
         }
 
         return {
-            id: ancla.idAplicacionPlantilla,
+            id: idAplicacion,
             inicio: ancla.inicio,
-            marcador: <button
-                type="button"
-                key={ancla.idAplicacionPlantilla}
-                className="marcador-secuencia-cronometro"
-                style={{ top: `${((ancla.inicio.getHours() * 3600 + ancla.inicio.getMinutes() * 60 + ancla.inicio.getSeconds()) / 86400) * 100}%` }}
-                aria-label={`Abrir ${nombre}, ${actividades.length} ${actividades.length === 1 ? "actividad" : "actividades"}, inicio previsto ${horaAncla}`}
-                aria-expanded={idAplicacionCronometroSeleccionada === ancla.idAplicacionPlantilla}
-                onClick={() => cambiarIdAplicacionCronometroSeleccionada(actual => actual === ancla.idAplicacionPlantilla ? null : ancla.idAplicacionPlantilla)}
-            >
-                <strong>{nombre}</strong>
-                <span>{actividades.length} {actividades.length === 1 ? "actividad" : "actividades"}</span>
-            </button>,
+            marcador: {
+                id: idAplicacion,
+                inicio: ancla.inicio,
+                elemento: <button
+                    type="button"
+                    className="marcador-secuencia-cronometro"
+                    aria-label={`Abrir secuencia con cronómetro ${nombre}, ${actividades.length} ${actividades.length === 1 ? "actividad" : "actividades"}, inicio previsto ${horaAncla}`}
+                    aria-expanded={idAplicacionCronometroSeleccionada === idAplicacion}
+                    onClick={() => cambiarIdAplicacionCronometroSeleccionada(actual => actual === idAplicacion ? null : idAplicacion)}
+                >
+                    <span className="marcador-secuencia-cronometro-icono" aria-hidden="true">⏱</span>
+                    <strong>{nombre}</strong>
+                    <span>{actividades.length} {actividades.length === 1 ? "actividad" : "actividades"}</span>
+                </button>
+            },
             detalle: <section className="tarjeta-secuencia-cronometro" aria-label={`Planificación ${nombre}`}>
                 <header>
                     <div><h3>{nombre}</h3><p>Secuencia sin duraciones · inicio previsto {horaAncla}</p></div>
@@ -293,7 +303,7 @@ export const CalendarioDiario = forwardRef(function CalendarioDiario({
                 {!sesion && actividades.filter(plan => plan.modoSeguimientoPlanificacion === "cronometro"
                     && (plan.grupoCronometro ?? 0) === (primero.grupoCronometro ?? 0)).length > 1
                     && <button type="button" className="secuencia-cronometro-iniciar-grupo" onClick={() => iniciar(primero.id, "grupo")}>Iniciar juntos los eventos de la primera etapa</button>}
-                {!sesion && actividades.length > 0 && <button type="button" className="secuencia-cronometro-eliminar" onClick={() => eliminarSecuenciaCronometro(ancla.idAplicacionPlantilla, nombre, actividades.length)}>Eliminar planificación del calendario</button>}
+                {!sesion && actividades.length > 0 && <button type="button" className="secuencia-cronometro-eliminar" onClick={() => eliminarSecuenciaCronometro(idAplicacion, nombre, actividades.length)}>Eliminar planificación del calendario</button>}
                 {sesion && <p>Los cronómetros de los eventos activos continúan por separado. Podés iniciar la siguiente etapa desde el panel de seguimiento.</p>}
             </section>
         }
@@ -873,7 +883,7 @@ export const CalendarioDiario = forwardRef(function CalendarioDiario({
                         rangoZoomVisibleRef.current = rango
                         cambiarRangoZoomVisible(rango)
                     }}
-                    marcadoresSecuenciales={representacionesSecuenciaCronometro.map(item => cloneElement(item.marcador, { "data-instante": item.inicio.getTime() }))}
+                    marcadoresSecuenciales={representacionesSecuenciaCronometro.map(item => item.marcador)}
                     eventos={eventos}
                     onSeleccionar={(registro, fragmento) => {
                         cambiarFranjaSeleccionada(null)
@@ -902,6 +912,7 @@ export const CalendarioDiario = forwardRef(function CalendarioDiario({
                     fechaVisible={fechaVisible}
                     diasSemana={diasSemana}
                     fragmentosSemana={fragmentosSemana}
+                    marcadoresSecuenciales={representacionesSecuenciaCronometro.map(item => item.marcador)}
                     eventos={eventos}
                     registros={registros}
                     onSeleccionar={(registro, fragmento) => {
@@ -933,7 +944,7 @@ export const CalendarioDiario = forwardRef(function CalendarioDiario({
                     }}
                 />
             )}
-            {vista === "dia" && representacionesSecuenciaCronometro
+            {!(vista === "semana" && esViewportMovil && formatoSemanaMovil === "agenda") && representacionesSecuenciaCronometro
                 .find(item => item.id === idAplicacionCronometroSeleccionada)?.detalle}
             {formulario && (
                 <FormularioRegistro
