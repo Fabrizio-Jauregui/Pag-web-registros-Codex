@@ -45,7 +45,9 @@ function validarColeccion(tareas) {
             visitados.add(cursor.id)
             cursor = porId.get(cursor.padreId) ?? null
         }
-        return Boolean(cursor && cursor.id === objetivoId)
+        // Una rama puede pertenecer a un objetivo o ser una jerarquía libre
+        // cuyo nodo raíz no tiene objetivo asignado.
+        return objetivoId ? Boolean(cursor && cursor.id === objetivoId) : cursor === null
     })
 }
 

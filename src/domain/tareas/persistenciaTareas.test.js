@@ -50,3 +50,13 @@ test("conserva objetivos y valida padres existentes y árboles sin ciclos", () =
     assert.equal(guardarTareas([objetivo, { ...raiz, padreId: "hija" }, hija], crearAlmacen()).ok, false)
     assert.equal(guardarTareas([objetivo, { ...raiz, padreId: "ausente" }], crearAlmacen()).ok, false)
 })
+
+test("permite guardar una rama de tareas independiente de los objetivos", () => {
+    const almacen = crearAlmacen()
+    const raiz = { ...normalizada, id: "raiz-libre", padreId: null }
+    const hija = { ...normalizada, id: "hija-libre", padreId: raiz.id }
+    const nieta = { ...normalizada, id: "nieta-libre", padreId: hija.id }
+    assert.equal(guardarTareas([raiz, hija, nieta], almacen).ok, true)
+    assert.equal(cargarTareas(almacen).ok, true)
+    assert.deepEqual(cargarTareas(almacen).tareas.map(item => item.padreId), [null, raiz.id, hija.id])
+})

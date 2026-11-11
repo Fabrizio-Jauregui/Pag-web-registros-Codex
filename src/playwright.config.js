@@ -9,17 +9,24 @@ export default defineConfig({
     testDir: "./tests/e2e",
     // Store per-run screenshots, traces, and reports in the writable project workspace.
     outputDir: "./.playwright-results",
+    globalSetup: "./tests/e2e/servidor-global-setup.js",
+    globalTeardown: "./tests/e2e/servidor-global-teardown.js",
     fullyParallel: true,
     reporter: "list",
     use: {
-        ...devices["Desktop Chrome"],
         baseURL: `http://127.0.0.1:${playwrightPort}`,
         trace: "retain-on-failure",
     },
-    webServer: {
-        command: `npm run dev -- --config src/vite.playwright.config.js --configLoader runner --host 127.0.0.1 --port ${playwrightPort} --strictPort`,
-        url: `http://127.0.0.1:${playwrightPort}`,
-        reuseExistingServer: false,
-        timeout: 30_000,
-    },
+    projects: [
+        {
+            name: "desktop-chromium",
+            testIgnore: "**/planificaciones-movil.spec.js",
+            use: { ...devices["Desktop Chrome"] },
+        },
+        {
+            name: "mobile-chromium",
+            testMatch: "**/planificaciones-movil.spec.js",
+            use: { ...devices["Pixel 7"] },
+        },
+    ],
 })

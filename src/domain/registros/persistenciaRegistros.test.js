@@ -3,7 +3,7 @@ import test from "node:test"
 
 import {
     crearRegistroManual,
-    iniciarRegistro,
+    iniciarRegistro as iniciarRegistroDominio,
     pausarRegistro,
     ESTADO_REGISTRO_CANCELADO,
     ESTADO_REGISTRO_EN_CURSO,
@@ -17,6 +17,13 @@ import {
 } from "./persistenciaRegistros.js"
 
 const fecha = milisegundos => new Date(milisegundos)
+
+function iniciarRegistro(registros, nombre, instante, generarId = () => globalThis.crypto.randomUUID(), evento = null, tarea = null, planId = null, opciones = {}) {
+    const origenPuntual = !evento && !tarea && !opciones.actividadPuntual
+        ? { actividadPuntual: { nombre, categoriaIds: [] } }
+        : {}
+    return iniciarRegistroDominio(registros, nombre, instante, generarId, evento, tarea, planId, { ...opciones, ...origenPuntual })
+}
 
 function crearAlmacenamiento(valor = null) {
     const valores = new Map()
@@ -56,7 +63,7 @@ test("guarda y recupera registros con marcas de tiempo ISO", () => {
     assert.equal(recuperado.registros[0].segmentos[0].inicio.getTime(), 1000)
 })
 
-test("carga registros anteriores como no vinculados a una plantilla", () => {
+test("detecta registros guardados sin un origen permitido y no los carga como válidos", () => {
     const legado = JSON.stringify([{
         id: "legado",
         nombre: "Lectura",
@@ -71,9 +78,9 @@ test("carga registros anteriores como no vinculados a una plantilla", () => {
     const resultado = cargarRegistros(crearAlmacenamiento(legado), fecha(2000))
 
     assert.equal(resultado.ok, true)
-    assert.equal(resultado.registros[0].eventoId, null)
-    assert.equal(resultado.registros[0].colorEvento, null)
-    assert.equal(resultado.registros[0].nombre, "Lectura")
+    assert.deepEqual(resultado.registros, [])
+    assert.equal(resultado.problemas.length, 1)
+    assert.equal(resultado.problemas[0].indice, 0)
 })
 
 test("conserva la plantilla y su color al guardar y recuperar un registro", () => {
@@ -151,7 +158,7 @@ test("rechaza JSON dañado sin sobrescribir el registro original", () => {
     assert.equal(almacenamiento.valores.get(CLAVE_REGISTROS), contenidoOriginal)
 })
 
-test("rechaza registros inválidos o solapados sin modificarlos", () => {
+test("aísla y reporta registros inválidos sin bloquear los datos válidos ni modificarlos", () => {
     const datosInvalidos = JSON.stringify([{
         id: "id-1",
         nombre: "Lectura",
@@ -161,7 +168,10 @@ test("rechaza registros inválidos o solapados sin modificarlos", () => {
     }])
     const almacenamiento = crearAlmacenamiento(datosInvalidos)
 
-    assert.equal(cargarRegistros(almacenamiento, fecha(0)).ok, false)
+    const recuperacion = cargarRegistros(almacenamiento, fecha(0))
+    assert.equal(recuperacion.ok, true)
+    assert.deepEqual(recuperacion.registros, [])
+    assert.equal(recuperacion.problemas.length, 1)
     assert.equal(almacenamiento.valores.get(CLAVE_REGISTROS), datosInvalidos)
 })
 

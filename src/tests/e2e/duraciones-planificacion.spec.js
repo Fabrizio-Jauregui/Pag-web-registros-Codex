@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test"
+import { crearEventoParaPrueba, crearTareaParaPrueba, seleccionarOrigenEnActividad } from "./ayuda-origenes-planificacion.js"
 
 const CLAVE_PLANTILLAS_PLAN = "focus.plantillas-planes.v1"
 const CLAVE_PLANES = "focus.planes.v1"
@@ -16,21 +17,24 @@ async function abrirPlanificaciones(page) {
 }
 
 test("secuencia por duración acepta minutos simples, unidades y el formato anterior, incluidos paralelos", async ({ page }) => {
+    await crearEventoParaPrueba(page, "Preparar desayuno")
+    await crearTareaParaPrueba(page, "Desayunar")
+    await crearEventoParaPrueba(page, "Ver un video")
     await abrirPlanificaciones(page)
     await page.getByRole("button", { name: /Secuencia por duración/ }).click()
     const editor = page.locator(".editor-plantilla-calendario")
     await editor.getByLabel("Nombre de la plantilla").fill("Rutina flexible")
 
     let actividades = editor.locator(".editor-plantilla-actividad")
-    await actividades.nth(0).getByLabel("Nombre").fill("Preparar desayuno")
+    await seleccionarOrigenEnActividad(page, actividades.nth(0), "evento", "Preparar desayuno")
     await actividades.nth(0).getByLabel("Duración").fill("30")
-    await actividades.nth(1).getByLabel("Nombre").fill("Desayunar")
+    await seleccionarOrigenEnActividad(page, actividades.nth(1), "tarea", "Desayunar")
     await actividades.nth(1).getByLabel("Duración").fill("1h 15m")
     await actividades.nth(1).click()
     await editor.getByRole("button", { name: "Agregar en paralelo a la actividad seleccionada" }).click()
 
     actividades = editor.locator(".editor-plantilla-actividad")
-    await actividades.nth(2).getByLabel("Nombre").fill("Ver un video")
+    await seleccionarOrigenEnActividad(page, actividades.nth(2), "evento", "Ver un video")
     await actividades.nth(2).getByLabel("Duración").fill("00:02:30")
     await editor.getByLabel("Relación con Desayunar").selectOption("despues")
     await editor.getByLabel("Desplazamiento respecto de Desayunar").fill("10")
@@ -55,14 +59,18 @@ test("secuencia por duración acepta minutos simples, unidades y el formato ante
 })
 
 test("horarios definidos y secuencia con cronómetro mantienen sus entradas propias", async ({ page }) => {
+    await crearEventoParaPrueba(page, "Preparar")
+    await crearTareaParaPrueba(page, "Desayunar")
+    await crearEventoParaPrueba(page, "Cocinar")
+    await crearEventoParaPrueba(page, "Servir")
     await abrirPlanificaciones(page)
     await page.getByRole("button", { name: /Horarios definidos/ }).click()
     const formulario = page.getByRole("form", { name: "Nueva plantilla de planificación" })
     await formulario.getByLabel("Nombre de la plantilla").fill("Rutina con horarios")
-    await formulario.getByLabel("Nombre de actividad 1").fill("Preparar")
+    await seleccionarOrigenEnActividad(page, formulario.getByRole("group", { name: "Actividad 1" }), "evento", "Preparar")
     await formulario.getByLabel("Inicio actividad 1").fill("09:00:00")
     await formulario.getByLabel("Fin actividad 1").fill("09:30:00")
-    await formulario.getByLabel("Nombre de actividad 2").fill("Desayunar")
+    await seleccionarOrigenEnActividad(page, formulario.getByRole("group", { name: "Actividad 2" }), "tarea", "Desayunar")
     await formulario.getByLabel("Inicio actividad 2").fill("09:30:00")
     await formulario.getByLabel("Fin actividad 2").fill("10:00:00")
     await formulario.getByRole("button", { name: "Guardar plantilla" }).click()
@@ -71,8 +79,8 @@ test("horarios definidos y secuencia con cronómetro mantienen sus entradas prop
     const editor = page.locator(".editor-plantilla-cronometro")
     await editor.getByLabel("Nombre de la plantilla").fill("Rutina con cronómetro")
     const eventos = editor.locator(".editor-plantilla-actividad")
-    await eventos.nth(0).getByLabel("Nombre").fill("Cocinar")
-    await eventos.nth(1).getByLabel("Nombre").fill("Servir")
+    await seleccionarOrigenEnActividad(page, eventos.nth(0), "evento", "Cocinar")
+    await seleccionarOrigenEnActividad(page, eventos.nth(1), "evento", "Servir")
     await expect(editor.getByLabel("Duración")).toHaveCount(0)
     await editor.getByRole("button", { name: "Guardar plantilla" }).click()
 
@@ -83,8 +91,12 @@ test("horarios definidos y secuencia con cronómetro mantienen sus entradas prop
 })
 
 test("la duración Focus planificada sigue usando minutos y se calcula desde su plantilla", async ({ page }) => {
+    await crearEventoParaPrueba(page, "Estudiar")
     await page.goto("/")
     await page.getByRole("button", { name: "Focus", exact: true }).click()
+    const configuracionFocus = page.getByRole("region", { name: "Preparar sesión" })
+    await configuracionFocus.getByRole("radio", { name: "Plantilla de evento" }).check()
+    await seleccionarOrigenEnActividad(page, configuracionFocus, "evento", "Estudiar")
     await page.getByLabel("Pares de bloques").selectOption("1")
     await page.getByLabel("Concentración inicial (min)").fill("15")
     await page.getByLabel("Descanso inicial (min)").fill("5")
@@ -99,8 +111,9 @@ test("la duración Focus planificada sigue usando minutos y se calcula desde su 
     await formulario.getByLabel("Nombre de la plantilla").fill("Trabajo Focus")
     await formulario.getByLabel("Tipo de actividad 1").selectOption("focus")
     await formulario.getByLabel("Plantilla Focus 1").selectOption({ index: 1 })
+    await seleccionarOrigenEnActividad(page, formulario.getByRole("group", { name: "Actividad 1" }), "evento", "Estudiar")
     await expect(formulario.getByText(/Duración reservada: 00:20:00/)).toBeVisible()
-    await formulario.getByLabel("Nombre de actividad 2").fill("Descanso")
+    await seleccionarOrigenEnActividad(page, formulario.getByRole("group", { name: "Actividad 2" }), "evento", "Estudiar")
     await formulario.getByRole("button", { name: "Guardar plantilla" }).click()
 
     const plantillas = await page.evaluate(clave => JSON.parse(localStorage.getItem(clave)), CLAVE_PLANTILLAS_PLAN)

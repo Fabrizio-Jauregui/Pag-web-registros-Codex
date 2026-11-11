@@ -28,13 +28,15 @@ function crearAlmacenamiento() {
 }
 
 test("crea un plan independiente con nombre o plantilla", () => {
-    const libre = crearPlan({ nombre: " Lectura ", inicio, fin }, () => "plan-1")
+    const libre = crearPlan({ actividadPuntual: { nombre: " Lectura ", categoriaIds: [] }, inicio, fin }, () => "plan-1")
     assert.equal(libre.ok, true)
     assert.deepEqual(libre.plan, {
         id: "plan-1",
         nombre: "Lectura",
         eventoId: null,
-        colorEvento: "#0F766E",
+        colorEvento: null,
+        origenPuntual: true,
+        categoriaIds: [],
         inicio,
         fin
     })
@@ -51,15 +53,15 @@ test("crea un plan independiente con nombre o plantilla", () => {
 })
 
 test("rechaza planes sin nombre y fechas iguales o invertidas", () => {
-    assert.match(validarPlan({ nombre: "", eventoId: null, colorEvento: "#112233", inicio, fin }), /nombre/)
-    assert.match(validarPlan({ nombre: "A", eventoId: null, colorEvento: "#112233", inicio, fin: inicio }), /posterior/)
-    assert.match(validarPlan({ nombre: "A", eventoId: null, colorEvento: "#112233", inicio: fin, fin: inicio }), /posterior/)
+    assert.match(validarPlan({ nombre: "", eventoId: null, colorEvento: null, origenPuntual: true, categoriaIds: [], inicio, fin }), /nombre/)
+    assert.match(validarPlan({ nombre: "A", eventoId: null, colorEvento: null, origenPuntual: true, categoriaIds: [], inicio, fin: inicio }), /posterior/)
+    assert.match(validarPlan({ nombre: "A", eventoId: null, colorEvento: null, origenPuntual: true, categoriaIds: [], inicio: fin, fin: inicio }), /posterior/)
 })
 
 test("permite intervalos planificados superpuestos y cruces explícitos de día", () => {
-    const primero = crearPlan({ nombre: "Uno", inicio, fin }, () => "plan-1").plan
+    const primero = crearPlan({ actividadPuntual: { nombre: "Uno", categoriaIds: [] }, inicio, fin }, () => "plan-1").plan
     const segundo = crearPlan({
-        nombre: "Dos",
+        actividadPuntual: { nombre: "Dos", categoriaIds: [] },
         inicio: new Date("2026-10-13T12:30:00.000Z"),
         fin: new Date("2026-10-14T00:30:00.000Z")
     }, () => "plan-2").plan
@@ -68,9 +70,10 @@ test("permite intervalos planificados superpuestos y cruces explícitos de día"
 })
 
 test("actualiza y elimina solo el plan indicado", () => {
-    const plan = crearPlan({ nombre: "Uno", inicio, fin }, () => "plan-1").plan
+    const plan = crearPlan({ actividadPuntual: { nombre: "Uno", categoriaIds: [] }, inicio, fin }, () => "plan-1").plan
     const actualizado = actualizarPlan([plan], plan.id, {
         nombre: "Dos",
+        actividadPuntual: { nombre: "Dos", categoriaIds: [] },
         evento: null,
         inicio,
         fin: new Date(fin.getTime() + 60_000)
@@ -82,7 +85,7 @@ test("actualiza y elimina solo el plan indicado", () => {
 
 test("persiste y recupera fechas como instantes sin alterar otras claves", () => {
     const almacenamiento = crearAlmacenamiento()
-    const plan = crearPlan({ nombre: "Lectura", inicio, fin }, () => "plan-1").plan
+    const plan = crearPlan({ actividadPuntual: { nombre: "Lectura", categoriaIds: [] }, inicio, fin }, () => "plan-1").plan
     almacenamiento.setItem("focus.registros.v1", "[registros intactos]")
     assert.deepEqual(guardarPlanes([plan], almacenamiento), { ok: true })
     assert.equal(almacenamiento.getItem("focus.registros.v1"), "[registros intactos]")
@@ -93,7 +96,8 @@ test("persiste y recupera fechas como instantes sin alterar otras claves", () =>
 test("persiste una actividad de cronómetro con inicio y sin hora de fin", () => {
     const almacenamiento = crearAlmacenamiento()
     const actividad = {
-        id: "plan-cronometro", nombre: "Desayunar", eventoId: null, colorEvento: "#0F766E",
+        id: "plan-cronometro", nombre: "Desayunar", eventoId: null, colorEvento: null,
+        origenPuntual: true, categoriaIds: [],
         inicio, fin: null, modoSeguimientoPlanificacion: "cronometro", idAplicacionPlantilla: "app-crono"
     }
     assert.equal(validarPlan(actividad), null)
@@ -112,17 +116,17 @@ test("rechaza datos de planes corruptos sin sobrescribirlos", () => {
 })
 
 test("comunica errores de escritura", () => {
-    const plan = crearPlan({ nombre: "Lectura", inicio, fin }, () => "plan-1").plan
-    const almacenamiento = { setItem() { throw new Error("Cuota excedida") } }
+    const plan = crearPlan({ actividadPuntual: { nombre: "Lectura", categoriaIds: [] }, inicio, fin }, () => "plan-1").plan
+    const almacenamiento = { getItem() { return null }, setItem() { throw new Error("Cuota excedida") } }
     const resultado = guardarPlanes([plan], almacenamiento)
     assert.equal(resultado.ok, false)
     assert.match(resultado.error, /No se pudieron guardar/)
 })
 
 test("elimina solo los planes de una aplicación de plantilla", () => {
-    const uno = { ...crearPlan({ nombre: "Uno", inicio, fin }, () => "plan-1").plan, idAplicacionPlantilla: "app-1" }
-    const dos = { ...crearPlan({ nombre: "Dos", inicio, fin }, () => "plan-2").plan, idAplicacionPlantilla: "app-1" }
-    const otraAplicacion = { ...crearPlan({ nombre: "Tres", inicio, fin }, () => "plan-3").plan, idAplicacionPlantilla: "app-2" }
+    const uno = { ...crearPlan({ actividadPuntual: { nombre: "Uno", categoriaIds: [] }, inicio, fin }, () => "plan-1").plan, idAplicacionPlantilla: "app-1" }
+    const dos = { ...crearPlan({ actividadPuntual: { nombre: "Dos", categoriaIds: [] }, inicio, fin }, () => "plan-2").plan, idAplicacionPlantilla: "app-1" }
+    const otraAplicacion = { ...crearPlan({ actividadPuntual: { nombre: "Tres", categoriaIds: [] }, inicio, fin }, () => "plan-3").plan, idAplicacionPlantilla: "app-2" }
     const resultado = eliminarAplicacionPlan([uno, dos, otraAplicacion], "app-1")
     assert.equal(resultado.ok, true)
     assert.equal(resultado.cantidadEliminada, 2)
@@ -130,7 +134,7 @@ test("elimina solo los planes de una aplicación de plantilla", () => {
 })
 
 test("eliminar una aplicación inexistente devuelve un error sin cambiar los planes", () => {
-    const plan = { ...crearPlan({ nombre: "Uno", inicio, fin }, () => "plan-1").plan, idAplicacionPlantilla: "app-1" }
+    const plan = { ...crearPlan({ actividadPuntual: { nombre: "Uno", categoriaIds: [] }, inicio, fin }, () => "plan-1").plan, idAplicacionPlantilla: "app-1" }
     const planes = [plan]
     const resultado = eliminarAplicacionPlan(planes, "app-inexistente")
     assert.equal(resultado.ok, false)
@@ -138,9 +142,9 @@ test("eliminar una aplicación inexistente devuelve un error sin cambiar los pla
 })
 
 test("borra todos los planes originados en una plantilla sin tocar otros ni registros", () => {
-    const primero = { ...crearPlan({ nombre: "Preparar", inicio, fin }, () => "plan-1").plan, plantillaOrigenId: "plantilla" }
-    const segundo = { ...crearPlan({ nombre: "Desayunar", inicio, fin }, () => "plan-2").plan, plantillaOrigenId: "plantilla", tipoPlanificacion: "focus", configuracionFocus: { nombre: "Focus", bloques: [{ nombre: "Concentración", tipo: "concentracion", minutos: 25 }] } }
-    const otro = { ...crearPlan({ nombre: "Otro", inicio, fin }, () => "plan-3").plan, plantillaOrigenId: "otra" }
+    const primero = { ...crearPlan({ actividadPuntual: { nombre: "Preparar", categoriaIds: [] }, inicio, fin }, () => "plan-1").plan, plantillaOrigenId: "plantilla" }
+    const segundo = { ...crearPlan({ nombre: "Desayunar", inicio, fin, tipoPlanificacion: "focus", configuracionFocus: { nombre: "Focus", usarColaFocus: true, bloques: [{ nombre: "Concentración", tipo: "concentracion", minutos: 25 }] } }, () => "plan-2").plan, plantillaOrigenId: "plantilla" }
+    const otro = { ...crearPlan({ actividadPuntual: { nombre: "Otro", categoriaIds: [] }, inicio, fin }, () => "plan-3").plan, plantillaOrigenId: "otra" }
     const resultado = eliminarPlanesDePlantilla([primero, segundo, otro], "plantilla", "todas", inicio)
     assert.equal(resultado.ok, true)
     assert.equal(resultado.cantidadEliminada, 2)
@@ -148,9 +152,9 @@ test("borra todos los planes originados en una plantilla sin tocar otros ni regi
 })
 
 test("el borrado futuro incluye planes que empiezan ahora y conserva los ya iniciados", () => {
-    const antes = { ...crearPlan({ nombre: "Antes", inicio: new Date(inicio.getTime() - 1), fin }, () => "plan-antes").plan, plantillaOrigenId: "plantilla" }
-    const ahora = { ...crearPlan({ nombre: "Ahora", inicio, fin }, () => "plan-ahora").plan, plantillaOrigenId: "plantilla" }
-    const despues = { ...crearPlan({ nombre: "Después", inicio: new Date(inicio.getTime() + 1), fin }, () => "plan-despues").plan, plantillaOrigenId: "plantilla" }
+    const antes = { ...crearPlan({ actividadPuntual: { nombre: "Antes", categoriaIds: [] }, inicio: new Date(inicio.getTime() - 1), fin }, () => "plan-antes").plan, plantillaOrigenId: "plantilla" }
+    const ahora = { ...crearPlan({ actividadPuntual: { nombre: "Ahora", categoriaIds: [] }, inicio, fin }, () => "plan-ahora").plan, plantillaOrigenId: "plantilla" }
+    const despues = { ...crearPlan({ actividadPuntual: { nombre: "Después", categoriaIds: [] }, inicio: new Date(inicio.getTime() + 1), fin }, () => "plan-despues").plan, plantillaOrigenId: "plantilla" }
     const resultado = eliminarPlanesDePlantilla([antes, ahora, despues], "plantilla", "futuras", inicio)
     assert.equal(resultado.ok, true)
     assert.deepEqual(resultado.eliminados, [ahora, despues])

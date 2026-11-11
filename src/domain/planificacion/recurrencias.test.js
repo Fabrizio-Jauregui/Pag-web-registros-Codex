@@ -8,9 +8,10 @@ import {
 } from "./recurrencias.js"
 
 function fechaLocal(valor) { const [anio, mes, dia] = valor.split("-").map(Number); return new Date(anio, mes - 1, dia) }
+const eventoLectura = nombre => ({ id: `evento-${nombre.toLocaleLowerCase().replaceAll(" ", "-")}`, nombre, color: "#123456" })
 
 function serie({ dias = [1, 3], inicio = "2026-10-12T09:30:00", fin = null } = {}, id = "serie-x") {
-    const plan = crearPlan({ nombre: "Lectura", inicio: new Date(inicio), fin: new Date(new Date(inicio).getTime() + 30 * 60_000) }, () => "plan-x").plan
+    const plan = crearPlan({ evento: eventoLectura("Lectura"), inicio: new Date(inicio), fin: new Date(new Date(inicio).getTime() + 30 * 60_000) }, () => "plan-x").plan
     return crearReglaRecurrencia(plan, dias, fin, () => id).regla
 }
 
@@ -33,7 +34,7 @@ test("respeta fechas de inicio y fin y puede cruzar medianoche", () => {
 test("editar solo una fecha crea una excepción sin alterar el resto de la serie", () => {
     const regla = serie({ dias: [1] })
     const editada = cambiarRecurrencia([regla], regla.id, "2026-10-19", {
-        nombre: "Lectura larga", evento: null,
+        nombre: "Lectura larga", evento: eventoLectura("Lectura larga"),
         inicio: new Date("2026-10-19T10:00:00"), fin: new Date("2026-10-19T11:00:00")
     }, "solo")
     const semana = generarAparicionesRecurrencia(editada.reglas, fechaLocal("2026-10-12"), fechaLocal("2026-10-26"))
@@ -44,17 +45,17 @@ test("editar solo una fecha crea una excepción sin alterar el resto de la serie
 test("editar esta y siguientes divide la serie y respeta la primera fecha", () => {
     const regla = serie({ dias: [1] })
     const editada = cambiarRecurrencia([regla], regla.id, "2026-10-19", {
-        nombre: "Lectura nueva", evento: null,
+        nombre: "Lectura nueva", evento: eventoLectura("Lectura nueva"),
         inicio: new Date("2026-10-19T10:00:00"), fin: new Date("2026-10-19T11:00:00")
     }, "siguientes")
     const apariciones = generarAparicionesRecurrencia(editada.reglas, fechaLocal("2026-10-12"), fechaLocal("2026-11-02"))
     assert.deepEqual(apariciones.map(plan => plan.nombre), ["Lectura", "Lectura nueva", "Lectura nueva", "Lectura nueva"])
     const primera = cambiarRecurrencia([regla], regla.id, "2026-10-12", {
-        nombre: "A", evento: null, inicio: new Date("2026-10-12T09:00:00"), fin: new Date("2026-10-12T10:00:00")
+        nombre: "A", evento: eventoLectura("A"), inicio: new Date("2026-10-12T09:00:00"), fin: new Date("2026-10-12T10:00:00")
     }, "siguientes")
     assert.equal(generarAparicionesRecurrencia(primera.reglas, fechaLocal("2026-10-12"), fechaLocal("2026-10-12"))[0].nombre, "A")
     const cambioEnTodaLaSerie = cambiarRecurrencia(editada.reglas, editada.reglas[1].id, "2026-10-19", {
-        nombre: "Nombre para toda la serie", evento: null,
+        nombre: "Nombre para toda la serie", evento: eventoLectura("Nombre para toda la serie"),
         inicio: new Date("2026-10-19T11:00:00"), fin: new Date("2026-10-19T12:00:00")
     }, "toda")
     assert.deepEqual(cambioEnTodaLaSerie.reglas.map(item => item.nombre), ["Nombre para toda la serie", "Nombre para toda la serie"])
@@ -68,7 +69,7 @@ test("eliminar una aparición, las siguientes o toda la serie", () => {
     assert.deepEqual(generarAparicionesRecurrencia(siguientes.reglas, fechaLocal("2026-10-12"), fechaLocal("2026-11-02")).map(plan => plan.fechaRecurrencia), ["2026-10-12"])
     assert.equal(eliminarRecurrencia([regla], regla.id, "2026-10-12", "toda").reglas.length, 0)
     const partida = cambiarRecurrencia([regla], regla.id, "2026-10-19", {
-        nombre: "Continuación", evento: null, inicio: new Date("2026-10-19T09:00:00"), fin: new Date("2026-10-19T10:00:00")
+        nombre: "Continuación", evento: eventoLectura("Continuación"), inicio: new Date("2026-10-19T09:00:00"), fin: new Date("2026-10-19T10:00:00")
     }, "siguientes")
     assert.equal(eliminarRecurrencia(partida.reglas, partida.reglas[1].id, "2026-10-19", "toda").reglas.length, 0)
 })
@@ -83,7 +84,7 @@ test("persiste las reglas semanales separadas de los planes", () => {
 })
 
 test("asocia a una plantilla las recurrencias nuevas creadas desde sus planes", () => {
-    const plan = { ...crearPlan({ nombre: "Lectura", inicio: new Date("2026-10-12T09:30:00"), fin: new Date("2026-10-12T10:00:00") }, () => "plan-x").plan, plantillaOrigenId: "plantilla-x", plantillaOrigenNombre: "Rutina" }
+    const plan = { ...crearPlan({ evento: eventoLectura("Lectura"), inicio: new Date("2026-10-12T09:30:00"), fin: new Date("2026-10-12T10:00:00") }, () => "plan-x").plan, plantillaOrigenId: "plantilla-x", plantillaOrigenNombre: "Rutina" }
     const resultado = crearReglaRecurrencia(plan, [1], null, () => "serie-x")
     assert.equal(resultado.ok, true)
     assert.equal(resultado.regla.plantillaOrigenId, "plantilla-x")
@@ -123,7 +124,7 @@ test("el borrado futuro recorta series conservando sus apariciones anteriores y 
 test("el borrado futuro de recurrencias usa la hora actual y conserva una excepción histórica movida", () => {
     const regla = serie({ dias: [1], inicio: "2026-10-19T09:00:00" })
     const excepcionPasada = {
-        id: "excepcion-pasada", nombre: "Lectura adelantada", eventoId: null, colorEvento: regla.colorEvento,
+        id: "excepcion-pasada", nombre: "Lectura adelantada", eventoId: "evento-lectura", colorEvento: regla.colorEvento,
         inicio: "2026-10-19T08:00:00.000", fin: "2026-10-19T08:30:00.000"
     }
     const reglaConExcepcion = { ...regla, plantillaOrigenId: "plantilla-x", excepciones: { "2026-10-19": excepcionPasada } }

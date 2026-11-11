@@ -241,7 +241,7 @@ export function PanelSeguimientoPlanificacion({
             {finalizacionesPendientes.length > 0 && (
                 <section className="seguimiento-plan-deshacer" aria-label="Finalizaciones que podés deshacer">
                     <h4>Deshacer una finalización</h4>
-                    <p>El evento ya se finalizó. Podés deshacerlo durante 10 segundos; se recupera el mismo registro y también el tiempo transcurrido desde que lo finalizaste. Mientras tanto, los controles del seguimiento quedan pausados.</p>
+                    <p>El evento ya se finalizó. Podés deshacerlo durante 2 minutos; se recupera el mismo registro y también el tiempo transcurrido desde que lo finalizaste. Mientras tanto, los controles del seguimiento quedan pausados.</p>
                     <ul>{finalizacionesPendientes.map(pendiente => {
                         const nombre = estado.secuencia.find(item => item.planId === pendiente.planId)?.nombre ?? "actividad"
                         const segundos = Math.max(0, Math.ceil((Date.parse(pendiente.venceEn) - ahoraMs) / 1000))

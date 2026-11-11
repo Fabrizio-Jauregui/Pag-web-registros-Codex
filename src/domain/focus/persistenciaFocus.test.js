@@ -27,6 +27,7 @@ const marca = "2026-10-18T12:00:00.000Z"
 const configuracion = {
     nombre: "Lectura",
     nombreActividad: "Leer",
+    usarColaFocus: true,
     evento: null,
     confirmarAutomaticamente: false,
     bloques: [

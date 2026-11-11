@@ -16,7 +16,7 @@ function usaAvancePorEtapas(sesion) {
     return Boolean(sesion?.idAplicacionPlantilla || sesion?.controlAvancePorEtapas)
 }
 
-const VENTANA_DESHACER_MS = 10_000
+const VENTANA_DESHACER_MS = 120_000
 
 export function useSeguimientoPlanificacion(estadoRegistro, tareas = []) {
     const [cargaInicial] = useState(cargarSeguimientoPlanificacion)
@@ -746,8 +746,8 @@ export function useSeguimientoPlanificacion(estadoRegistro, tareas = []) {
         if (!finalizarEvento(planId, { diferirAplicacion: true, finalizacionPendiente: item })) return false
         const nombreActual = sesion.secuencia.find(elemento => elemento.planId === planId)?.nombre ?? "la actividad"
         cambiarMensaje(accion === "comenzar-siguiente"
-            ? `Se finalizó “${nombreActual}”. Podés deshacerlo durante 10 segundos; después comenzará la siguiente etapa.`
-            : `Se finalizó “${nombreActual}”. Podés deshacerlo durante 10 segundos.`)
+            ? `Se finalizó “${nombreActual}”. Podés deshacerlo durante 2 minutos; después comenzará la siguiente etapa.`
+            : `Se finalizó “${nombreActual}”. Podés deshacerlo durante 2 minutos.`)
         cambiarAhora(Date.now())
         return true
     }

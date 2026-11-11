@@ -4,20 +4,34 @@ import test from "node:test"
 import {
     aplicarLimitesVencidos,
     continuarRegistro,
-    crearRegistroManual,
+    crearRegistroManual as crearRegistroManualDominio,
     descartarRegistroPlanSinDuracion,
     editarRegistroFinalizado,
     eliminarRegistroFinalizado,
     ESTADO_REGISTRO_CANCELADO,
     ESTADO_REGISTRO_FINALIZADO,
     finalizarRegistro,
-    iniciarRegistro,
+    iniciarRegistro as iniciarRegistroDominio,
     pausarRegistro,
     restaurarRegistroDeshecho,
     validarColeccionRegistros
 } from "./registros.js"
 
 const fecha = milisegundos => new Date(milisegundos)
+
+function iniciarRegistro(registros, nombre, instante, generarId = () => globalThis.crypto.randomUUID(), evento = null, tarea = null, planId = null, opciones = {}) {
+    const origenPuntual = !evento && !tarea && !opciones.actividadPuntual
+        ? { actividadPuntual: { nombre, categoriaIds: [] } }
+        : {}
+    return iniciarRegistroDominio(registros, nombre, instante, generarId, evento, tarea, planId, { ...opciones, ...origenPuntual })
+}
+
+function crearRegistroManual(registros, datos, generarId = () => globalThis.crypto.randomUUID(), ahora = new Date()) {
+    const origenPuntual = !datos.evento && !datos.tarea && !datos.actividadPuntual
+        ? { actividadPuntual: { nombre: datos.nombre, categoriaIds: [] } }
+        : {}
+    return crearRegistroManualDominio(registros, { ...datos, ...origenPuntual }, generarId, ahora)
+}
 
 function iniciar(nombre = "Lectura") {
     return iniciarRegistro([], nombre, fecha(0), () => "registro-1")
@@ -280,6 +294,7 @@ test("edita un registro finalizado preservando sus segmentos y actualizando el v
     const editado = editarRegistroFinalizado(final.registros, "registro-1", {
         nombre: "Escritura",
         evento,
+        actividadPuntual: null,
         segmentos: [
             { tipo: "En curso", inicio: fecha(10000), fin: fecha(11000) },
             { tipo: "Pausado", inicio: fecha(11000), fin: fecha(13000) },
@@ -301,7 +316,7 @@ test("edita o quita la tarea vinculada y conserva la relación si el cambio no l
     const segmentos = creado.registro.segmentos
     const conserva = editarRegistroFinalizado(creado.registros, creado.registro.id, { nombre: "Lectura corregida", evento: null, segmentos }, fecha(6000))
     assert.equal(conserva.registro.tareaId, tarea.id)
-    const quita = editarRegistroFinalizado(conserva.registros, creado.registro.id, { nombre: "Lectura sin tarea", evento: null, tarea: null, segmentos }, fecha(6000))
+    const quita = editarRegistroFinalizado(conserva.registros, creado.registro.id, { nombre: "Lectura sin tarea", evento: null, tarea: null, actividadPuntual: { nombre: "Lectura sin tarea", categoriaIds: [] }, segmentos }, fecha(6000))
     assert.equal(quita.ok, true)
     assert.equal("tareaId" in quita.registro, false)
 })

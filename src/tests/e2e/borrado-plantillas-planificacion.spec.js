@@ -1,10 +1,12 @@
 import { expect, test } from "@playwright/test"
+import { crearEventoParaPrueba, seleccionarOrigenEnActividad } from "./ayuda-origenes-planificacion.js"
 
 const claves = {
     plantillas: "focus.plantillas-planes.v1",
     planes: "focus.planes.v1",
     recurrencias: "focus.recurrencias.v1",
-    registros: "focus.registros.v1"
+    registros: "focus.registros.v1",
+    tareas: "focus.tareas.v1"
 }
 
 function datosIniciales(modo) {
@@ -18,19 +20,19 @@ function datosIniciales(modo) {
     }
     const idPlantilla = `plantilla-${modo}`
     const actividades = modo === "horarios"
-        ? [0, 1].map(indice => ({ id: `actividad-${indice}`, nombre: `Actividad ${indice}`, eventoId: null, inicioSegundos: 9 * 3600 + indice * 3600, finSegundos: 9 * 3600 + indice * 3600 + 1800, finDia: 0 }))
+        ? [0, 1].map(indice => ({ id: `actividad-${indice}`, nombre: `Actividad ${indice}`, eventoId: null, tareaId: "tarea-prueba", tareaNombre: "Tarea de prueba", inicioSegundos: 9 * 3600 + indice * 3600, finSegundos: 9 * 3600 + indice * 3600 + 1800, finDia: 0 }))
         : modo === "duraciones"
-            ? [0, 1].map(indice => ({ id: `actividad-${indice}`, nombre: `Actividad ${indice}`, eventoId: null, duracionSegundos: 1800 }))
-            : [0, 1].map(indice => ({ id: `actividad-${indice}`, nombre: `Actividad ${indice}`, eventoId: null, ordenSecuencia: indice, grupoCronometro: indice }))
+            ? [0, 1].map(indice => ({ id: `actividad-${indice}`, nombre: `Actividad ${indice}`, eventoId: null, tareaId: "tarea-prueba", tareaNombre: "Tarea de prueba", duracionSegundos: 1800 }))
+            : [0, 1].map(indice => ({ id: `actividad-${indice}`, nombre: `Actividad ${indice}`, eventoId: null, tareaId: "tarea-prueba", tareaNombre: "Tarea de prueba", ordenSecuencia: indice, grupoCronometro: indice }))
     const planes = [
-        { id: "plan-pasado", nombre: "Plan pasado", eventoId: null, colorEvento: "#0F766E", inicio: fecha(-1, "09:00"), fin: fecha(-1, "09:30"), plantillaOrigenId: idPlantilla, plantillaOrigenNombre: `Plantilla ${modo}`, idAplicacionPlantilla: "aplicacion-pasada" },
-        { id: "plan-iniciado", nombre: "Plan iniciado", eventoId: null, colorEvento: "#0F766E", inicio: new Date(ahora.getTime() - 10 * 60_000).toISOString(), fin: new Date(ahora.getTime() + 10 * 60_000).toISOString(), plantillaOrigenId: idPlantilla, plantillaOrigenNombre: `Plantilla ${modo}`, idAplicacionPlantilla: "aplicacion-hoy" },
-        { id: "plan-futuro", nombre: "Plan futuro", eventoId: null, colorEvento: "#0F766E", inicio: new Date(ahora.getTime() + 60 * 60_000).toISOString(), fin: new Date(ahora.getTime() + 90 * 60_000).toISOString(), plantillaOrigenId: idPlantilla, plantillaOrigenNombre: `Plantilla ${modo}`, idAplicacionPlantilla: "aplicacion-futura" },
-        { id: "plan-ajeno", nombre: "Plan ajeno", eventoId: null, colorEvento: "#0F766E", inicio: fecha(2, "09:00"), fin: fecha(2, "09:30"), plantillaOrigenId: "otra-plantilla", plantillaOrigenNombre: "Otra", idAplicacionPlantilla: "otra-aplicacion" }
+        { id: "plan-pasado", nombre: "Plan pasado", eventoId: null, tareaId: "tarea-prueba", tareaNombre: "Tarea de prueba", colorEvento: "#0F766E", inicio: fecha(-1, "09:00"), fin: fecha(-1, "09:30"), plantillaOrigenId: idPlantilla, plantillaOrigenNombre: `Plantilla ${modo}`, idAplicacionPlantilla: "aplicacion-pasada" },
+        { id: "plan-iniciado", nombre: "Plan iniciado", eventoId: null, tareaId: "tarea-prueba", tareaNombre: "Tarea de prueba", colorEvento: "#0F766E", inicio: new Date(ahora.getTime() - 10 * 60_000).toISOString(), fin: new Date(ahora.getTime() + 10 * 60_000).toISOString(), plantillaOrigenId: idPlantilla, plantillaOrigenNombre: `Plantilla ${modo}`, idAplicacionPlantilla: "aplicacion-hoy" },
+        { id: "plan-futuro", nombre: "Plan futuro", eventoId: null, tareaId: "tarea-prueba", tareaNombre: "Tarea de prueba", colorEvento: "#0F766E", inicio: new Date(ahora.getTime() + 60 * 60_000).toISOString(), fin: new Date(ahora.getTime() + 90 * 60_000).toISOString(), plantillaOrigenId: idPlantilla, plantillaOrigenNombre: `Plantilla ${modo}`, idAplicacionPlantilla: "aplicacion-futura" },
+        { id: "plan-ajeno", nombre: "Plan ajeno", eventoId: null, tareaId: "tarea-prueba", tareaNombre: "Tarea de prueba", colorEvento: "#0F766E", inicio: fecha(2, "09:00"), fin: fecha(2, "09:30"), plantillaOrigenId: "otra-plantilla", plantillaOrigenNombre: "Otra", idAplicacionPlantilla: "otra-aplicacion" }
     ]
     const ahoraLocal = new Date(ahora)
     const reglaBase = {
-        nombre: `Recurrente ${modo}`, eventoId: null, colorEvento: "#0F766E",
+        nombre: `Recurrente ${modo}`, eventoId: null, tareaId: "tarea-prueba", tareaNombre: "Tarea de prueba", colorEvento: "#0F766E",
         fechaInicio: `${ahoraLocal.getFullYear()}-${String(ahoraLocal.getMonth() + 1).padStart(2, "0")}-${String(ahoraLocal.getDate()).padStart(2, "0")}`,
         fechaFin: null, diasSemana: [ahoraLocal.getDay()], segundosInicio: 60,
         milisegundosInicio: 0, duracionMs: 60_000, excepciones: {}
@@ -44,7 +46,8 @@ function datosIniciales(modo) {
             { ...reglaBase, id: "serie-legado", idSerie: "serie-legado", nombre: "Legado sin vínculo" },
             { ...reglaBase, id: "serie-ajena", idSerie: "serie-ajena", nombre: "Serie ajena", plantillaOrigenId: "otra-plantilla" }
         ],
-        registros: []
+        registros: [],
+        tareas: [{ id: "tarea-prueba", tipo: "tarea", nombre: "Tarea de prueba", estado: "Pendiente", destino: "backlog", objetivoId: null, padreId: null, ordenArbol: 1, ordenBacklog: 1, ordenFocus: null, creadaEn: ahora.toISOString(), actualizadaEn: ahora.toISOString() }]
     }
 }
 
@@ -55,6 +58,7 @@ async function abrirConDatos(page, modo) {
         localStorage.setItem("focus.planes.v1", JSON.stringify(datos.planes))
         localStorage.setItem("focus.recurrencias.v1", JSON.stringify(datos.recurrencias))
         localStorage.setItem("focus.registros.v1", JSON.stringify(datos.registros))
+        localStorage.setItem("focus.tareas.v1", JSON.stringify(datos.tareas))
     }, iniciales)
     await page.goto("/")
     await page.getByRole("button", { name: "Planificaciones", exact: true }).click()
@@ -122,16 +126,21 @@ test("el seguimiento activo bloquea borrar planes pero deja borrar solo la plant
     fecha.setDate(fecha.getDate() + 2)
     const fechaISO = `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, "0")}-${String(fecha.getDate()).padStart(2, "0")}`
     await page.goto("/")
+    await page.getByLabel("Ir a fecha").fill(fechaISO)
+    await crearEventoParaPrueba(page, "Preparar")
+    await crearEventoParaPrueba(page, "Continuar")
     await page.getByRole("button", { name: "Planificaciones", exact: true }).click()
     await page.getByRole("button", { name: /Horarios definidos/ }).click()
     const form = page.getByRole("form", { name: "Nueva plantilla de planificación" })
     await form.getByLabel("Nombre de la plantilla").fill("Plan activo")
-    await form.getByLabel("Nombre de actividad 1").fill("Preparar")
-    await form.getByLabel("Nombre de actividad 2").fill("Continuar")
+    await seleccionarOrigenEnActividad(page, form.getByRole("group", { name: "Actividad 1" }), "evento", "Preparar")
+    await seleccionarOrigenEnActividad(page, form.getByRole("group", { name: "Actividad 2" }), "evento", "Continuar")
     await form.getByRole("button", { name: "Guardar plantilla" }).click()
+    await page.getByLabel("Ir a fecha").fill(fechaISO)
     await page.getByLabel("Aplicar a la fecha").fill(fechaISO)
     await page.getByRole("button", { name: "Aplicar a fecha" }).click()
 
+    await page.getByRole("button", { name: "Calendario", exact: true }).click()
     const calendario = page.getByRole("region", { name: "Calendario" })
     await calendario.getByRole("button", { name: /Planificado: Preparar/ }).click()
     const detalle = calendario.getByRole("region", { name: "Plan: Preparar" })

@@ -22,8 +22,10 @@ test("Flujo de usuario: crea, edita, conserva y elimina un plan sin tocar los re
     await page.getByRole("button", { name: "Planificar actividad", exact: true }).click()
 
     const formulario = page.getByRole("form", { name: "Planificar actividad" })
+    await formulario.getByRole("radio", { name: "Actividad puntual" }).check()
+
     await formulario.getByLabel("Nombre de la actividad").fill("Lectura planificada")
-    await formulario.getByLabel("Inicio").fill(isoHora(inicio))
+    await formulario.getByRole("textbox", { name: "Inicio", exact: true }).fill(isoHora(inicio))
     await formulario.getByLabel("Fin", { exact: true }).fill(isoHora(new Date(inicio.getTime() + 60 * 60_000)))
     await formulario.getByRole("button", { name: "Guardar plan", exact: true }).click()
 
@@ -41,6 +43,8 @@ test("Flujo de usuario: crea, edita, conserva y elimina un plan sin tocar los re
     const detalle = page.getByRole("region", { name: "Plan: Lectura planificada" })
     await detalle.getByRole("button", { name: "Editar plan" }).click()
     const edicion = page.getByRole("form", { name: "Editar actividad planificada" })
+    await edicion.getByRole("radio", { name: "Actividad puntual" }).check()
+
     await edicion.getByLabel("Nombre de la actividad").fill("Lectura extendida")
     await edicion.getByLabel("Fin", { exact: true }).fill(isoHora(new Date(inicio.getTime() + 90 * 60_000)))
     await edicion.getByRole("button", { name: "Guardar cambios", exact: true }).click()
@@ -85,7 +89,9 @@ test("Flujo de usuario: crea una planificación semanal desde el día elegido y 
     await page.getByRole("button", { name: "Planificar actividad", exact: true }).click()
 
     const formulario = page.getByRole("form", { name: "Planificar actividad" })
-    await expect(formulario.getByLabel("Inicio")).toHaveValue(isoHora(inicio))
+    await expect(formulario.getByRole("textbox", { name: "Inicio", exact: true })).toHaveValue(isoHora(inicio))
+    await formulario.getByRole("radio", { name: "Actividad puntual" }).check()
+
     await formulario.getByLabel("Nombre de la actividad").fill("Plan semanal movible")
     await formulario.getByRole("button", { name: "Guardar plan", exact: true }).click()
 
@@ -170,7 +176,9 @@ test("Flujo de usuario: ofrece la misma acción general de planificación en dí
     await page.getByRole("button", { name: "Planificar actividad", exact: true }).click()
 
     const formulario = page.getByRole("form", { name: "Planificar actividad" })
-    await expect(formulario.getByLabel("Inicio")).toHaveValue(isoHora(inicio))
+    await expect(formulario.getByRole("textbox", { name: "Inicio", exact: true })).toHaveValue(isoHora(inicio))
+    await formulario.getByRole("radio", { name: "Actividad puntual" }).check()
+
     await formulario.getByLabel("Nombre de la actividad").fill("Plan móvil del domingo")
     await formulario.getByRole("button", { name: "Guardar plan", exact: true }).click()
 
@@ -199,8 +207,10 @@ test("Flujo de usuario: muestra un plan que cruza medianoche en ambos días de l
     await page.getByLabel("Ir a fecha").fill(formatoFecha(diaInicio))
     await page.getByRole("button", { name: "Planificar actividad", exact: true }).click()
     const formulario = page.getByRole("form", { name: "Planificar actividad" })
+    await formulario.getByRole("radio", { name: "Actividad puntual" }).check()
+
     await formulario.getByLabel("Nombre de la actividad").fill("Plan nocturno semanal")
-    await formulario.getByLabel("Inicio").fill(isoHora(diaInicio))
+    await formulario.getByRole("textbox", { name: "Inicio", exact: true }).fill(isoHora(diaInicio))
     await formulario.getByLabel("Fin", { exact: true }).fill(isoHora(diaFin))
     await formulario.getByRole("button", { name: "Guardar plan", exact: true }).click()
 
@@ -229,15 +239,19 @@ test("Flujo de usuario: diferencia un plan superpuesto con un registro real en l
     await page.getByLabel("Ir a fecha").fill(formatoFecha(dia))
     await page.getByRole("button", { name: "Planificar actividad", exact: true }).click()
     const formularioPlan = page.getByRole("form", { name: "Planificar actividad" })
+    await formularioPlan.getByRole("radio", { name: "Actividad puntual" }).check()
+
     await formularioPlan.getByLabel("Nombre de la actividad").fill("Intención de lectura")
-    await formularioPlan.getByLabel("Inicio").fill(isoHora(inicio))
+    await formularioPlan.getByRole("textbox", { name: "Inicio", exact: true }).fill(isoHora(inicio))
     await formularioPlan.getByLabel("Fin", { exact: true }).fill(isoHora(fin))
     await formularioPlan.getByRole("button", { name: "Guardar plan", exact: true }).click()
 
     await page.getByRole("button", { name: "Nuevo registro", exact: true }).click()
     const formularioRegistro = page.getByRole("form", { name: "Nuevo registro manual" })
+    await formularioRegistro.getByRole("radio", { name: "Actividad puntual" }).check()
+
     await formularioRegistro.getByLabel("Nombre de la actividad").fill("Lectura realizada")
-    await formularioRegistro.getByLabel("Inicio").fill(isoHora(new Date(inicio.getTime() + 5 * 60_000)))
+    await formularioRegistro.getByRole("textbox", { name: "Inicio", exact: true }).fill(isoHora(new Date(inicio.getTime() + 5 * 60_000)))
     await formularioRegistro.getByLabel("Fin", { exact: true }).fill(isoHora(new Date(fin.getTime() - 5 * 60_000)))
     await formularioRegistro.getByRole("button", { name: "Crear registro", exact: true }).click()
 
@@ -264,8 +278,10 @@ test("Flujo de usuario: conserva el plan al cancelar el borrado y limpia el deta
     await page.getByLabel("Ir a fecha").fill(isoFecha)
     await page.getByRole("button", { name: "Planificar actividad", exact: true }).click()
     const formulario = page.getByRole("form", { name: "Planificar actividad" })
+    await formulario.getByRole("radio", { name: "Actividad puntual" }).check()
+
     await formulario.getByLabel("Nombre de la actividad").fill("Plan de navegación")
-    await formulario.getByLabel("Inicio").fill(isoHora(inicio))
+    await formulario.getByRole("textbox", { name: "Inicio", exact: true }).fill(isoHora(inicio))
     await formulario.getByLabel("Fin", { exact: true }).fill(isoHora(new Date(inicio.getTime() + 30 * 60_000)))
     await formulario.getByRole("button", { name: "Guardar plan", exact: true }).click()
 
@@ -301,10 +317,12 @@ test("Flujo de usuario: permite planes superpuestos y muestra cada franja por se
     async function crear(nombre, minutoInicio, minutoFin) {
         await page.getByRole("button", { name: "Planificar actividad", exact: true }).click()
         const formulario = page.getByRole("form", { name: "Planificar actividad" })
+        await formulario.getByRole("radio", { name: "Actividad puntual" }).check()
+
         await formulario.getByLabel("Nombre de la actividad").fill(nombre)
         const horaInicio = new Date(inicio.getTime() + minutoInicio * 60_000)
         const horaFin = new Date(inicio.getTime() + minutoFin * 60_000)
-        await formulario.getByLabel("Inicio").fill(isoHora(horaInicio))
+        await formulario.getByRole("textbox", { name: "Inicio", exact: true }).fill(isoHora(horaInicio))
         await formulario.getByLabel("Fin", { exact: true }).fill(isoHora(horaFin))
         await formulario.getByRole("button", { name: "Guardar plan", exact: true }).click()
     }
@@ -327,8 +345,10 @@ test("Flujo de usuario: mueve y ajusta los extremos de un plan con edición dire
     await page.getByLabel("Ir a fecha").fill(isoFecha)
     await page.getByRole("button", { name: "Planificar actividad", exact: true }).click()
     const formulario = page.getByRole("form", { name: "Planificar actividad" })
+    await formulario.getByRole("radio", { name: "Actividad puntual" }).check()
+
     await formulario.getByLabel("Nombre de la actividad").fill("Plan editable")
-    await formulario.getByLabel("Inicio").fill(isoHora(inicio))
+    await formulario.getByRole("textbox", { name: "Inicio", exact: true }).fill(isoHora(inicio))
     await formulario.getByLabel("Fin", { exact: true }).fill(isoHora(new Date(inicio.getTime() + 60 * 60_000)))
     await formulario.getByRole("button", { name: "Guardar plan", exact: true }).click()
 
@@ -378,8 +398,10 @@ test("Flujo de usuario: amplía una planificación de pocos segundos hasta verla
     await page.getByLabel("Ir a fecha").fill(isoFecha)
     await page.getByRole("button", { name: "Planificar actividad", exact: true }).click()
     const formulario = page.getByRole("form", { name: "Planificar actividad" })
+    await formulario.getByRole("radio", { name: "Actividad puntual" }).check()
+
     await formulario.getByLabel("Nombre de la actividad").fill("Plan de cinco segundos")
-    await formulario.getByLabel("Inicio").fill(isoHora(inicio))
+    await formulario.getByRole("textbox", { name: "Inicio", exact: true }).fill(isoHora(inicio))
     await formulario.getByLabel("Fin", { exact: true }).fill(isoHora(fin) + ":05")
     await formulario.getByRole("button", { name: "Guardar plan", exact: true }).click()
 
@@ -440,8 +462,10 @@ test("Flujo de usuario: enfoca el zoom desde una franja horaria seleccionada en 
     await page.getByLabel("Ir a fecha").fill(isoFecha)
     await page.getByRole("button", { name: "Planificar actividad", exact: true }).click()
     const formulario = page.getByRole("form", { name: "Planificar actividad" })
+    await formulario.getByRole("radio", { name: "Actividad puntual" }).check()
+
     await formulario.getByLabel("Nombre de la actividad").fill("Plan dentro de franja")
-    await formulario.getByLabel("Inicio").fill(isoHora(inicioPlan) + ":05")
+    await formulario.getByRole("textbox", { name: "Inicio", exact: true }).fill(isoHora(inicioPlan) + ":05")
     await formulario.getByLabel("Fin", { exact: true }).fill(isoHora(finPlan) + ":05")
     await formulario.getByRole("button", { name: "Guardar plan", exact: true }).click()
 
@@ -473,16 +497,20 @@ test("Flujo de usuario: ampliar desde un registro o un plan conserva juntos los 
 
     await page.getByRole("button", { name: "Nuevo registro", exact: true }).click()
     const formularioRegistro = page.getByRole("form", { name: "Nuevo registro manual" })
+    await formularioRegistro.getByRole("radio", { name: "Actividad puntual" }).check()
+
     await formularioRegistro.getByLabel("Nombre de la actividad").fill("Registro cercano")
-    await formularioRegistro.getByLabel("Inicio").fill(hora(2))
+    await formularioRegistro.getByRole("textbox", { name: "Inicio", exact: true }).fill(hora(2))
     await formularioRegistro.getByLabel("Fin", { exact: true }).fill(hora(22))
     await formularioRegistro.getByRole("button", { name: "Crear registro", exact: true }).click()
 
     async function crearPlan(nombre, segundoInicio, segundoFin) {
         await page.getByRole("button", { name: "Planificar actividad", exact: true }).click()
         const formulario = page.getByRole("form", { name: "Planificar actividad" })
+        await formulario.getByRole("radio", { name: "Actividad puntual" }).check()
+
         await formulario.getByLabel("Nombre de la actividad").fill(nombre)
-        await formulario.getByLabel("Inicio").fill(hora(segundoInicio))
+        await formulario.getByRole("textbox", { name: "Inicio", exact: true }).fill(hora(segundoInicio))
         await formulario.getByLabel("Fin", { exact: true }).fill(hora(segundoFin))
         await formulario.getByRole("button", { name: "Guardar plan", exact: true }).click()
     }
@@ -543,8 +571,10 @@ test("Flujo de usuario: los detalles y las pausas siguen utilizables en móvil y
     await page.getByLabel("Ir a fecha").fill(isoFecha)
     await page.getByRole("button", { name: "Planificar actividad", exact: true }).click()
     const formularioPlan = page.getByRole("form", { name: "Planificar actividad" })
+    await formularioPlan.getByRole("radio", { name: "Actividad puntual" }).check()
+
     await formularioPlan.getByLabel("Nombre de la actividad").fill("Plan móvil oscuro")
-    await formularioPlan.getByLabel("Inicio").fill(isoHora(inicio))
+    await formularioPlan.getByRole("textbox", { name: "Inicio", exact: true }).fill(isoHora(inicio))
     await formularioPlan.getByLabel("Fin", { exact: true }).fill(isoHora(fin) + ":05")
     await formularioPlan.getByRole("button", { name: "Guardar plan", exact: true }).click()
     const grupo = page.getByRole("region", { name: "Calendario" })
@@ -567,6 +597,8 @@ test("Flujo de usuario: los detalles y las pausas siguen utilizables en móvil y
 
     await page.getByRole("button", { name: "Cerrar detalle del plan" }).click()
     await page.getByRole("button", { name: "Nuevo registro", exact: true }).click()
+    await page.getByRole("radio", { name: "Actividad puntual" }).check()
+
     await page.getByLabel("Nombre de la actividad").fill("Registro móvil con pausa")
     await page.getByRole("button", { name: "Agregar pausa después de este tramo" }).click()
     await expect(page.getByLabel("Inicio · Segmento 2")).toBeVisible()
@@ -582,8 +614,10 @@ test("Flujo de usuario: rechaza horas iguales o invertidas y requiere elegir el 
     await page.getByLabel("Ir a fecha").fill(isoFecha)
     await page.getByRole("button", { name: "Planificar actividad", exact: true }).click()
     const formulario = page.getByRole("form", { name: "Planificar actividad" })
+    await formulario.getByRole("radio", { name: "Actividad puntual" }).check()
+
     await formulario.getByLabel("Nombre de la actividad").fill("Plan con horario inválido")
-    await formulario.getByLabel("Inicio").fill(isoHora(inicio))
+    await formulario.getByRole("textbox", { name: "Inicio", exact: true }).fill(isoHora(inicio))
     await formulario.getByLabel("Fin", { exact: true }).fill(isoHora(inicio))
     await formulario.getByRole("button", { name: "Guardar plan", exact: true }).click()
     await expect(page.getByRole("alert")).toContainText("posterior al inicio")
@@ -621,7 +655,7 @@ test("Flujo de usuario: una plantilla vinculada a un plan no se puede eliminar",
     await page.getByRole("button", { name: "Planificar actividad", exact: true }).click()
     const formulario = page.getByRole("form", { name: "Planificar actividad" })
     await formulario.getByLabel("Plantilla de evento (opcional)").selectOption({ label: "Plantilla de plan" })
-    await formulario.getByLabel("Inicio").fill(isoHora(inicio))
+    await formulario.getByRole("textbox", { name: "Inicio", exact: true }).fill(isoHora(inicio))
     await formulario.getByLabel("Fin", { exact: true }).fill(isoHora(new Date(inicio.getTime() + 30 * 60_000)))
     await formulario.getByRole("button", { name: "Guardar plan", exact: true }).click()
 
