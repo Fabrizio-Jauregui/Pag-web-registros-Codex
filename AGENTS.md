@@ -68,6 +68,7 @@ Antes de cambiar una función, identificá sus puntos de entrada, sus datos comp
 - Usá la preparación directa de `localStorage` solo para estados difíciles de crear desde la interfaz y aclaralo al informar resultados. Para comportamientos temporizados, preferí el reloj simulado a esperas reales.
 - Ante una falla, reproducila y distinguí si corresponde al producto, a datos de prueba inválidos o a un selector desactualizado antes de cambiar código o pruebas. No borres pruebas de regresión para obtener un resultado verde.
 - Si una ejecución falla o se demora, informá el estado y detenela cuando el usuario lo pida; no la dejes corriendo mientras iniciás otra equivalente.
+- Antes de reintentar Playwright, confirmá que terminó la ejecución anterior: comparten `outputDir` y ejecuciones solapadas pueden corromper trazas y resultados.
 - Para cambios que afecten varias secciones o modos, cubrí cada recorrido afectado y los casos límite relevantes; no supongas que probar un modo valida los demás.
 - Informá por separado qué aprobó el usuario, qué pruebas se ejecutaron y qué se publicó. Indicá duraciones solo si fueron medidas directamente; los horarios de commits no miden el tiempo de trabajo.
 - Informá advertencias y limitaciones. Nunca prometas que no hay errores sin evidencia suficiente.
