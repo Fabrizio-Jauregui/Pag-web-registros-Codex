@@ -9,7 +9,7 @@ import { ControlesRegistro } from "./ControlesRegistro"
 import { ResumenDuracion } from "./ResumenDuracion"
 import { ListaRegistrosActivos } from "./ListaRegistrosActivos.jsx"
 
-export function EstadosRegistros({ estadoRegistro, eventos = [], tareas = [], categorias = [], ordenEventos, cambiarOrdenEventos }) {
+export function EstadosRegistros({ estadoRegistro, eventos = [], tareas = [], categorias = [], ordenEventos, cambiarOrdenEventos, onFinalizarVinculado }) {
     const [origen, cambiarOrigen] = useState({ tipo: "", eventoId: "", tareaId: "", nombre: "", categoriaIds: [] })
     const { datos, registros, registrosActivos, ahora, error, mensaje } = estadoRegistro
     const registroResumen = registrosActivos.at(-1) ?? registros.at(-1) ?? null
@@ -55,9 +55,7 @@ export function EstadosRegistros({ estadoRegistro, eventos = [], tareas = [], ca
                 cambiarOrdenEventos={cambiarOrdenEventos}
             />
 
-            {registrosActivos.length > 0 && (
-                <ListaRegistrosActivos registros={registrosActivos} estadoRegistro={estadoRegistro} />
-            )}
+            <ListaRegistrosActivos registros={registrosActivos} estadoRegistro={estadoRegistro} onFinalizarVinculado={onFinalizarVinculado} />
 
             {registrosActivos.length === 0 && (
                 <ResumenDuracion

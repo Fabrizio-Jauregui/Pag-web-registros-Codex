@@ -456,7 +456,21 @@ export function useSeguimientoPlanificacion(estadoRegistro, tareas = []) {
             sesion.iniciados = primerGrupo.iniciados
             sesion.registroId = primerGrupo.activos[0].registroId
             sesion.finBloque = primerGrupo.activos[0].finBloque
-            if (!guardar(sesion)) return { ok: false, error: "No se pudo guardar el seguimiento." }
+            if (!guardar(sesion)) {
+                let errorReversion = ""
+                for (const activo of primerGrupo.activos) {
+                    const retirado = registroRef.current.retirarRegistroDeTransicion?.(activo.registroId, activo.planId)
+                    if (retirado && !retirado.ok) {
+                        errorReversion = ` No se pudo retirar el registro iniciado (${retirado.error}).`
+                        break
+                    }
+                    if (!retirado && !registroRef.current.finalizar?.(activo.registroId, new Date())) {
+                        errorReversion = " No se pudo cerrar el registro iniciado."
+                        break
+                    }
+                }
+                return { ok: false, error: `No se pudo guardar el seguimiento.${errorReversion}` }
+            }
             publicar(sesion)
             cambiarMensaje("")
             cambiarAhora(instante)
@@ -905,6 +919,52 @@ export function useSeguimientoPlanificacion(estadoRegistro, tareas = []) {
         return true
     }
 
+    function finalizarDesdeRegistrosActivos(registro) {
+        const sesion = estadoRef.current
+        const activo = sesion?.registrosActivos?.find(item => item.planId === registro.planId && item.registroId === registro.id)
+        if (activo) {
+            if (!solicitarFinalizacion(activo.planId, "finalizar")) return { ok: false }
+            const pendiente = estadoRef.current?.finalizacionesPendientes?.find(item => item.registroId === registro.id)
+            return pendiente ? { ok: true, deshacer: () => deshacerFinalizacion(pendiente.id) } : { ok: false }
+        }
+
+        const registroAnterior = registroRef.current.buscar(registro.id)
+        if (!registroAnterior) return { ok: false, error: "No se encontró el registro activo." }
+        const clave = "focus.seguimiento-planificacion.v1"
+        let seguimientoAnterior = null
+        try { seguimientoAnterior = globalThis.localStorage.getItem(clave) } catch {
+            cambiarError("No se pudo revisar el seguimiento guardado.")
+            return { ok: false }
+        }
+        const seguimientoInvalido = Boolean(error && !sesion)
+        if (!registroRef.current.finalizar(registro.id)) return { ok: false, error: registroRef.current.error }
+        if (seguimientoInvalido && !guardar(null)) {
+            const restaurado = registroRef.current.restaurarFinalizacion?.(registro.id, registroAnterior, new Date())
+            return { ok: false, error: restaurado?.ok
+                ? "No se pudo limpiar el seguimiento inválido; el registro se restauró."
+                : "Falló la limpieza y tampoco se pudo restaurar el registro. Revisá el historial." }
+        }
+        if (seguimientoInvalido) publicar(null)
+
+        return {
+            ok: true,
+            deshacer: () => {
+                const restaurado = registroRef.current.restaurarFinalizacion?.(registro.id, registroAnterior, new Date())
+                if (!restaurado?.ok) return false
+                if (!seguimientoInvalido) return true
+                try {
+                    if (seguimientoAnterior === null) globalThis.localStorage.removeItem(clave)
+                    else globalThis.localStorage.setItem(clave, seguimientoAnterior)
+                    cambiarError(cargaInicial.error ?? "")
+                    return true
+                } catch {
+                    cambiarError("Se restauró el registro, pero no se pudo restaurar el seguimiento anterior.")
+                    return false
+                }
+            }
+        }
+    }
+
     function procesarFinalizacionesPendientes(instanteActual) {
         const sesion = estadoRef.current
         const vencidas = (sesion?.finalizacionesPendientes ?? [])
@@ -1279,6 +1339,7 @@ export function useSeguimientoPlanificacion(estadoRegistro, tareas = []) {
         finalizarYOmitirSiguiente, dejarDeSeguir, sincronizarPlanes, finalizarEvento, cambiarModoAvance, omitirEvento,
         siguienteEventoAlFinalizar, finalizarYComenzarSiguiente, iniciarSiguienteEtapaAhora,
         solicitarFinalizacion, deshacerFinalizacion,
+        finalizarDesdeRegistrosActivos,
         siguienteEtapaPendiente,
         reintentarTransicion,
         iniciarEvento: iniciarEventoSecuencial,

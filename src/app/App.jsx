@@ -1266,6 +1266,7 @@ export function App() {
                                             categorias={estadoCategorias.ok ? estadoCategorias.categorias : []}
                                             ordenEventos={ordenPlantillasEventos}
                                             cambiarOrdenEventos={cambiarOrdenEventos}
+                                            onFinalizarVinculado={seguimientoPlanificacion.finalizarDesdeRegistrosActivos}
                                         />
                                     )}
                                 </section>
