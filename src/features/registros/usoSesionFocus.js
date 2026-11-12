@@ -4,9 +4,11 @@ import {
     cargarHistorialFocus,
     cargarPlantillasFocus,
     cargarSesionActivaFocus,
+    cargarCierreRecuperableFocus,
     guardarHistorialFocus,
     guardarPlantillasFocus,
-    guardarSesionActivaFocus
+    guardarSesionActivaFocus,
+    guardarCierreRecuperableFocus
 } from "../../domain/focus/persistenciaFocus.js"
 
 const generarId = () => globalThis.crypto.randomUUID()
@@ -63,6 +65,7 @@ export function useSesionFocus(estadoRegistro, tareas = [], accionesTareas = {},
     const [plantillas, cambiarPlantillas] = useState(() => cargarPlantillasFocus().plantillas)
     const [historial, cambiarHistorial] = useState(() => cargarHistorialFocus().sesiones)
     const [sesion, cambiarSesion] = useState(() => cargarSesionActivaFocus().sesion)
+    const [cierreRecuperable, cambiarCierreRecuperable] = useState(() => cargarCierreRecuperableFocus().cierre)
     const [ahora, cambiarAhora] = useState(() => Date.now())
     const [error, cambiarError] = useState("")
     const sesionRef = useRef(sesion)
@@ -71,6 +74,7 @@ export function useSesionFocus(estadoRegistro, tareas = [], accionesTareas = {},
     const eventosRef = useRef(eventos)
     const accionesTareasRef = useRef(accionesTareas)
     const historialRef = useRef(historial)
+    const cierreRecuperableRef = useRef(cierreRecuperable)
     const reconciliarRef = useRef(null)
     useEffect(() => {
         tareasRef.current = tareas
@@ -202,11 +206,31 @@ export function useSesionFocus(estadoRegistro, tareas = [], accionesTareas = {},
         return guardarSesion(actualizado)
     }
 
-    function terminarSesion(actual, instante, finalizarRegistro = true) {
+    function terminarSesion(actual, instante, finalizarRegistro = true, recuperable = false) {
         const apiRegistro = registroRef.current
         const registro = actual.registroId ? apiRegistro.buscar(actual.registroId) : null
+        const registroAnterior = finalizarRegistro && registro && ["En curso", "Pausado"].includes(registro.estado)
+            ? JSON.parse(JSON.stringify(registro)) : null
+        const cierre = recuperable ? {
+            id: actual.id,
+            venceEn: fechaIso(instante + 120_000),
+            sesionAnterior: JSON.parse(JSON.stringify(actual)),
+            registroAnterior,
+            historialId: actual.id
+        } : null
+        if (cierre) {
+            const guardado = guardarCierreRecuperableFocus(cierre)
+            if (!guardado.ok) { cambiarError(guardado.error); return false }
+            cierreRecuperableRef.current = cierre
+            cambiarCierreRecuperable(cierre)
+        }
         if (finalizarRegistro && registro && ["En curso", "Pausado"].includes(registro.estado)) {
             if (!apiRegistro.finalizar(actual.registroId, new Date(instante))) {
+                if (cierre) {
+                    guardarCierreRecuperableFocus(null)
+                    cierreRecuperableRef.current = null
+                    cambiarCierreRecuperable(null)
+                }
                 cambiarError(apiRegistro.error || "No se pudo finalizar el registro vinculado a Focus.")
                 return false
             }
@@ -228,8 +252,17 @@ export function useSesionFocus(estadoRegistro, tareas = [], accionesTareas = {},
             bloques,
             extras: (actual.extras ?? []).map(extra => extra.fin === null ? { ...extra, fin } : extra)
         }
-        if (!guardarHistorial([registroHistorial, ...historialRef.current.filter(item => item.id !== actual.id)])) return false
-        if (!guardarSesion(null)) return false
+        if (!guardarHistorial([registroHistorial, ...historialRef.current.filter(item => item.id !== actual.id)])) {
+            if (registroAnterior) apiRegistro.restaurarFinalizacion(actual.registroId, registroAnterior, new Date(instante))
+            if (cierre) { guardarCierreRecuperableFocus(null); cierreRecuperableRef.current = null; cambiarCierreRecuperable(null) }
+            return false
+        }
+        if (!guardarSesion(null)) {
+            guardarHistorial(historialRef.current.filter(item => item.id !== actual.id))
+            if (registroAnterior) apiRegistro.restaurarFinalizacion(actual.registroId, registroAnterior, new Date(instante))
+            if (cierre) { guardarCierreRecuperableFocus(null); cierreRecuperableRef.current = null; cambiarCierreRecuperable(null) }
+            return false
+        }
         return true
     }
 
@@ -416,6 +449,14 @@ export function useSesionFocus(estadoRegistro, tareas = [], accionesTareas = {},
         const actualizar = () => {
             const instante = Date.now()
             cambiarAhora(instante)
+            const cierre = cierreRecuperableRef.current
+            if (cierre && Date.parse(cierre.venceEn) <= instante) {
+                const resultado = guardarCierreRecuperableFocus(null)
+                if (resultado.ok) {
+                    cierreRecuperableRef.current = null
+                    cambiarCierreRecuperable(null)
+                } else cambiarError(resultado.error)
+            }
             reconciliarRef.current?.(instante)
         }
         const intervalo = setInterval(actualizar, 250)
@@ -494,6 +535,7 @@ export function useSesionFocus(estadoRegistro, tareas = [], accionesTareas = {},
     }
 
     function iniciar({ nombre, usarColaFocus = false, bloques, colores, evento = null, tarea = null, actividadPuntual = null }) {
+        if (!confirmarCierreRecuperable()) return false
         if (sesionRef.current) {
             cambiarError("Ya hay una sesión Focus activa.")
             return false
@@ -532,7 +574,7 @@ export function useSesionFocus(estadoRegistro, tareas = [], accionesTareas = {},
             return false
         }
         const configuracion = crearConfiguracion(nombre, bloques, colores, usarColaFocus, evento, tarea, actividadPuntual)
-        const ahoraMs = Date.now()
+        const ahoraMs = ahora
         const ahoraIso = fechaIso(ahoraMs)
         const primera = configuracion.bloques[0]
         const esperar = primera.tipo === "concentracion" && hayOtraActividadEnCurso()
@@ -638,7 +680,63 @@ export function useSesionFocus(estadoRegistro, tareas = [], accionesTareas = {},
     function finalizarSesion() {
         const actual = sesionRef.current
         if (!actual) return false
-        return terminarSesion(actual, Date.now())
+        return terminarSesion(actual, Date.now(), true, true)
+    }
+
+    function confirmarCierreRecuperable() {
+        const cierre = cierreRecuperableRef.current
+        if (!cierre) return true
+        if (!window.confirm("Hay una finalización de Focus que todavía podés deshacer. ¿Confirmás esa finalización y comenzás una sesión nueva?")) return false
+        const resultado = guardarCierreRecuperableFocus(null)
+        if (!resultado.ok) { cambiarError(resultado.error); return false }
+        cierreRecuperableRef.current = null
+        cambiarCierreRecuperable(null)
+        return true
+    }
+
+    function deshacerFinalizacionSesion() {
+        const cierre = cierreRecuperableRef.current
+        if (!cierre || Date.parse(cierre.venceEn) <= Date.now()) return false
+        if (sesionRef.current) {
+            cambiarError("No se puede restaurar esta sesión mientras hay otra sesión Focus activa.")
+            return false
+        }
+        const registrosActivos = registroRef.current.registros.filter(registro => registro.estado === "En curso"
+            && registro.id !== cierre.registroAnterior?.id)
+        if (cierre.registroAnterior?.estado === "En curso" && registrosActivos.length > 0) {
+            cambiarError("No se puede restaurar la concentración mientras hay otra actividad en curso. Pausala o finalizala primero.")
+            return false
+        }
+        const historialAnterior = historialRef.current
+        const historialRestaurado = historialAnterior.filter(item => item.id !== cierre.historialId)
+        if (!guardarHistorial(historialRestaurado)) return false
+        if (cierre.registroAnterior) {
+            const restauracion = registroRef.current.restaurarFinalizacion?.(
+                cierre.registroAnterior.id, cierre.registroAnterior, new Date()
+            )
+            if (!restauracion?.ok) {
+                guardarHistorial(historialAnterior)
+                cambiarError(restauracion?.error ?? "No se pudo restaurar el registro vinculado a Focus.")
+                return false
+            }
+        }
+        const borrado = guardarCierreRecuperableFocus(null)
+        if (!borrado.ok) {
+            if (cierre.registroAnterior) registroRef.current.finalizar?.(cierre.registroAnterior.id, new Date())
+            guardarHistorial(historialAnterior)
+            cambiarError(borrado.error)
+            return false
+        }
+        if (!guardarSesion(cierre.sesionAnterior)) {
+            guardarCierreRecuperableFocus(cierre)
+            if (cierre.registroAnterior) registroRef.current.finalizar?.(cierre.registroAnterior.id, new Date())
+            guardarHistorial(historialAnterior)
+            return false
+        }
+        cierreRecuperableRef.current = null
+        cambiarCierreRecuperable(null)
+        cambiarError("")
+        return true
     }
 
     function guardarPlantilla(nombrePlantilla, configuracion) {
@@ -669,6 +767,7 @@ export function useSesionFocus(estadoRegistro, tareas = [], accionesTareas = {},
         plantillas,
         historial,
         sesion,
+        cierreRecuperable,
         bloqueActual,
         restanteMs,
         tiempoMuertoMs,
@@ -682,6 +781,7 @@ export function useSesionFocus(estadoRegistro, tareas = [], accionesTareas = {},
         cambiarAvanceAutomatico,
         confirmarSiguiente,
         finalizarSesion,
+        deshacerFinalizacionSesion,
         guardarPlantilla,
         eliminarPlantilla,
         limpiarError: () => cambiarError("")

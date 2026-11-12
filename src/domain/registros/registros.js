@@ -779,15 +779,33 @@ export function finalizarRegistro(registros, id, instante) {
     }, instante)
 }
 
-export function restaurarRegistroDeshecho(registros, id, registroAnterior, instante = new Date()) {
+export function restaurarRegistroDeshecho(registros, id, registroAnterior, instante = new Date(), permitirRecrear = false) {
     const registroActual = buscarRegistro(registros, id)
-    if (!registroActual || registroActual.estado !== ESTADO_REGISTRO_FINALIZADO
+    if ((!registroActual && !permitirRecrear) || (registroActual && registroActual.estado !== ESTADO_REGISTRO_FINALIZADO)
         || !registroAnterior || registroAnterior.id !== id
         || ![ESTADO_REGISTRO_EN_CURSO, ESTADO_REGISTRO_PAUSADO].includes(registroAnterior.estado)
         || !Array.isArray(registroAnterior.segmentos) || registroAnterior.segmentos.at(-1)?.fin !== null) {
         return { ok: false, error: "No se puede deshacer la finalización porque el registro ya cambió." }
     }
+    if (!registroActual) {
+        const restaurados = [...registros, registroAnterior]
+        return validarColeccionRegistros(restaurados, instante)
+            ? { ok: true, registros: restaurados, registro: registroAnterior }
+            : { ok: false, error: "No se puede restaurar el registro porque sus intervalos ya no son válidos." }
+    }
     return reemplazarRegistro(registros, registroAnterior, instante)
+}
+
+export function eliminarRegistroDeTransicion(registros, id, planId) {
+    const registro = buscarRegistro(registros, id)
+    if (!registro || registro.planId !== planId) {
+        return { ok: false, error: "No se puede retirar el registro creado por esta transición porque ya cambió." }
+    }
+    const restantes = registros.filter(item => item.id !== id)
+    if (!validarColeccionRegistros(restantes)) {
+        return { ok: false, error: "No se pudo retirar el registro creado por esta transición." }
+    }
+    return { ok: true, registros: restantes }
 }
 
 export function descartarRegistroPlanSinDuracion(registros, id, instante) {

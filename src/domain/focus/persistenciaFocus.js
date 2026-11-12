@@ -1,6 +1,30 @@
 export const CLAVE_PLANTILLAS_FOCUS = "focus.plantillas-sesion.v1"
 export const CLAVE_HISTORIAL_FOCUS = "focus.historial-sesion.v1"
 export const CLAVE_SESION_ACTIVA_FOCUS = "focus.sesion-activa.v1"
+export const CLAVE_CIERRE_RECUPERABLE_FOCUS = "focus.cierre-recuperable.v1"
+
+export function cargarCierreRecuperableFocus(almacenamiento = null) {
+    try {
+        const valor = JSON.parse((almacenamiento ?? globalThis.localStorage).getItem(CLAVE_CIERRE_RECUPERABLE_FOCUS) ?? "null")
+        return valor === null || (typeof valor.id === "string" && Number.isFinite(Date.parse(valor.venceEn))
+            && valor.sesionAnterior?.id === valor.id && typeof valor.historialId === "string")
+            ? { ok: true, cierre: valor }
+            : { ok: false, cierre: null, error: "La finalización recuperable de Focus tiene datos inválidos." }
+    } catch { return { ok: false, cierre: null, error: "No se pudo leer la finalización recuperable de Focus." } }
+}
+
+export function guardarCierreRecuperableFocus(cierre, almacenamiento = null) {
+    if (cierre !== null && (typeof cierre.id !== "string" || !Number.isFinite(Date.parse(cierre.venceEn))
+        || cierre.sesionAnterior?.id !== cierre.id || typeof cierre.historialId !== "string")) {
+        return { ok: false, error: "La finalización recuperable de Focus contiene datos inválidos." }
+    }
+    try {
+        const almacen = almacenamiento ?? globalThis.localStorage
+        if (cierre === null) almacen.removeItem(CLAVE_CIERRE_RECUPERABLE_FOCUS)
+        else almacen.setItem(CLAVE_CIERRE_RECUPERABLE_FOCUS, JSON.stringify(cierre))
+        return { ok: true }
+    } catch { return { ok: false, error: "No se pudo guardar la finalización recuperable de Focus." } }
+}
 
 function leerLista(clave, almacenamiento) {
     try {

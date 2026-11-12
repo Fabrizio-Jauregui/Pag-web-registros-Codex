@@ -184,6 +184,14 @@ export function VistaFocus({ estadoRegistro, eventos = [], tareas = [], categori
             {vistaActiva && focus.error && <p className="focus-mensaje-error" role="alert">{focus.error}</p>}
             {vistaActiva && errorConfiguracion && <p className="focus-mensaje-error" role="alert">{errorConfiguracion}</p>}
 
+            {vistaActiva && !sesion && focus.cierreRecuperable && (
+                <section className="focus-cierre-recuperable" aria-label="Finalización Focus que podés deshacer">
+                    <p>La sesión “{focus.cierreRecuperable.sesionAnterior.configuracion.nombre}” se finalizó. Podés deshacerlo durante {Math.max(0, Math.ceil((Date.parse(focus.cierreRecuperable.venceEn) - focus.ahora) / 1000))} s.</p>
+                    <button type="button" disabled={Date.parse(focus.cierreRecuperable.venceEn) <= focus.ahora}
+                        onClick={focus.deshacerFinalizacionSesion}>Deshacer</button>
+                </section>
+            )}
+
             {vistaActiva && <section className="focus-iniciar focus-iniciar-independiente" aria-labelledby="titulo-actividad-independiente">
                 <div>
                     <h3 id="titulo-actividad-independiente">Iniciar actividad independiente</h3>

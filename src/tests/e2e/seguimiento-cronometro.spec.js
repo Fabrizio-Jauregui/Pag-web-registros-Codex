@@ -100,16 +100,70 @@ test("sigue una secuencia sin duraciones con cronómetros paralelos independient
     expect(registros.filter(registro => ["Desayunar", "Ver YouTube", "Lavar los platos"].includes(registro.nombre)).every(registro => registro.estado === "En curso")).toBe(true)
     await expect(activosRecargados.getByRole("listitem")).toHaveCount(3)
 
-    await activosRecargados.getByRole("listitem").filter({ hasText: "Desayunar" }).getByRole("button", { name: /Finalizar/ }).click()
-    await activosRecargados.getByRole("listitem").filter({ hasText: "Ver YouTube" }).getByRole("button", { name: /Finalizar/ }).click()
-    await activosRecargados.getByRole("listitem").filter({ hasText: "Lavar los platos" }).getByRole("button", { name: /Finalizar/ }).click()
-    await expect(carrilRecargado).toHaveCount(0)
+    await page.reload()
+    const carrilConDeshacer = page.getByRole("region", { name: "Carril de seguimiento", exact: true })
+    const deshacer = carrilConDeshacer.getByRole("region", { name: "Finalizaciones que podés deshacer" })
+    await expect(deshacer.getByRole("button", { name: "Deshacer finalización de Llamar a mi abuela" })).toBeVisible()
+    await deshacer.getByRole("button", { name: "Deshacer finalización de Llamar a mi abuela" }).click()
+    registros = await page.evaluate(clave => JSON.parse(localStorage.getItem(clave)), CLAVE_REGISTROS)
+    expect(registros.find(registro => registro.nombre === "Llamar a mi abuela").estado).toBe("En curso")
+    await expect(carrilConDeshacer.locator('section[aria-label="Eventos registrándose en paralelo"]')
+        .getByRole("listitem")).toHaveCount(4)
+
+    const activosRestaurados = carrilConDeshacer.locator('section[aria-label="Eventos registrándose en paralelo"], section[aria-label="Evento registrándose"]')
+    await activosRestaurados.getByRole("listitem").filter({ hasText: "Llamar a mi abuela" }).getByRole("button", { name: /Finalizar/ }).click()
+    await activosRestaurados.getByRole("listitem").filter({ hasText: "Desayunar" }).getByRole("button", { name: /Finalizar/ }).click()
+    await activosRestaurados.getByRole("listitem").filter({ hasText: "Ver YouTube" }).getByRole("button", { name: /Finalizar/ }).click()
+    await activosRestaurados.getByRole("listitem").filter({ hasText: "Lavar los platos" }).getByRole("button", { name: /Finalizar/ }).click()
+    await expect(carrilConDeshacer.getByRole("region", { name: "Finalizaciones que podés deshacer" })
+        .getByRole("button")).toHaveCount(4)
+    await page.clock.fastForward(120_000)
+    await expect(carrilConDeshacer).toHaveCount(0)
     registros = await page.evaluate(clave => JSON.parse(localStorage.getItem(clave)), CLAVE_REGISTROS)
     expect(registros).toHaveLength(4)
     expect(registros.every(registro => registro.estado === "Finalizado" && registro.planId)).toBe(true)
     const planes = await page.evaluate(clave => JSON.parse(localStorage.getItem(clave)), CLAVE_PLANES)
     expect(planes).toHaveLength(5)
     expect(planes.every(plan => plan.modoSeguimientoPlanificacion === "cronometro" && plan.fin === null)).toBe(true)
+})
+
+test("la transición manual del cronómetro inicia la siguiente etapa al instante y se puede deshacer", async ({ page }) => {
+    const fecha = manana()
+    const instante = (hora, minuto) => new Date(`${fecha}T${String(hora).padStart(2, "0")}:${String(minuto).padStart(2, "0")}:00`).toISOString()
+    const planes = [
+        ["evento-uno", "Evento uno", 0],
+        ["evento-paralelo", "Evento paralelo", 0],
+        ["evento-siguiente", "Evento siguiente", 1]
+    ].map(([id, nombre, grupoCronometro], ordenSeguimiento) => ({
+        id, nombre, eventoId: null, origenPuntual: true, categoriaIds: [], colorEvento: null,
+        inicio: instante(9, 0), fin: null, modoSeguimientoPlanificacion: "cronometro",
+        idAplicacionPlantilla: "aplicacion-recuperable", plantillaOrigenNombre: "Secuencia recuperable",
+        grupoCronometro, ordenSeguimiento
+    }))
+    await page.clock.install({ time: new Date(`${fecha}T09:00:00`) })
+    await page.addInitScript(({ planesIniciales }) => localStorage.setItem("focus.planes.v1", JSON.stringify(planesIniciales)), { planesIniciales: planes })
+    await page.goto("/")
+    await page.getByLabel("Ir a fecha").fill(fecha)
+    await page.locator(".marcador-secuencia-cronometro").click()
+    const tarjeta = page.locator(".tarjeta-secuencia-cronometro")
+    await tarjeta.getByRole("button", { name: "Iniciar este evento" }).first().click()
+    const carril = page.getByRole("region", { name: "Carril de seguimiento", exact: true })
+    const pendientes = carril.getByRole("region", { name: "Eventos pendientes del carril de seguimiento" })
+    await pendientes.getByRole("listitem").filter({ hasText: "Evento paralelo" }).getByRole("button", { name: "Iniciar cronómetro" }).click()
+    const activos = carril.locator('section[aria-label="Eventos registrándose en paralelo"]')
+    const ids = { "Evento uno": "evento-uno", "Evento siguiente": "evento-siguiente" }
+    const registroAnterior = await page.evaluate(({ clave, planId }) => JSON.parse(localStorage.getItem(clave)).find(item => item.planId === planId), { clave: CLAVE_REGISTROS, planId: ids["Evento uno"] })
+    await activos.getByRole("listitem").filter({ hasText: "Evento uno" })
+        .getByRole("button", { name: "Finalizar “Evento uno” y comenzar “Evento siguiente”" }).click()
+    await expect(activos.getByRole("listitem")).toContainText(["Evento paralelo", "Evento siguiente"])
+    await carril.getByRole("region", { name: "Finalizaciones que podés deshacer" })
+        .getByRole("button", { name: "Deshacer finalización de Evento uno" }).click()
+    await expect(activos.getByRole("listitem")).toContainText(["Evento uno", "Evento paralelo"])
+    await expect(activos.getByRole("listitem").locator("strong", { hasText: "Evento siguiente" })).toHaveCount(0)
+    const registros = await page.evaluate(clave => JSON.parse(localStorage.getItem(clave)), CLAVE_REGISTROS)
+    expect(registros.find(item => item.planId === ids["Evento uno"]).id).toBe(registroAnterior.id)
+    expect(registros.find(item => item.planId === ids["Evento uno"]).estado).toBe("En curso")
+    expect(registros.filter(item => item.planId === ids["Evento siguiente"])).toHaveLength(0)
 })
 
 test("permite iniciar juntos los eventos de la primera etapa desde la tarjeta del calendario", async ({ page }) => {

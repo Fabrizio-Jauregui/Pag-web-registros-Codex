@@ -3,12 +3,15 @@ import test from "node:test"
 
 import {
     cargarHistorialFocus,
+    cargarCierreRecuperableFocus,
     cargarPlantillasFocus,
     cargarSesionActivaFocus,
     CLAVE_HISTORIAL_FOCUS,
+    CLAVE_CIERRE_RECUPERABLE_FOCUS,
     CLAVE_PLANTILLAS_FOCUS,
     CLAVE_SESION_ACTIVA_FOCUS,
     guardarHistorialFocus,
+    guardarCierreRecuperableFocus,
     guardarPlantillasFocus,
     guardarSesionActivaFocus
 } from "./persistenciaFocus.js"
@@ -19,6 +22,7 @@ function almacenamientoInicial() {
     return {
         getItem: clave => datos.get(clave) ?? null,
         setItem: (clave, valor) => datos.set(clave, valor),
+        removeItem: clave => datos.delete(clave),
         datos
     }
 }
@@ -101,6 +105,30 @@ test("rechaza datos inválidos y no sobrescribe el contenido original", () => {
     assert.equal(almacenamiento.getItem(CLAVE_PLANTILLAS_FOCUS), "{")
     assert.equal(guardarSesionActivaFocus({ estado: "fantasma" }, almacenamiento).ok, false)
     assert.equal(almacenamiento.getItem(CLAVE_SESION_ACTIVA_FOCUS), JSON.stringify({ estado: "fantasma" }))
+})
+
+test("guarda, restaura y elimina una finalización manual recuperable de Focus", () => {
+    const almacenamiento = almacenamientoInicial()
+    const cierre = {
+        id: "sesion-1",
+        venceEn: "2026-10-18T12:02:00.000Z",
+        sesionAnterior: { id: "sesion-1", configuracion },
+        registroAnterior: null,
+        historialId: "sesion-1"
+    }
+    assert.deepEqual(guardarCierreRecuperableFocus(cierre, almacenamiento), { ok: true })
+    assert.deepEqual(cargarCierreRecuperableFocus(almacenamiento), { ok: true, cierre })
+    assert.deepEqual(guardarCierreRecuperableFocus(null, almacenamiento), { ok: true })
+    assert.deepEqual(cargarCierreRecuperableFocus(almacenamiento), { ok: true, cierre: null })
+    assert.equal(almacenamiento.getItem(CLAVE_CIERRE_RECUPERABLE_FOCUS), null)
+})
+
+test("rechaza una finalización recuperable de Focus inválida sin reemplazarla", () => {
+    const almacenamiento = almacenamientoInicial()
+    almacenamiento.setItem(CLAVE_CIERRE_RECUPERABLE_FOCUS, "{")
+    assert.equal(cargarCierreRecuperableFocus(almacenamiento).ok, false)
+    assert.equal(guardarCierreRecuperableFocus({ id: "", venceEn: "x" }, almacenamiento).ok, false)
+    assert.equal(almacenamiento.getItem(CLAVE_CIERRE_RECUPERABLE_FOCUS), "{")
 })
 
 test("mantiene compatible una sesión antigua y valida la preferencia de avance guardada en la sesión", () => {

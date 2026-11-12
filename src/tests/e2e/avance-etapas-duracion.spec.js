@@ -95,7 +95,7 @@ function filaActiva(panel, nombre) {
     return region.locator(`li:has(> strong:text-is("${nombre}"))`)
 }
 
-test("avanza etapas con el botón combinado y deja activas las paralelas anteriores", async ({ page }) => {
+test("inicia la siguiente etapa al instante y deshacer revierte solo la transición", async ({ page }) => {
     const { planes, panel } = await prepararSeguimiento(page, { movil: true })
     const recurrenciasAntes = await page.evaluate(clave => localStorage.getItem(clave), CLAVE_RECURRENCIAS)
     await expect(panel.getByLabel("Modo de avance de la planificación").getByLabel(/Manual/)).toBeChecked()
@@ -104,7 +104,14 @@ test("avanza etapas con el botón combinado y deja activas las paralelas anterio
     await filaActiva(panel, "Desayunar")
         .getByRole("button", { name: "Finalizar “Desayunar” y comenzar “Sacar la mesa”" }).click()
     await expect(panel.getByRole("region", { name: "Finalizaciones que podés deshacer" })).toBeVisible()
+    await expect(filaActiva(panel, "Sacar la mesa")).toBeVisible()
+    await panel.getByRole("region", { name: "Finalizaciones que podés deshacer" })
+        .getByRole("button", { name: "Deshacer finalización de Desayunar" }).click()
+    await expect(filaActiva(panel, "Desayunar")).toBeVisible()
     await expect(filaActiva(panel, "Sacar la mesa")).toHaveCount(0)
+    await filaActiva(panel, "Desayunar")
+        .getByRole("button", { name: "Finalizar “Desayunar” y comenzar “Sacar la mesa”" }).click()
+    await expect(filaActiva(panel, "Sacar la mesa")).toBeVisible()
     await page.clock.fastForward(120_000)
     await expect(filaActiva(panel, "Ver YouTube")).toBeVisible()
     await expect(filaActiva(panel, "Sacar la mesa")).toBeVisible()
@@ -240,8 +247,9 @@ test("conserva y reintenta la transición fallida después de recargar, sin dupl
 
     await filaActiva(panel, "Desayunar")
         .getByRole("button", { name: "Finalizar “Desayunar” y comenzar “Sacar la mesa”" }).click()
-    await page.clock.fastForward(120_000)
-    await expect(panel.getByRole("alert")).toContainText("no se pudo iniciar “Sacar la mesa”")
+    await expect(panel.getByRole("alert")).toContainText("no se pudo iniciar el siguiente")
+    await expect(panel.getByRole("region", { name: "Finalizaciones que podés deshacer" })
+        .getByRole("button", { name: "Deshacer finalización de Desayunar" })).toBeVisible()
     let seguimiento = await page.evaluate(clave => JSON.parse(localStorage.getItem(clave)), CLAVE_SEGUIMIENTO)
     expect(seguimiento.transicionPendiente.planIds).toContain("mesa")
 
@@ -258,6 +266,13 @@ test("conserva y reintenta la transición fallida después de recargar, sin dupl
     expect(registros.filter(registro => registro.planId === "desayuno")).toHaveLength(1)
     expect(registros.filter(registro => registro.planId === "mesa")).toHaveLength(1)
     expect(registros.find(registro => registro.planId === "youtube").estado).toBe("En curso")
+
+    await panelRecargado.getByRole("region", { name: "Finalizaciones que podés deshacer" })
+        .getByRole("button", { name: "Deshacer finalización de Desayunar" }).click()
+    const despuesDeDeshacer = await page.evaluate(clave => JSON.parse(localStorage.getItem(clave)), CLAVE_REGISTROS)
+    expect(despuesDeDeshacer.filter(registro => registro.planId === "desayuno")).toHaveLength(1)
+    expect(despuesDeDeshacer.filter(registro => registro.planId === "mesa")).toHaveLength(0)
+    await expect(filaActiva(panelRecargado, "Desayunar")).toBeVisible()
 })
 
 test("deshace una finalización simple tras recargar y conserva el mismo registro", async ({ page }) => {
@@ -292,14 +307,14 @@ test("deshace una finalización simple tras recargar y conserva el mismo registr
     await expect(filaActiva(panelRecargado, "Sacar la mesa")).toHaveCount(0)
 })
 
-test("el botón combinado espera la ventana y deshacer cancela el avance sin mover horarios", async ({ page }) => {
+test("el botón combinado avanza al instante y deshacer retira sus registros sin mover horarios", async ({ page }) => {
     const { panel, planes } = await prepararSeguimiento(page, { planesIniciales: crearPlanesConEspera(fechaDeHoy()) })
     const seguimientoAntes = await page.evaluate(clave => JSON.parse(localStorage.getItem(clave)), CLAVE_SEGUIMIENTO)
     await page.clock.fastForward(1200)
     await filaActiva(panel, "Desayunar")
         .getByRole("button", { name: "Finalizar “Desayunar” y comenzar “Sacar la mesa”" }).click()
     await expect(filaActiva(panel, "Desayunar")).toHaveCount(0)
-    await expect(filaActiva(panel, "Sacar la mesa")).toHaveCount(0)
+    await expect(filaActiva(panel, "Sacar la mesa")).toBeVisible()
     await page.clock.fastForward(5000)
     await panel.getByRole("region", { name: "Finalizaciones que podés deshacer" })
         .getByRole("button", { name: "Deshacer finalización de Desayunar" }).click()
@@ -308,15 +323,18 @@ test("el botón combinado espera la ventana y deshacer cancela el avance sin mov
     expect(seguimientoDespues.secuencia.map(item => item.inicioOffsetMs ?? 0))
         .toEqual(seguimientoAntes.secuencia.map(item => item.inicioOffsetMs ?? 0))
     expect(await page.evaluate(clave => JSON.parse(localStorage.getItem(clave)), CLAVE_PLANES)).toEqual(planes)
+    const registros = await page.evaluate(clave => JSON.parse(localStorage.getItem(clave)), CLAVE_REGISTROS)
+    expect(registros.some(item => item.planId === "sacar-mesa")).toBe(false)
     await expect(filaActiva(panel, "Desayunar")).toBeVisible()
     await expect(filaActiva(panel, "Sacar la mesa")).toHaveCount(0)
 })
 
-test("confirma el avance combinado al vencer los 2 minutos y mantiene el registro anterior como terminado", async ({ page }) => {
+test("el avance combinado ocurre antes de que venza la ventana y conserva ambos registros", async ({ page }) => {
     const { panel } = await prepararSeguimiento(page, { planesIniciales: crearPlanesConEspera(fechaDeHoy()) })
     await page.clock.fastForward(1200)
     await filaActiva(panel, "Desayunar")
         .getByRole("button", { name: "Finalizar “Desayunar” y comenzar “Sacar la mesa”" }).click()
+    await expect(filaActiva(panel, "Sacar la mesa")).toBeVisible()
     await page.clock.fastForward(4000)
     await page.reload()
     const panelRecargado = page.getByRole("region", { name: "Siguiendo la planificación" })
@@ -345,19 +363,21 @@ test("cada actividad paralela tiene su propio deshacer", async ({ page }) => {
     await expect(filaActiva(panel, "Desayunar")).toBeVisible()
 })
 
-test("en modo automático la acción manual también espera 2 minutos", async ({ page }) => {
+test("el deshacer no retrasa el avance automático de la planificación", async ({ page }) => {
     const { panel } = await prepararSeguimiento(page, { planesIniciales: crearPlanesConEspera(fechaDeHoy()) })
     await panel.getByLabel(/Automático/).check()
     await page.clock.fastForward(1200)
     await filaActiva(panel, "Desayunar").getByRole("button", { name: "Finalizar “Desayunar”", exact: true }).click()
     const aviso = panel.getByRole("region", { name: "Finalizaciones que podés deshacer" })
     await expect(aviso).toContainText("120 s")
+    await page.clock.fastForward(120_000)
+    await expect(panel.getByRole("region", { name: "Finalizaciones que podés deshacer" })).toHaveCount(0)
     await expect(filaActiva(panel, "Sacar la mesa")).toHaveCount(0)
+    await page.clock.fastForward(8 * 60_000)
+    await expect(filaActiva(panel, "Sacar la mesa")).toBeVisible()
     const registrosDuranteLaEspera = await page.evaluate(clave => JSON.parse(localStorage.getItem(clave)), CLAVE_REGISTROS)
     expect(registrosDuranteLaEspera.find(item => item.planId === "desayuno").estado).toBe("Finalizado")
 
-    await page.clock.fastForward(120_000)
-    await expect(panel.getByRole("region", { name: "Finalizaciones que podés deshacer" })).toHaveCount(0)
     const registrosAlConfirmar = await page.evaluate(clave => JSON.parse(localStorage.getItem(clave)), CLAVE_REGISTROS)
     expect(registrosAlConfirmar.find(item => item.planId === "desayuno").estado).toBe("Finalizado")
 })

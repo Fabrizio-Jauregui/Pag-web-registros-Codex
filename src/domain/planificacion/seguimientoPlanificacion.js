@@ -164,7 +164,8 @@ export function validarEstadoSeguimiento(estado) {
         || !Array.isArray(estado.transicionPendiente.planIds)
         || estado.transicionPendiente.planIds.length === 0
         || estado.transicionPendiente.planIds.some(id => typeof id !== "string" || !idsSecuencia.has(id))
-        || new Set(estado.transicionPendiente.planIds).size !== estado.transicionPendiente.planIds.length)) return false
+        || new Set(estado.transicionPendiente.planIds).size !== estado.transicionPendiente.planIds.length
+        || (estado.transicionPendiente.finalizacionId !== undefined && typeof estado.transicionPendiente.finalizacionId !== "string"))) return false
 
     if (estado.finalizacionesPendientes !== undefined && (!Array.isArray(estado.finalizacionesPendientes)
         || estado.finalizacionesPendientes.some(item => !item || typeof item.id !== "string" || !item.id.trim()
@@ -178,10 +179,19 @@ export function validarEstadoSeguimiento(estado) {
             || !["En curso", "Pausado"].includes(item.registroAnterior.estado)
             || !Array.isArray(item.registroAnterior.segmentos)
             || item.registroAnterior.segmentos.at(-1)?.fin !== null
-            || (item.grupoSiguiente !== undefined && (!Number.isInteger(item.grupoSiguiente) || item.grupoSiguiente < 0)))
+            || (item.registroDescartado !== undefined && typeof item.registroDescartado !== "boolean")
+            || (item.grupoSiguiente !== undefined && (!Number.isInteger(item.grupoSiguiente) || item.grupoSiguiente < 0))
+            || (item.registrosTransicion !== undefined && (!Array.isArray(item.registrosTransicion)
+                || item.registrosTransicion.some(registro => !registro || typeof registro.planId !== "string"
+                    || !idsSecuencia.has(registro.planId) || typeof registro.registroId !== "string" || !registro.registroId.trim())))
+            || (item.offsetsTransicion !== undefined && (!Array.isArray(item.offsetsTransicion)
+                || item.offsetsTransicion.some(ajuste => !ajuste || typeof ajuste.planId !== "string"
+                    || !idsSecuencia.has(ajuste.planId) || !Number.isFinite(ajuste.deltaMs) || ajuste.deltaMs === 0)))
+            || (item.ajusteOffsetsMs !== undefined && (!Number.isFinite(item.ajusteOffsetsMs) || item.ajusteOffsetsMs < 0))
+            || (item.idsEtapaDesbloqueada !== undefined && (!Array.isArray(item.idsEtapaDesbloqueada)
+                || item.idsEtapaDesbloqueada.some(id => typeof id !== "string" || !idsSecuencia.has(id)))))
         || new Set(estado.finalizacionesPendientes.map(item => item.id)).size !== estado.finalizacionesPendientes.length
-        || new Set(estado.finalizacionesPendientes.map(item => item.planId)).size !== estado.finalizacionesPendientes.length
-        || estado.tipoSeguimiento === "cronometro")) return false
+        || new Set(estado.finalizacionesPendientes.map(item => item.planId)).size !== estado.finalizacionesPendientes.length)) return false
 
     if (!instanteValido(estado.inicio)) return false
     if (estado.estado === "En curso" && !(esCronometro && estado.finBloque === null) && !instanteValido(estado.finBloque)) return false

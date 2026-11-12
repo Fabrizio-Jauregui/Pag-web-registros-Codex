@@ -7,6 +7,7 @@ import {
     descartarRegistroPlanSinDuracion,
     editarRegistroFinalizado,
     eliminarRegistroFinalizado,
+    eliminarRegistroDeTransicion,
     ESTADO_REGISTRO_EN_CURSO,
     ESTADO_REGISTRO_PAUSADO,
     finalizarRegistro,
@@ -213,7 +214,7 @@ export function useRegistro({ onInicioConEvento } = {}) {
         return guardarTransicion(finalizarRegistro(datosActuales.registros, id, instante)).ok
     }
 
-    function restaurarFinalizacion(id, registroAnterior, instante = new Date()) {
+    function restaurarFinalizacion(id, registroAnterior, instante = new Date(), permitirRecrear = false) {
         const datosActuales = datosRef.current
         if (!datosActuales.ok) return { ok: false, error: datosActuales.error }
         const registro = {
@@ -225,7 +226,13 @@ export function useRegistro({ onInicioConEvento } = {}) {
             }))
         }
         cambiarAhora(instante)
-        return guardarTransicion(restaurarRegistroDeshecho(datosActuales.registros, id, registro, instante))
+        return guardarTransicion(restaurarRegistroDeshecho(datosActuales.registros, id, registro, instante, permitirRecrear))
+    }
+
+    function retirarRegistroDeTransicion(id, planId) {
+        const datosActuales = datosRef.current
+        if (!datosActuales.ok) return { ok: false, error: datosActuales.error }
+        return guardarTransicion(eliminarRegistroDeTransicion(datosActuales.registros, id, planId))
     }
 
     function descartarPlanSinDuracion(id, instante = new Date()) {
@@ -335,6 +342,7 @@ export function useRegistro({ onInicioConEvento } = {}) {
         continuar,
         finalizar,
         restaurarFinalizacion,
+        retirarRegistroDeTransicion,
         descartarPlanSinDuracion,
         buscar,
         crearManual,
